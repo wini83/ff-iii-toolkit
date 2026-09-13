@@ -6,7 +6,7 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
-## [2.0.0] - 2026-09-13
+## [3.0.0] - 2026-09-13
 
 ### Added
 
@@ -16,4 +16,4 @@ records for releases before the migration.
 
 ### Changed
 
-- The project is released as one product starting at version 2.0.0.
+- The project is released as one product starting at version 3.0.0.

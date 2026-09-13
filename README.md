@@ -21,7 +21,7 @@ GitHub release and publishes both images with the same version:
 - `ghcr.io/wini83/ff-iii-toolkit-frontend:<version>`
 
 For the first monorepo release, commit `VERSION` and `CHANGELOG.md` with
-`2.0.0`, then push the annotated tag `v2.0.0`.
+`3.0.0`, then push the annotated tag `v3.0.0`.
 
 ## Development
 

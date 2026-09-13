@@ -8,7 +8,7 @@ backend and all other requests to the frontend.
 
 1. Create `deploy/.env` from `.env.example` and set
    `FF_III_TOOLKIT_VERSION` to a published release version, for example
-   `2.0.0`.
+   `3.0.0`.
 2. Create `deploy/backend.env` from `backend.env.example` and replace its
    placeholder values with the production backend environment values. Do not
    commit this file.
