@@ -63,6 +63,8 @@ jobs:
           push: true
           tags: ${{ steps.backend-meta.outputs.tags }}
           labels: ${{ steps.backend-meta.outputs.labels }}
+          build-args: |
+            TOOLKIT_VERSION=${{ steps.version.outputs.version }}
 
       - uses: docker/metadata-action@v6
         id: frontend-meta

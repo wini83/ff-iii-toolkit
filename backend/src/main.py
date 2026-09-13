@@ -1,4 +1,5 @@
 import logging
+import os
 import tomllib
 from contextlib import asynccontextmanager
 
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_version() -> str:
+    release_version = os.getenv("TOOLKIT_VERSION")
+    if release_version:
+        return release_version
+
     with open("pyproject.toml", "rb") as f:
         data = tomllib.load(f)
     return data["project"]["version"]

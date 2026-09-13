@@ -18,6 +18,8 @@ FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
+ARG TOOLKIT_VERSION=unknown
+
 # Zależności systemowe (minimalne, ale stabilizują buildy)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl \
@@ -39,6 +41,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV TZ=Europe/Warsaw
 ENV PYTHONPATH=/app/src
+ENV TOOLKIT_VERSION=${TOOLKIT_VERSION}
 
 
 EXPOSE 8000
