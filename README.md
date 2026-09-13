@@ -13,15 +13,22 @@ Each component retains its own detailed documentation and changelog:
 
 ## Releases
 
-The toolkit has one product version, stored in [`VERSION`](VERSION), and one
-root [changelog](CHANGELOG.md). A pushed tag matching `v<version>` creates a
-GitHub release and publishes both images with the same version:
+The toolkit has one product version, stored in [`VERSION`](VERSION) and managed
+centrally by Commitizen. The root [changelog](CHANGELOG.md) is generated from
+Conventional Commits. A pushed tag matching `v<version>` creates a GitHub
+release and publishes both images with the same version:
 
 - `ghcr.io/wini83/ff-iii-toolkit-backend:<version>`
 - `ghcr.io/wini83/ff-iii-toolkit-frontend:<version>`
 
-For the first monorepo release, commit `VERSION` and `CHANGELOG.md` with
-`3.0.0`, then push the annotated tag `v3.0.0`.
+After a releasable Conventional Commit reaches `main`, the **Prepare release**
+workflow opens a `release/v<version>` pull request. Review and merge that PR to
+finalize the release: the **Finalize release** workflow creates the annotated
+tag, and the tag workflow publishes the GitHub release and both images.
+
+Use `make release-next` to preview the next version locally, and `make commit`
+to create a Conventional Commit interactively. Do not create release tags
+manually.
 
 ## Development
 
