@@ -39,6 +39,8 @@ make dev-b
 make dev-f
 ```
 
+Run `make help` to list all root-level commands.
+
 Refresh local installations from the committed lockfiles with
 `make deps-refresh`. To update dependency versions and their lockfiles, use
 `make deps-update` and commit the resulting `backend/uv.lock` and
