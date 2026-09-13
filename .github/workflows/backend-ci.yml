@@ -1,0 +1,40 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/**"
+      - "compose.yaml"
+      - "Makefile"
+      - "deploy/**"
+      - "scripts/**"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/**"
+      - "compose.yaml"
+      - "Makefile"
+      - "deploy/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --frozen --dev
+      - run: uv run ruff check .
+      - run: uv run pytest

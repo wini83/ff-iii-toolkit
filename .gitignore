@@ -213,6 +213,7 @@ vite.config.ts.timestamp-*
 
 # Monorepo local configuration
 backend/.env
+backend/data/
 
 # Marimo
 marimo/_static/

@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      INTERNAL_API_BASE: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend-data:

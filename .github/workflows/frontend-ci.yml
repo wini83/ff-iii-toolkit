@@ -1,0 +1,42 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/**"
+      - "compose.yaml"
+      - "Makefile"
+      - "deploy/**"
+      - "scripts/**"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/**"
+      - "compose.yaml"
+      - "Makefile"
+      - "deploy/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run build
