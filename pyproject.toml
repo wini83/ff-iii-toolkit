@@ -1,0 +1,25 @@
+[project]
+name = "ff-iii-toolkit"
+version = "3.0.1"
+description = "Firefly III Toolkit monorepo release tooling"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.18.0",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "pep440"
+version_provider = "commitizen"
+version = "3.0.1"
+version_files = [
+    "pyproject.toml:^version = \"(?P<version>.*)\"",
+    "VERSION",
+]
+changelog_file = "CHANGELOG.md"
+update_changelog_on_bump = true
+annotated_tag = true

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help deps-refresh deps-update dev-b dev-f backend-test backend-lint frontend-check frontend-lint frontend-build compose-up compose-down
+.PHONY: help deps-refresh deps-update dev-b dev-f backend-test backend-lint frontend-check frontend-lint frontend-build release-next commit compose-up compose-down
 
 help:
 	@printf '%s\n' \
@@ -14,6 +14,8 @@ help:
 		'  make frontend-check Run the frontend typecheck.' \
 		'  make frontend-lint  Run the frontend linter.' \
 		'  make frontend-build Build the frontend.' \
+		'  make release-next   Show the next version from Conventional Commits.' \
+		'  make commit         Create a Conventional Commit interactively.' \
 		'  make compose-up     Build and start the Compose stack.' \
 		'  make compose-down   Stop the Compose stack.'
 
@@ -45,6 +47,12 @@ frontend-lint:
 
 frontend-build:
 	cd frontend && npm run build
+
+release-next:
+	uv run --frozen cz bump --dry-run --yes --get-next
+
+commit:
+	uv run --frozen cz commit
 
 compose-up:
 	docker compose up --build
