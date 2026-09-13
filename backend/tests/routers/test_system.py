@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 from api.routers.system import get_transaction_snapshot_service
+from main import get_version
 from services.domain.metrics import FetchMetrics
 from services.snapshot.models import TransactionSnapshot
 from settings import settings
@@ -15,6 +16,12 @@ def test_system_ping(client):
 def test_system_version(client):
     r = client.get("/api/system/version")
     assert r.status_code == 200
+
+
+def test_release_version_overrides_component_version(monkeypatch):
+    monkeypatch.setenv("TOOLKIT_VERSION", "3.0.1")
+
+    assert get_version() == "3.0.1"
 
 
 def test_transaction_snapshot_status_without_snapshot(client):
