@@ -11,6 +11,18 @@ Each component retains its own detailed documentation and changelog:
 `backend/README.md`, `backend/CHANGELOG.md`, `frontend/DEVELOPING.md`, and
 `frontend/CHANGELOG.md`.
 
+## Releases
+
+The toolkit has one product version, stored in [`VERSION`](VERSION), and one
+root [changelog](CHANGELOG.md). A pushed tag matching `v<version>` creates a
+GitHub release and publishes both images with the same version:
+
+- `ghcr.io/wini83/ff-iii-toolkit-backend:<version>`
+- `ghcr.io/wini83/ff-iii-toolkit-frontend:<version>`
+
+For the first monorepo release, commit `VERSION` and `CHANGELOG.md` with
+`2.0.0`, then push the annotated tag `v2.0.0`.
+
 ## Development
 
 Configure the backend first:
@@ -62,6 +74,9 @@ Build and start the local stack from the repository root after creating
 docker compose up --build
 ```
 
-The backend is available on port 8000 and the frontend on port 3000. The same
-commands are available through the root `Makefile`, for example
+The backend is available on port 8000, the frontend on port 3000, and the
+integrated gateway on port 8080. The same commands are available through the root `Makefile`, for example
 `make backend-test` and `make frontend-build`.
+
+For a versioned production deployment and rollback procedure, see
+[`deploy/README.md`](deploy/README.md).
