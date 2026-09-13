@@ -1,0 +1,117 @@
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Literal
+from uuid import UUID
+
+from services.allegro.get_order_result import Payment as allegro_payment
+from services.domain.job_base import JobStatus
+from services.domain.match_result import MatchResult
+from services.domain.order_payment import OrderPayment
+from services.domain.transaction import TxTag
+
+
+@dataclass(frozen=True)
+class AllegroAccount:
+    id: UUID  # lokalny ID (UserSecret.id)
+    secret: str  # cookie / token
+    login: str | None = None
+
+
+@dataclass
+class AllegroOrderPayment(OrderPayment):
+    """Representation of an Allegro order payment."""
+
+    is_balanced: bool
+    allegro_login: str  # display metadata, NOT identity
+    external_short_id: str  # short ID of the payment
+    external_id: str  # full ID of the payment
+
+    @classmethod
+    def from_allegro_payment(cls, payment: allegro_payment, allegro_login: str):
+        """Create AllegroOrderPayment from allegro Payment."""
+        # allegro_login is used ONLY for details / UI
+        details = list[str]()
+        details.append(f"Buyer: {allegro_login}")
+        details.extend(payment.list_details())
+        details.append(
+            f"Payment metadata: {payment.payment_method}/{payment.payment_provider}"
+        )
+        return cls(
+            amount=payment.amount,
+            date=payment.date.date(),
+            details=details,
+            tag_done=TxTag.allegro_done,
+            is_balanced=payment.is_balanced,
+            allegro_login=allegro_login,
+            external_short_id=payment.short_id,
+            external_id=payment.payment_id,
+        )
+
+
+@dataclass
+class AllegroOrderPayments:
+    """Collection of Allegro order payments."""
+
+    payments: list[AllegroOrderPayment]
+
+
+@dataclass(frozen=True, slots=True)
+class AllegroPageRequest:
+    limit: int = 25
+    offset: int = 0
+
+    def __post_init__(self) -> None:
+        if self.limit <= 0:
+            raise ValueError("limit must be greater than 0")
+        if self.offset < 0:
+            raise ValueError("offset must be greater than or equal to 0")
+
+
+@dataclass(slots=True)
+class AllegroPageMatchCacheEntry:
+    page: AllegroPageRequest
+    login: str
+    payments: list[AllegroOrderPayment]
+    matches: list[MatchResult]
+    fetched_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(slots=True)
+class AllegroMatchPreview:
+    login: str
+    payments_fetched: int
+    transactions_found: int
+    transactions_not_matched: int
+    transactions_with_one_match: int
+    transactions_with_many_matches: int
+    fetch_seconds: float
+    content: list[MatchResult]
+    unmatched_payments: list[AllegroOrderPayment]
+
+
+@dataclass
+class MatchDecision:
+    payment_id: str
+    transaction_id: int
+    strategy: Literal["auto", "manual", "force"] = "auto"
+
+
+@dataclass(slots=True)
+class ApplyOutcome:
+    transaction_id: int
+    status: Literal["success", "failed"]
+    reason: str | None = None
+
+
+@dataclass(slots=True)
+class AllegroApplyJob:
+    id: UUID
+    secret_id: UUID
+    total: int
+    status: JobStatus
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    applied: int = 0
+    failed: int = 0
+    results: list[ApplyOutcome] = field(default_factory=list)
+
+    finished_at: datetime | None = None

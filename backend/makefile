@@ -1,0 +1,24 @@
+dev:
+	PYTHONPATH=src uv run uvicorn main:create_production_app --factory --reload --app-dir src
+
+test:
+	uv run pytest
+
+cov:
+	uv run pytest --cov
+
+cmt:
+	uv run cz commit
+
+pre:
+	uv run pre-commit run --all-files
+
+ruff:
+	uv run ruff check . --fix
+	uv run ruff format .
+
+mypy:
+	uv run env PYTHONPATH=src mypy .
+
+ty:
+	uv run ty check src

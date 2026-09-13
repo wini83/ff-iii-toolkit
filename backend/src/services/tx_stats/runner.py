@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Protocol
+
+from services.domain.job_base import JobStatus
+from services.domain.metrics import BaseMetrics
+from services.tx_stats.models import MetricsState
+
+
+class MetricsProvider[T: BaseMetrics](Protocol):
+    async def fetch_metrics(self) -> T: ...
+    async def refresh_metrics(self) -> T: ...
+    async def get_cached_snapshot_timestamp(self) -> datetime | None: ...
+
+
+async def recompute_metrics[T: BaseMetrics](
+    state: MetricsState[T],
+    provider: MetricsProvider[T],
+    *,
+    force_refresh: bool = False,
+) -> None:
+    state.status = JobStatus.RUNNING
+    state.progress = "fetching"
+    state.error = None
+    state.result = None
+    try:
+        if force_refresh:
+            result = await provider.refresh_metrics()
+        else:
+            result = await provider.fetch_metrics()
+        state.result = result
+        state.status = JobStatus.DONE
+        state.last_updated_at = datetime.now(UTC)
+        state.progress = None
+    except Exception as exc:
+        state.status = JobStatus.FAILED
+        state.error = str(exc)
+        state.progress = None
+        state.result = None

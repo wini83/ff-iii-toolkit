@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-core:
+        patterns:
+          - '@sveltejs/*'
+          - 'vite*'
+          - 'vitest*'
+          - '@tailwindcss/vite'
+      formatting:
+        patterns:
+          - 'prettier*'
+          - 'prettier-plugin-svelte*'
+          - 'prettier-plugin-tailwindcss*'
+      testing-library:
+        patterns:
+          - '@testing-library/*'
+    commit-message:
+      prefix: 'deps(ui)'
+    labels:
+      - dependencies
