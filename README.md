@@ -39,6 +39,11 @@ make dev-b
 make dev-f
 ```
 
+Refresh local installations from the committed lockfiles with
+`make deps-refresh`. To update dependency versions and their lockfiles, use
+`make deps-update` and commit the resulting `backend/uv.lock` and
+`frontend/package-lock.json` changes.
+
 Run component checks from their respective directories:
 
 ```sh

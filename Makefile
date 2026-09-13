@@ -1,4 +1,12 @@
-.PHONY: dev-b dev-f backend-test backend-lint frontend-check frontend-lint frontend-build compose-up compose-down
+.PHONY: deps-refresh deps-update dev-b dev-f backend-test backend-lint frontend-check frontend-lint frontend-build compose-up compose-down
+
+deps-refresh:
+	cd backend && uv sync --frozen --dev
+	cd frontend && npm ci
+
+deps-update:
+	cd backend && uv lock --upgrade && uv sync --dev
+	cd frontend && npm update
 
 dev-b:
 	$(MAKE) -C backend dev
