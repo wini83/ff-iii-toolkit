@@ -24,7 +24,15 @@ release and publishes both images with the same version:
 After a releasable Conventional Commit reaches `main`, the **Prepare release**
 workflow opens a `release/v<version>` pull request. Review and merge that PR to
 finalize the release: the **Finalize release** workflow creates the annotated
-tag, and the tag workflow publishes the GitHub release and both images.
+tag at the release PR's merge commit and directly calls the reusable **Release**
+workflow to publish the GitHub release and both images. This does not depend on
+a tag push made with `GITHUB_TOKEN` triggering another workflow.
+
+To recover publication for an existing tag, open **Actions → Release → Run
+workflow**, select `main`, and enter the tag (for example `v3.1.0`). The workflow
+checks out that tag and verifies its `VERSION` before publishing. Recovery does
+not require another version bump or recreating the tag. A user-pushed release
+tag can also trigger the same publication workflow.
 
 Use `make release-next` to preview the next version locally, and `make commit`
 to create a Conventional Commit interactively. Do not create release tags
