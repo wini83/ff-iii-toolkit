@@ -132,6 +132,7 @@ Endpoint summary from current routers:
 | `POST` | `/api/auth/refresh` | Refresh cookie | Issue new access token from refresh token. |
 | `GET` | `/api/me` | Active user | Return current user profile. |
 | `GET` | `/api/system/health` | No | API + DB health and bootstrap status. |
+| `GET` | `/api/system/firefly` | Active user | Firefly connection status and application/API versions from Luciferin `get_about()`. Returns `ok`, `error`, or `not_configured`; independent of API/DB health. |
 | `GET` | `/api/system/version` | No | API version from `pyproject.toml`. |
 | `GET` | `/api/system/bootstrap/status` | No | Whether first superuser exists. |
 | `POST` | `/api/system/bootstrap` | No | Create first superuser (one-time). |
