@@ -24,3 +24,21 @@ records for releases before the migration.
 ### Changed
 
 - The project is released as one product starting at version 3.0.0.
+
+## v3.1.0 (2026-10-01)
+
+### Feat
+
+- consume Firefly connection status through Luciferin (#34)
+
+## v3.0.1 (2026-09-13)
+
+### Fix
+
+- **release**: expose unified version in backend (#14)
+
+## v3.0.0 (2026-09-13)
+
+### Fix
+
+- **frontend**: track shared library sources
