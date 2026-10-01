@@ -21,5 +21,6 @@ version_files = [
     "VERSION",
 ]
 changelog_file = "CHANGELOG.md"
+changelog_incremental = true
 update_changelog_on_bump = true
 annotated_tag = true
