@@ -555,15 +555,18 @@ wheels = [
 
 [[package]]
 name = "ff-iii-luciferin"
-version = "1.0.0"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aenum" },
     { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8c/be/b17b1be10ae5637577e080fb920afe4251fb100c152d206b15242360a385/ff_iii_luciferin-1.0.0.tar.gz", hash = "sha256:e5e1fc7f1ca8ca305f636e77e435402ca43419e5fe7eaa8b1a5ee56d779a96be", size = 89453, upload-time = "2026-04-09T14:03:24.594Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/42/16/294ecb57b905c0751abb83e66e21bb8afdcca27657e11b0802c6b983c0a1/ff_iii_luciferin-1.2.1.tar.gz", hash = "sha256:bf521459a38f355b0369792ef28ad56475f1d29e8aa51fd264953ab670c594e1", size = 99695, upload-time = "2026-09-28T19:52:23.908Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/f1/692d9d31c6cfb30afe61066d9ca7bad75fbd2a099e08dd8d86041bc1863e/ff_iii_luciferin-1.0.0-py3-none-any.whl", hash = "sha256:a53ffb5c810afe5038cb8e8696e38f8b28f0838d16d2fd27cd2d4e0655e03d6d", size = 429325, upload-time = "2026-04-09T14:03:23.57Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/e9/377827888c7585596de4809c776ce912ecc24765e2a7435824fcb60693e6/ff_iii_luciferin-1.2.1-py3-none-any.whl", hash = "sha256:acaed603c732c995c78895aa66f981ca8c185cf305baa136561bfdab78c16a23", size = 442001, upload-time = "2026-09-28T19:52:22.307Z" },
 ]
 
 [[package]]
@@ -609,7 +612,7 @@ requires-dist = [
     { name = "argon2-cffi", specifier = ">=25.1.0" },
     { name = "cryptography", specifier = ">=45.0.0" },
     { name = "fastapi", specifier = ">=0.141.1" },
-    { name = "ff-iii-luciferin", specifier = ">=1.0.0b5" },
+    { name = "ff-iii-luciferin", specifier = ">=1.2.1,<2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "pandas-stubs", specifier = ">=2.3.3.251201" },

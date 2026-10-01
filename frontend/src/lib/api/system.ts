@@ -44,4 +44,13 @@ export async function getStatus(): Promise<{
   return { health, version };
 }
 
-export const system = { getHealth, getVersion, getStatus };
+export async function getFireflyStatus(): Promise<components['schemas']['FireflyStatusResponse']> {
+  const client = await api();
+  const { data, error, response } = await client.GET('/api/system/firefly', {});
+  if (!response.ok || error || !data) {
+    throw new Error('Firefly status check failed');
+  }
+  return data;
+}
+
+export const system = { getHealth, getVersion, getStatus, getFireflyStatus };

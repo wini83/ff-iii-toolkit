@@ -1,7 +1,31 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { getFireflyStatus } from '$lib/api/system';
+  import type { components } from '$lib/api/schema';
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
+
+  let firefly = $state<components['schemas']['FireflyStatusResponse'] | null>(null);
+  let checkingFirefly = $state(false);
+  let fireflyCheckFailed = $state(false);
+
+  async function refreshFireflyStatus() {
+    checkingFirefly = true;
+    fireflyCheckFailed = false;
+    firefly = null;
+    try {
+      firefly = await getFireflyStatus();
+    } catch {
+      fireflyCheckFailed = true;
+    } finally {
+      checkingFirefly = false;
+    }
+  }
+
+  onMount(() => {
+    void refreshFireflyStatus();
+  });
 
   const quickActions = [
     {
@@ -153,6 +177,35 @@
           </a>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="card bg-base-100 shadow-xl" aria-live="polite">
+    <div class="card-body flex-row flex-wrap items-center justify-between gap-4">
+      <div>
+        <h3 class="text-lg font-semibold">Firefly III</h3>
+        <p class="text-base-content/70 text-sm">
+          {#if checkingFirefly}
+            Checking connection…
+          {:else if fireflyCheckFailed}
+            Could not check connection
+          {:else if firefly?.status === 'ok'}
+            Connected · Version {firefly.version ?? 'unknown'} · API {firefly.api_version ??
+              'unknown'}
+          {:else if firefly?.status === 'not_configured'}
+            Connection not configured
+          {:else if firefly?.status === 'error'}
+            Connection unavailable — check Firefly III and its API token
+          {/if}
+        </p>
+      </div>
+      <button
+        class="btn btn-ghost btn-sm"
+        onclick={refreshFireflyStatus}
+        disabled={checkingFirefly}
+      >
+        Refresh status
+      </button>
     </div>
   </section>
 

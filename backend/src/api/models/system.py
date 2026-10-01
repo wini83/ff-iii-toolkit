@@ -46,3 +46,10 @@ class BootstrapResponse(BaseModel):
 class BootstrapPayload(BaseModel):
     username: str
     password: str
+
+
+class FireflyStatusResponse(BaseModel):
+    status: Literal["ok", "error", "not_configured"]
+    version: str | None = None
+    api_version: str | None = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -2,27 +2,31 @@ import logging
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from ff_iii_luciferin.api import FireflyAPIError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from api.deps_db import get_db
 from api.deps_services import (
     get_bootstrap_service,
+    get_firefly_client,
     get_transaction_snapshot_service,
 )
 from api.models.system import (
     BootstrapPayload,
     BootstrapResponse,
+    FireflyStatusResponse,
     HealthResponse,
     TransactionSnapshotRefreshResponse,
     TransactionSnapshotStatusResponse,
     VersionResponse,
 )
 from services.db.passwords import hash_password
-from services.guards import require_internal_api_key
+from services.guards import require_active_user, require_internal_api_key
 from services.snapshot import TransactionSnapshotService
 from services.snapshot.models import TransactionSnapshot
 from services.system.bootstrap import BootstrapAlreadyDone, BootstrapService
+from settings import settings
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 logger = logging.getLogger(__name__)
@@ -157,3 +161,21 @@ def bootstrap_system(
             status_code=409,
             detail="System already bootstrapped",
         ) from e
+
+
+@router.get(
+    "/firefly",
+    response_model=FireflyStatusResponse,
+    dependencies=[Depends(require_active_user)],
+)
+async def firefly_status() -> FireflyStatusResponse:
+    """Check the configured Firefly connection using Luciferin's about endpoint."""
+    if not settings.FIREFLY_URL or not settings.FIREFLY_TOKEN:
+        return FireflyStatusResponse(status="not_configured")
+    try:
+        about = await get_firefly_client().get_about()
+    except FireflyAPIError:
+        return FireflyStatusResponse(status="error")
+    return FireflyStatusResponse(
+        status="ok", version=about.version, api_version=about.api_version
+    )

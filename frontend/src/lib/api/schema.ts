@@ -884,6 +884,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/system/firefly': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Firefly Status
+     * @description Check the configured Firefly connection using Luciferin's about endpoint.
+     */
+    get: operations['firefly_status_api_system_firefly_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1222,6 +1242,23 @@ export interface components {
       size: number;
       /** Content */
       content: components['schemas']['SimplifiedRecord'][];
+    };
+    /** FireflyStatusResponse */
+    FireflyStatusResponse: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'ok' | 'error' | 'not_configured';
+      /** Version */
+      version?: string | null;
+      /** Api Version */
+      api_version?: string | null;
+      /**
+       * Timestamp
+       * Format: date-time
+       */
+      timestamp?: string;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -3522,6 +3559,37 @@ export interface operations {
         };
         content: {
           'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  firefly_status_api_system_firefly_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FireflyStatusResponse'];
         };
       };
       /** @description Validation Error */

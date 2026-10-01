@@ -1,9 +1,14 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
+import pytest
+from ff_iii_luciferin.api import FireflyAPIError
+from ff_iii_luciferin.domain.models import SystemInfo
+
 from api.routers.system import get_transaction_snapshot_service
 from main import get_version
 from services.domain.metrics import FetchMetrics
+from services.guards import require_active_user
 from services.snapshot.models import TransactionSnapshot
 from settings import settings
 
@@ -153,3 +158,48 @@ def test_transaction_snapshot_refresh_returns_snapshot_metadata(client, monkeypa
         "timestamp": r.json()["timestamp"],
     }
     service.refresh_snapshot.assert_awaited_once_with()
+
+
+def test_firefly_status_requires_authentication(client):
+    assert client.get("/api/system/firefly").status_code == 401
+
+
+@pytest.mark.parametrize("missing", ["FIREFLY_URL", "FIREFLY_TOKEN"])
+def test_firefly_status_not_configured(client, monkeypatch, missing):
+    client.app.dependency_overrides[require_active_user] = lambda: "user"
+    monkeypatch.setattr(settings, "FIREFLY_URL", "https://firefly.example")
+    monkeypatch.setattr(settings, "FIREFLY_TOKEN", "test-token")
+    monkeypatch.setattr(settings, missing, "")
+    factory = AsyncMock()
+    monkeypatch.setattr("api.routers.system.get_firefly_client", factory)
+
+    response = client.get("/api/system/firefly")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "not_configured"
+    factory.assert_not_called()
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_firefly_status_uses_luciferin_about(client, monkeypatch, failed):
+    client.app.dependency_overrides[require_active_user] = lambda: "user"
+    monkeypatch.setattr(settings, "FIREFLY_URL", "https://firefly.example")
+    monkeypatch.setattr(settings, "FIREFLY_TOKEN", "test-token")
+    firefly = AsyncMock()
+    firefly.get_about.return_value = SystemInfo(
+        version="6.7.4", api_version="6.7.4", php_version=None, os=None, driver=None
+    )
+    if failed:
+        firefly.get_about.side_effect = FireflyAPIError(
+            "secret error test-token", status_code=401
+        )
+    monkeypatch.setattr("api.routers.system.get_firefly_client", lambda: firefly)
+
+    response = client.get("/api/system/firefly")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == ("error" if failed else "ok")
+    assert response.json()["version"] == (None if failed else "6.7.4")
+    assert response.json()["api_version"] == (None if failed else "6.7.4")
+    assert "test-token" not in response.text
+    firefly.get_about.assert_awaited_once_with()
