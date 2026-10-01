@@ -34,6 +34,9 @@ jobs:
       - name: Sync release tooling
         run: uv sync --frozen
 
+      - name: Test release notes extraction
+        run: python -m unittest discover -s tests
+
       - name: Check release state
         id: state
         shell: bash
@@ -130,4 +133,4 @@ jobs:
             --base main \
             --head "$RELEASE_BRANCH" \
             --title "bump: version $RELEASE_VERSION" \
-            --body "Automated release preparation for v$RELEASE_VERSION. Merge this PR after required checks pass; the finalizer will create the Git tag, GitHub Release, and publish the GHCR images."
+            --body "Automated release preparation for v$RELEASE_VERSION. Merge this PR after required checks pass; the finalizer will create the Git tag and a draft GitHub Release with notes for this version. Publish that draft to build and publish the GHCR images."

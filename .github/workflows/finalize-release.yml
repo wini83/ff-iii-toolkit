@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 concurrency:
   group: finalize-release-${{ github.event.pull_request.number }}
@@ -20,8 +19,6 @@ jobs:
     if: >-
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/v')
-    outputs:
-      tag: v${{ steps.version.outputs.version }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout release merge commit
@@ -68,6 +65,14 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Extract release notes
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: >-
+          python scripts/extract_release_notes.py
+          "v${RELEASE_VERSION}"
+          release-notes.md
+
       - name: Create and push release tag
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
@@ -82,8 +87,19 @@ jobs:
           git tag -a "$tag" -m "$tag"
           git push origin "$tag"
 
-  publish:
-    needs: finalize-release
-    uses: ./.github/workflows/release.yml
-    with:
-      tag: ${{ needs.finalize-release.outputs.tag }}
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          tag="v${RELEASE_VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "GitHub Release $tag already exists."
+          else
+            gh release create "$tag" \
+              --draft \
+              --verify-tag \
+              --title "$tag" \
+              --notes-file release-notes.md
+          fi

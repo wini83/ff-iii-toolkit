@@ -15,24 +15,25 @@ Each component retains its own detailed documentation and changelog:
 
 The toolkit has one product version, stored in [`VERSION`](VERSION) and managed
 centrally by Commitizen. The root [changelog](CHANGELOG.md) is generated from
-Conventional Commits. A pushed tag matching `v<version>` creates a GitHub
-release and publishes both images with the same version:
+Conventional Commits. Published releases provide both images with the same version:
 
 - `ghcr.io/wini83/ff-iii-toolkit-backend:<version>`
 - `ghcr.io/wini83/ff-iii-toolkit-frontend:<version>`
 
 After a releasable Conventional Commit reaches `main`, the **Prepare release**
-workflow opens a `release/v<version>` pull request. Review and merge that PR to
-finalize the release: the **Finalize release** workflow creates the annotated
-tag at the release PR's merge commit and directly calls the reusable **Release**
-workflow to publish the GitHub release and both images. This does not depend on
-a tag push made with `GITHUB_TOKEN` triggering another workflow.
+workflow opens a `release/v<version>` pull request. Review and merge that PR:
+**Finalize release** creates an annotated tag at the release PR's merge commit
+and a **draft GitHub Release**, with notes extracted only for that version.
 
-To recover publication for an existing tag, open **Actions → Release → Run
-workflow**, select `main`, and enter the tag (for example `v3.1.0`). The workflow
-checks out that tag and verifies its `VERSION` before publishing. Recovery does
-not require another version bump or recreating the tag. A user-pushed release
-tag can also trigger the same publication workflow.
+Review the draft under **Releases**, then click **Publish release**. This starts
+**Publish container images**, which checks out the release tag and publishes
+both GHCR images with `<version>` and `latest` tags. Creating a tag or a draft
+does not publish images.
+
+To rebuild images for an already published release, open **Actions → Publish
+container images → Run workflow**, select `main`, and enter `release_tag`
+(for example `v3.1.0`). Missing releases and drafts are rejected; publish the
+draft first. Recovery does not require another version bump or recreating a tag.
 
 Use `make release-next` to preview the next version locally, and `make commit`
 to create a Conventional Commit interactively. Do not create release tags
