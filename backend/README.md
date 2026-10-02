@@ -14,6 +14,7 @@ FastAPI backend for reconciling Firefly III transactions with BLIK CSV imports a
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
 - [Configuration (.env)](#configuration-env)
+- [VeloBank PDF CLI](#velobank-pdf-cli)
 - [API overview](#api-overview)
 - [Development](#development)
 - [CI/CD](#cicd)
@@ -24,6 +25,7 @@ FastAPI backend for reconciling Firefly III transactions with BLIK CSV imports a
 
 ## What it does
 Use-cases:
+- Convert text-based VeloBank account-history PDFs to Firefly III importer CSVs locally. See [VeloBank PDF CLI](#velobank-pdf-cli).
 - Import BLIK bank CSV files, preview parsed rows, compute matches against Firefly III transactions, and apply selected one-to-one matches.
 - Pull Allegro payments (per stored user secret), preview matching against Firefly III transactions, and run async apply jobs.
 - Screen uncategorized Firefly III transactions by month and apply categories/tags from the API.
@@ -169,6 +171,78 @@ Endpoint summary from current routers:
 | `POST` | `/api/users/{user_id}/demote` | Superuser | Demote from superuser. |
 | `DELETE` | `/api/users/{user_id}` | Superuser | Delete user. |
 | `GET` | `/api/users/audit-log` | Superuser | Query audit-log entries. |
+
+## VeloBank PDF CLI
+
+Convert a **text-based VeloBank "Historia rachunku" PDF** with five columns
+(transaction date, booking date, description, transaction amount, balance) to CSV:
+
+```bash
+cd backend
+uv sync --frozen
+uv run python cli/velobank.py /path/to/history.pdf \
+  --output /path/to/velobank.csv \
+  --account-name "VeloBank credit card"
+```
+
+Use the exact name of the existing Firefly account. The command runs entirely
+locally and needs neither a database, `.env`, nor Firefly credentials. It reads
+every page, joins wrapped descriptions, and preserves both dates, signed amounts,
+currency and available account numbers. It prints the number of operations and
+debit/credit totals per currency. Existing output files are never overwritten.
+Invalid rows, missing rows, unreadable files and unsupported layouts stop the
+conversion without publishing a partial CSV. Scans and password-protected PDFs
+are unsupported. Zero balances in a credit-card history are not used to validate
+amounts; the source may have no usable balance or totals to reconcile against.
+
+### Own-account transfers and card repayments
+
+Provide other own account numbers and their exact Firefly asset-account names:
+
+```bash
+uv run python cli/velobank.py /path/to/history.pdf \
+  -o /path/to/velobank.csv --account-name "VeloBank credit card" \
+  --own-account "PL12345678901234567890123456=Main account"
+```
+
+Repeat `--own-account` for additional accounts. Polish IBANs with or without `PL`
+and spaces are accepted. If a transfer description contains the matching account
+number, the CSV uses the provided account name as the counterparty. During the
+import, map both sides to existing asset accounts so a card repayment becomes a
+transfer rather than income. Unknown counterparties remain explicit and must be
+reviewed. Card purchases use the merchant description as the counterparty name.
+The original complete description is always retained.
+
+### Importing the CSV into Firefly III
+
+Choose **File**, UTF-8, headers enabled, delimiter `;` and date format `Y-m-d` in
+the Data Importer. Map the columns below, review account mappings and the first
+small batch, then save the importer's JSON configuration for subsequent imports.
+
+| CSV column | Importer mapping |
+| --- | --- |
+| `Date` | Transaction date |
+| `Booking date` | Book/booking date, or skip if not supported |
+| `Amount` | Signed amount (decimal point) |
+| `Currency` | Currency code |
+| `Description` | Description |
+| `Source account`, `Destination account` | Source/destination account names |
+| `Source IBAN`, `Destination IBAN` | Source/destination account IBANs |
+| `External ID` | External ID; enable identifier-based duplicate detection |
+| `Payee` | Helper column; skip when using both account-name columns |
+
+### Duplicate detection limitations
+
+The PDF has no bank transaction IDs. The converter generates `velobank-v1-*` IDs
+from the account, both dates, amount, currency and normalized full description.
+They do not depend on the filename, page number, export date or unrelated rows.
+Repeated identical operations receive occurrence suffixes, so legitimate same-day
+duplicates are preserved. **Use complete days and all operation types when
+exporting overlapping histories.** Filtering out some identical operations,
+changed bank descriptions or dates can make generated IDs ambiguous or different.
+They are not compatible with GoCardless IDs, and do not deduplicate both sides of
+a transfer imported separately from different banks. Review these overlaps before
+importing; the CLI converts files and does not reconcile existing Firefly data.
 
 ## Development
 ```bash
