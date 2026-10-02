@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.2.0 (2026-10-02)
+
+### Feat
+
+- **import**: add local VeloBank PDF to CSV CLI (#39)
+
 ## v3.1.0 (2026-10-01)
 
 ### Feat
