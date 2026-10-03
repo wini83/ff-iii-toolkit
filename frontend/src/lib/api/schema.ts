@@ -276,6 +276,110 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/tools/velobank/accounts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Accounts */
+    get: operations['list_accounts_api_tools_velobank_accounts_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/tools/velobank/mappings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Mappings */
+    get: operations['get_mappings_api_tools_velobank_mappings_get'];
+    /** Save Mappings */
+    put: operations['save_mappings_api_tools_velobank_mappings_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/tools/velobank/upload': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload Pdf */
+    post: operations['upload_pdf_api_tools_velobank_upload_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/tools/velobank/files/{file_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Preview */
+    get: operations['get_preview_api_tools_velobank_files__file_id__get'];
+    put?: never;
+    post?: never;
+    /** Discard Preview */
+    delete: operations['discard_preview_api_tools_velobank_files__file_id__delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/tools/velobank/files/{file_id}/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Configure Preview */
+    post: operations['configure_preview_api_tools_velobank_files__file_id__preview_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/tools/velobank/files/{file_id}/export-csv': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Export Csv */
+    post: operations['export_csv_api_tools_velobank_files__file_id__export_csv_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/tx/screening': {
     parameters: {
       query?: never;
@@ -1108,6 +1212,11 @@ export interface components {
       /** File */
       file: string;
     };
+    /** Body_upload_pdf_api_tools_velobank_upload_post */
+    Body_upload_pdf_api_tools_velobank_upload_post: {
+      /** File */
+      file: string;
+    };
     /** BootstrapPayload */
     BootstrapPayload: {
       /** Username */
@@ -1670,6 +1779,99 @@ export interface components {
       unlocked: boolean;
       /** Expires At */
       expires_at?: string | null;
+    };
+    /** VeloBankAccountOption */
+    VeloBankAccountOption: {
+      /** Id */
+      id: string;
+      /** Name */
+      name: string;
+      /** Iban */
+      iban?: string | null;
+    };
+    /** VeloBankMappings */
+    VeloBankMappings: {
+      /** Accounts */
+      accounts?: {
+        [key: string]: string;
+      };
+    };
+    /** VeloBankPreviewResponse */
+    VeloBankPreviewResponse: {
+      /**
+       * File Id
+       * Format: uuid
+       */
+      file_id: string;
+      /**
+       * Expires At
+       * Format: date-time
+       */
+      expires_at: string;
+      /** Account Iban */
+      account_iban: string;
+      /** Account Name */
+      account_name: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * End Date
+       * Format: date
+       */
+      end_date: string;
+      /** Record Count */
+      record_count: number;
+      /** Totals */
+      totals: components['schemas']['VeloBankTotals'][];
+      /** Preview */
+      preview: components['schemas']['VeloBankRow'][];
+      /** Warnings */
+      warnings: string[];
+    };
+    /** VeloBankRow */
+    VeloBankRow: {
+      /** Id */
+      id: string;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /**
+       * Booking Date
+       * Format: date
+       */
+      booking_date: string;
+      /** Amount */
+      amount: string;
+      /** Currency */
+      currency: string;
+      /** Payee */
+      payee: string;
+      /** Description */
+      description: string;
+      /** Source Account */
+      source_account: string;
+      /** Destination Account */
+      destination_account: string;
+      /** Source Iban */
+      source_iban: string;
+      /** Destination Iban */
+      destination_iban: string;
+      /** Needs Review */
+      needs_review: boolean;
+    };
+    /** VeloBankTotals */
+    VeloBankTotals: {
+      /** Currency */
+      currency: string;
+      /** Debits */
+      debits: string;
+      /** Credits */
+      credits: string;
     };
     /** VersionResponse */
     VersionResponse: {
@@ -2308,6 +2510,278 @@ export interface operations {
       };
     };
     requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  list_accounts_api_tools_velobank_accounts_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VeloBankAccountOption'][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_mappings_api_tools_velobank_mappings_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VeloBankMappings'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  save_mappings_api_tools_velobank_mappings_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VeloBankMappings'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VeloBankMappings'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  upload_pdf_api_tools_velobank_upload_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_pdf_api_tools_velobank_upload_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VeloBankPreviewResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_preview_api_tools_velobank_files__file_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        file_id: string;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VeloBankPreviewResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  discard_preview_api_tools_velobank_files__file_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        file_id: string;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  configure_preview_api_tools_velobank_files__file_id__preview_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        file_id: string;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VeloBankMappings'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VeloBankPreviewResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  export_csv_api_tools_velobank_files__file_id__export_csv_post: {
+    parameters: {
+      query?: {
+        chunk_size?: number | null;
+      };
+      header?: never;
+      path: {
+        file_id: string;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VeloBankMappings'];
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {

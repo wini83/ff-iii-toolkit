@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date as Date
+from datetime import datetime
 from decimal import Decimal
+from io import BufferedReader, BytesIO
 from pathlib import Path
 
 import pdfplumber
@@ -40,8 +42,8 @@ AMOUNT_PATTERN = re.compile(r"(-?\d+(?: \d{3})*,\d{2}) ([A-Z]{3})")
 class VeloBankTransaction:
     """A booked operation, preserving its original description and both dates."""
 
-    date: date
-    booking_date: date
+    date: Date
+    booking_date: Date
     description: str
     amount: Decimal
     currency: str
@@ -71,7 +73,9 @@ def _transaction(cells: list[str]) -> VeloBankTransaction:
         raise VeloBankParseError("Invalid transaction or booking date.") from exc
 
 
-def parse_pdf(path: Path) -> VeloBankStatement:
+def parse_pdf(
+    path: Path | BufferedReader | BytesIO, *, max_pages: int | None = None
+) -> VeloBankStatement:
     """Extract every row or fail with its page number.
 
     Args:
@@ -92,6 +96,8 @@ def parse_pdf(path: Path) -> VeloBankStatement:
             "Cannot open PDF (invalid, encrypted or unreadable file)."
         ) from exc
     with document as pdf:
+        if max_pages is not None and len(pdf.pages) > max_pages:
+            raise VeloBankParseError(f"PDF exceeds the {max_pages}-page limit.")
         for page_number, page in enumerate(pdf.pages, start=1):
             text = page.extract_text() or ""
             found = ACCOUNT_PATTERN.search(text)
@@ -124,7 +130,7 @@ def parse_pdf(path: Path) -> VeloBankStatement:
             cropped = page.crop(
                 (boundaries[0], header_table.bbox[1], boundaries[-1], page.height)
             )
-            rows = cropped.extract_tables(
+            body_tables = cropped.extract_tables(
                 {
                     "vertical_strategy": "explicit",
                     "explicit_vertical_lines": boundaries,
@@ -132,7 +138,7 @@ def parse_pdf(path: Path) -> VeloBankStatement:
                 }
             )
             page_count = 0
-            for table_rows in rows:
+            for table_rows in body_tables:
                 for row in table_rows:
                     cells = [normalize(c or "") for c in row]
                     if cells == HEADERS or [_header(c) for c in cells] == HEADERS:
