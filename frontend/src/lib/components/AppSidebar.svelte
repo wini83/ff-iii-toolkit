@@ -76,15 +76,9 @@
 
             <ul class="mt-2 space-y-1">
               <li>
-                <a href={resolve('/tools/citi')} class="rounded-xl">
+                <a href={resolve('/tools/velobank')} class="rounded-xl">
                   <Icon src={icons.DocumentArrowUp} class="h-5 w-5" />
-                  Citi Import
-                </a>
-              </li>
-              <li>
-                <a href={resolve('/tools/citi/preview')} class="rounded-xl">
-                  <Icon src={icons.DocumentMagnifyingGlass} class="h-5 w-5" />
-                  Citi Preview
+                  VeloBank Import
                 </a>
               </li>
             </ul>

@@ -43,9 +43,9 @@
       tone: 'secondary'
     },
     {
-      href: '/tools/citi',
-      title: 'Open Citi import',
-      description: 'Upload Citi TXT, inspect parsed preview and download ZIP with CSV exports.',
+      href: '/tools/velobank',
+      title: 'Open VeloBank import',
+      description: 'Upload VeloBank PDF, review operations and download CSV for Firefly.',
       icon: icons.DocumentArrowUp,
       tone: 'success'
     },
@@ -102,10 +102,7 @@
       title: 'Import Tools',
       description:
         'Focused import flows for bank and file-based sources that need preview and export.',
-      hrefs: [
-        { label: 'Citi Import', href: '/tools/citi' },
-        { label: 'Citi Preview', href: '/tools/citi/preview' }
-      ],
+      hrefs: [{ label: 'VeloBank Import', href: '/tools/velobank' }],
       icon: icons.ArchiveBoxArrowDown,
       tone: 'success'
     },

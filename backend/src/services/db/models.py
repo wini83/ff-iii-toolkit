@@ -107,6 +107,16 @@ class AuditLogORM(Base):
     )
 
 
+class VeloBankProfileORM(Base):
+    """Only account-name mappings survive a preview session."""
+
+    __tablename__ = "velobank_profiles"
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    accounts_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class UserSecretORM(Base):
     __tablename__ = "user_secrets"
 

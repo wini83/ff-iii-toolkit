@@ -26,7 +26,13 @@ from services.citi_import.service import CitiImportService
 from services.firefly_enrichment_service import FireflyEnrichmentService
 from services.tx_application_service import TxApplicationService
 from services.user_secrets_service import UserSecretsService
+from services.velobank_import.session import VeloBankPreviewStore
 from settings import settings
+
+
+@lru_cache(maxsize=1)
+def get_velobank_preview_store() -> VeloBankPreviewStore:
+    return VeloBankPreviewStore()
 
 
 @lru_cache(maxsize=1)

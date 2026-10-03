@@ -53,6 +53,7 @@
     if (pathname.startsWith('/blik/upload')) return 'BLIK Sync / File Upload';
     if (pathname.startsWith('/blik/file')) return 'BLIK Sync / File Preview';
     if (pathname.startsWith('/blik/stats')) return 'BLIK Sync / Stats';
+    if (pathname.startsWith('/tools/velobank')) return 'Import Tools / VeloBank Import';
     if (pathname.startsWith('/tools/citi/preview')) return 'Import Tools / Citi Preview';
     if (pathname.startsWith('/tools/citi')) return 'Import Tools / Citi Import';
     if (pathname.startsWith('/profile')) return 'Profile';
