@@ -23,6 +23,7 @@ def _tx(
     tags: set[str] | None = None,
     category: Category | None = None,
     amount: Decimal = Decimal("10.00"),
+    currency: Currency = DEFAULT_CURRENCY,
 ) -> Transaction:
     return Transaction(
         id=tx_id,
@@ -33,7 +34,7 @@ def _tx(
         tags=tags or set(),
         notes=None,
         category=category,
-        currency=DEFAULT_CURRENCY,
+        currency=currency,
     )
 
 
@@ -164,14 +165,15 @@ def test_snapshot_tx_metrics_aggregates_categorizable_counts():
     assert stats.allegro_not_ok == 1
     assert stats.categorizable == 2
     assert stats.categorizable_by_month == {"2024-01": 2}
-    assert stats.single_part_amount == Decimal("131.00")
-    assert stats.uncategorized_amount == Decimal("131.00")
-    assert stats.blik_not_ok_amount == Decimal("11.00")
-    assert stats.action_req_amount == Decimal("22.00")
-    assert stats.allegro_not_ok_amount == Decimal("33.00")
-    assert stats.categorizable_amount == Decimal("65.00")
-    assert stats.categorizable_amount_by_month == {"2024-01": Decimal("65.00")}
-    assert stats.currency_code == "PLN"
+    assert stats.single_part_amount == {"PLN": Decimal("131.00")}
+    assert stats.uncategorized_amount == {"PLN": Decimal("131.00")}
+    assert stats.blik_not_ok_amount == {"PLN": Decimal("11.00")}
+    assert stats.action_req_amount == {"PLN": Decimal("22.00")}
+    assert stats.allegro_not_ok_amount == {"PLN": Decimal("33.00")}
+    assert stats.categorizable_amount == {"PLN": Decimal("65.00")}
+    assert stats.categorizable_amount_by_month == {
+        "2024-01": {"PLN": Decimal("65.00")}
+    }
     assert stats.time_stamp == fetched_at
 
 
@@ -195,3 +197,56 @@ def test_snapshot_blik_refresh_metrics_uses_forced_snapshot_refresh():
     snapshot_service.get_snapshot.assert_not_awaited()
     snapshot_service.refresh_snapshot.assert_awaited_once()
     assert stats.time_stamp == fetched_at
+
+
+def test_snapshot_tx_metrics_keeps_mixed_currency_amounts_separate():
+    eur = Currency(code="EUR", symbol="€", decimals=2)
+    transactions = [
+        _tx(
+            1,
+            tx_date=date(2024, 1, 1),
+            description="groceries",
+            amount=Decimal("10.00"),
+        ),
+        _tx(
+            2,
+            tx_date=date(2024, 1, 2),
+            description="coffee",
+            amount=Decimal("-5.00"),
+            currency=eur,
+        ),
+    ]
+    snapshot_service = MagicMock()
+    snapshot_service.get_snapshot = AsyncMock(return_value=_snapshot(transactions))
+    service = SnapshotTxMetricsService(
+        snapshot_service=snapshot_service,
+        filter_desc_blik="blik",
+        filter_desc_allegro="allegro",
+    )
+
+    stats = asyncio.run(service.fetch_metrics())
+
+    expected = {"EUR": Decimal("5.00"), "PLN": Decimal("10.00")}
+    assert stats.single_part_transactions == 2
+    assert stats.categorizable == 2
+    assert stats.single_part_amount == expected
+    assert stats.categorizable_amount == expected
+    assert stats.categorizable_amount_by_month == {"2024-01": expected}
+
+
+def test_snapshot_tx_metrics_empty_snapshot_has_empty_amounts():
+    snapshot_service = MagicMock()
+    snapshot_service.get_snapshot = AsyncMock(return_value=_snapshot([]))
+    service = SnapshotTxMetricsService(
+        snapshot_service=snapshot_service,
+        filter_desc_blik="blik",
+        filter_desc_allegro="allegro",
+    )
+
+    stats = asyncio.run(service.fetch_metrics())
+
+    assert stats.single_part_transactions == 0
+    assert stats.single_part_amount == {}
+    assert stats.uncategorized_amount == {}
+    assert stats.categorizable_amount == {}
+    assert stats.categorizable_amount_by_month == {}

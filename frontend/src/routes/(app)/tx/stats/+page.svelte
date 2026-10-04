@@ -46,7 +46,7 @@
     };
   }
 
-  function formatAmount(value: string | number | undefined, currencyCode = 'PLN') {
+  function formatAmount(value: string | number, currencyCode: string) {
     const amount = Number(value);
     if (!Number.isFinite(amount)) return 'n/a';
 
@@ -58,8 +58,34 @@
     }).format(amount);
   }
 
-  function metricValue(count: number, amount: string, currencyCode: string) {
-    return metricMode === 'count' ? String(count) : formatAmount(amount, currencyCode);
+  function formatAmounts(amounts: Record<string, string>) {
+    const entries = Object.entries(amounts);
+    if (!entries.length) return '0';
+
+    return entries
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([currency, amount]) => formatAmount(amount, currency))
+      .join(' · ');
+  }
+
+  function metricValue(count: number, amounts: Record<string, string>) {
+    return metricMode === 'count' ? String(count) : formatAmounts(amounts);
+  }
+
+  function toAmountChartData(obj: Record<string, Record<string, string>>) {
+    const labels: string[] = [];
+    const values: number[] = [];
+
+    for (const [month, amounts] of Object.entries(obj)) {
+      for (const [currency, amount] of Object.entries(amounts).sort(([left], [right]) =>
+        left.localeCompare(right)
+      )) {
+        labels.push(`${month} ${currency}`);
+        values.push(Number(amount));
+      }
+    }
+
+    return { labels, values };
   }
 
   function wait(ms: number) {
@@ -190,10 +216,7 @@
           labels: categorizableByMonth.labels,
           datasets: [
             {
-              label:
-                metricMode === 'count'
-                  ? 'Categorizable'
-                  : `Categorizable (${result.currency_code})`,
+              label: metricMode === 'count' ? 'Categorizable' : 'Categorizable amount',
               data: categorizableByMonth.values,
               backgroundColor: '#3b82f6'
             }
@@ -220,7 +243,7 @@
     categorizableByMonth =
       metricMode === 'count'
         ? toChartData(result.categorizable_by_month)
-        : toChartData(result.categorizable_amount_by_month);
+        : toAmountChartData(result.categorizable_amount_by_month);
   }
 
   async function setMetricMode(mode: 'count' | 'amount') {
@@ -367,7 +390,7 @@
         </div>
         <div class="stat-title text-primary">Single-part transactions</div>
         <div class="stat-value text-primary">
-          {metricValue(d.single_part_transactions, d.single_part_amount, d.currency_code)}
+          {metricValue(d.single_part_transactions, d.single_part_amount)}
         </div>
       </div>
     </div>
@@ -379,7 +402,7 @@
         </div>
         <div class="stat-title text-secondary">Uncategorized</div>
         <div class="stat-value text-secondary">
-          {metricValue(d.uncategorized_transactions, d.uncategorized_amount, d.currency_code)}
+          {metricValue(d.uncategorized_transactions, d.uncategorized_amount)}
         </div>
       </div>
     </div>
@@ -391,7 +414,7 @@
         </div>
         <div class="stat-title text-warning">Action req</div>
         <div class="stat-value text-warning">
-          {metricValue(d.action_req, d.action_req_amount, d.currency_code)}
+          {metricValue(d.action_req, d.action_req_amount)}
         </div>
       </div>
     </div>
@@ -403,13 +426,13 @@
         </div>
         <div class="stat-title">Categorizable</div>
         <div class="stat-value">
-          {metricValue(d.categorizable, d.categorizable_amount, d.currency_code)}
+          {metricValue(d.categorizable, d.categorizable_amount)}
         </div>
         <div class="stat-desc">
           BLIK not OK:
-          {metricValue(d.blik_not_ok, d.blik_not_ok_amount, d.currency_code)}
+          {metricValue(d.blik_not_ok, d.blik_not_ok_amount)}
           | Allegro not OK:
-          {metricValue(d.allegro_not_ok, d.allegro_not_ok_amount, d.currency_code)}
+          {metricValue(d.allegro_not_ok, d.allegro_not_ok_amount)}
         </div>
       </div>
     </div>
@@ -418,10 +441,7 @@
 
 {#if !networkError && !isFailed(statusData?.status) && !hasNoData(statusData)}
   <div class="card bg-base-100 mt-6 w-full p-6 shadow-xl">
-    <div class="text-xl font-semibold">
-      Categorizable by month
-      {metricMode === 'amount' ? `(${data?.currency_code ?? 'PLN'})` : ''}
-    </div>
+    <div class="text-xl font-semibold">Categorizable by month</div>
 
     <div class="divider mt-2 mb-2"></div>
 

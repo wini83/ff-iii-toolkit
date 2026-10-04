@@ -27,7 +27,6 @@ def map_tx_state_to_response(
             allegro_not_ok_amount=state.result.allegro_not_ok_amount,
             categorizable_amount=state.result.categorizable_amount,
             categorizable_amount_by_month=state.result.categorizable_amount_by_month,
-            currency_code=state.result.currency_code,
             time_stamp=state.result.time_stamp,
             fetch_seconds=state.result.fetching_duration_ms / 1000.0,
         )

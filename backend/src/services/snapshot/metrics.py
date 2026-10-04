@@ -153,11 +153,6 @@ class SnapshotTxMetricsService(SnapshotMetricsService[TXStatisticsMetrics]):
             )
         ]
         categorizable_by_month = await group_tx_by_month(txs_allegro_ok)
-        currencies = {tx.currency.code for tx in snapshot.transactions}
-        if len(currencies) > 1:
-            raise ValueError("Transaction amount metrics require a single currency")
-        currency_code = next(iter(currencies), "PLN")
-
         txs_blik_not_ok = [tx for tx in txs_uncategorized if tx not in txs_blik_ok]
         txs_action_req = [tx for tx in txs_blik_ok if tx not in txs_action_not_req]
         txs_allegro_not_ok = [
@@ -180,7 +175,6 @@ class SnapshotTxMetricsService(SnapshotMetricsService[TXStatisticsMetrics]):
             allegro_not_ok_amount=sum_tx_amounts(txs_allegro_not_ok),
             categorizable_amount=sum_tx_amounts(txs_allegro_ok),
             categorizable_amount_by_month=group_tx_amounts_by_month(txs_allegro_ok),
-            currency_code=currency_code,
             time_stamp=snapshot.fetched_at,
             fetching_duration_ms=snapshot.metrics.fetching_duration_ms,
         )
