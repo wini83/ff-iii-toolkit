@@ -4,7 +4,7 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
   import Steps from '#lib/components/Steps.svelte';
-  import { blik } from '#lib/api/blik';
+  import { blik } from '#lib/api/blik.js';
 
   let file: File | null = null;
   let fileName = '';
@@ -25,7 +25,7 @@
         throw new Error('Nieprawidłowa odpowiedź backendu');
       }
 
-      await goto(resolve(`/blik/file/${data.id}`));
+      await goto(resolve(`blik/file/${data.id}`));
     } catch (e: unknown) {
       console.error('UPLOAD ERROR', e);
       error = e instanceof Error ? e.message : 'Błąd podczas uploadu';
