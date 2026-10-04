@@ -1,6 +1,6 @@
 import { apiRequest } from './auth';
-import { normalizeApiError } from '$lib/api/errors';
-import type { components, operations } from '$lib/api/schema';
+import { normalizeApiError } from '#lib/api/errors';
+import type { components, operations } from '#lib/api/schema';
 
 type UserResponse = components['schemas']['UserResponse'];
 type InviteResponse = components['schemas']['InviteResponse'];
