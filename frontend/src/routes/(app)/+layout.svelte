@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
 
@@ -22,8 +22,8 @@
   // prosty state dla drawer
   let drawerOpen = false;
   let meUser: MeUser | null = null;
-  let dynamicTitle: string;
-  let headTitle: string;
+  let dynamicTitle = resolveRouteTitle(page.url.pathname);
+  let headTitle = dynamicTitle === DEFAULT_APP_TITLE ? DEFAULT_APP_TITLE : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
   let theme: 'light' | 'dark' = 'light';
   let vaultStatus: VaultStatus | null = null;
   let vaultLoading = false;
@@ -63,11 +63,13 @@
     return DEFAULT_APP_TITLE;
   }
 
-  $: dynamicTitle = resolveRouteTitle(page.url.pathname);
-  $: headTitle =
-    dynamicTitle === DEFAULT_APP_TITLE
-      ? DEFAULT_APP_TITLE
-      : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
+  afterNavigate(() => {
+    dynamicTitle = resolveRouteTitle(page.url.pathname);
+    headTitle =
+      dynamicTitle === DEFAULT_APP_TITLE
+        ? DEFAULT_APP_TITLE
+        : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
+  });
 
   function applyTheme(nextTheme: 'light' | 'dark') {
     theme = nextTheme;
