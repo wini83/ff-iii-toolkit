@@ -7,10 +7,10 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import AppSidebar from '$lib/components/AppSidebar.svelte';
-  import { getMe } from '$lib/api/me';
-  import { userSecrets } from '$lib/api/user_secrets';
-  import type { components } from '$lib/api/schema';
+  import AppSidebar from '#lib/components/AppSidebar.svelte';
+  import { getMe } from '#lib/api/me';
+  import { userSecrets } from '#lib/api/user_secrets';
+  import type { components } from '#lib/api/schema';
 
   type MeUser = Awaited<ReturnType<typeof getMe>>;
   type Toast = { id: string; type: 'success' | 'error' | 'info' | 'warning'; msg: string };
