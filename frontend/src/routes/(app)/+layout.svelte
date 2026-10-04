@@ -23,7 +23,10 @@
   let drawerOpen = false;
   let meUser: MeUser | null = null;
   let dynamicTitle = resolveRouteTitle(page.url.pathname);
-  let headTitle = dynamicTitle === DEFAULT_APP_TITLE ? DEFAULT_APP_TITLE : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
+  let headTitle =
+    dynamicTitle === DEFAULT_APP_TITLE
+      ? DEFAULT_APP_TITLE
+      : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
   let theme: 'light' | 'dark' = 'light';
   let vaultStatus: VaultStatus | null = null;
   let vaultLoading = false;
