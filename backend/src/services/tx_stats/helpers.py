@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any, cast
 
 import pandas as pd
@@ -34,3 +35,15 @@ async def group_tx_by_month(
     txs: list[Transaction],
 ) -> dict[str, int]:
     return await to_thread.run_sync(_group_tx_by_month_sync, txs)
+
+
+def sum_tx_amounts(txs: list[Transaction]) -> Decimal:
+    return sum((abs(tx.amount) for tx in txs), start=Decimal("0"))
+
+
+def group_tx_amounts_by_month(txs: list[Transaction]) -> dict[str, Decimal]:
+    result: dict[str, Decimal] = {}
+    for tx in txs:
+        month = tx.date.strftime("%Y-%m")
+        result[month] = result.get(month, Decimal("0")) + abs(tx.amount)
+    return dict(sorted(result.items()))
