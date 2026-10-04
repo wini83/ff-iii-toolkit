@@ -37,13 +37,24 @@ async def group_tx_by_month(
     return await to_thread.run_sync(_group_tx_by_month_sync, txs)
 
 
-def sum_tx_amounts(txs: list[Transaction]) -> Decimal:
-    return sum((abs(tx.amount) for tx in txs), start=Decimal("0"))
-
-
-def group_tx_amounts_by_month(txs: list[Transaction]) -> dict[str, Decimal]:
+def sum_tx_amounts(txs: list[Transaction]) -> dict[str, Decimal]:
     result: dict[str, Decimal] = {}
     for tx in txs:
-        month = tx.date.strftime("%Y-%m")
-        result[month] = result.get(month, Decimal("0")) + abs(tx.amount)
+        currency = tx.currency.code
+        result[currency] = result.get(currency, Decimal("0")) + abs(tx.amount)
     return dict(sorted(result.items()))
+
+
+def group_tx_amounts_by_month(
+    txs: list[Transaction],
+) -> dict[str, dict[str, Decimal]]:
+    result: dict[str, dict[str, Decimal]] = {}
+    for tx in txs:
+        month = tx.date.strftime("%Y-%m")
+        currency = tx.currency.code
+        month_amounts = result.setdefault(month, {})
+        month_amounts[currency] = month_amounts.get(currency, Decimal("0")) + abs(tx.amount)
+    return {
+        month: dict(sorted(amounts.items()))
+        for month, amounts in sorted(result.items())
+    }
