@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel
 
@@ -17,6 +18,14 @@ class TxMetricsResultResponse(BaseModel):
     allegro_not_ok: int
     categorizable: int
     categorizable_by_month: dict[str, int]
+    single_part_amount: Decimal
+    uncategorized_amount: Decimal
+    blik_not_ok_amount: Decimal
+    action_req_amount: Decimal
+    allegro_not_ok_amount: Decimal
+    categorizable_amount: Decimal
+    categorizable_amount_by_month: dict[str, Decimal]
+    currency_code: str
     time_stamp: datetime
     fetch_seconds: float
 

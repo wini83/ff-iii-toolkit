@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from api.deps_runtime import get_tx_application_runtime
 from api.deps_services import get_category_suggestion_service
@@ -98,6 +99,14 @@ def _metrics_state() -> MetricsState[TXStatisticsMetrics]:
         allegro_not_ok=1,
         categorizable=3,
         categorizable_by_month={"2024-01": 3},
+        single_part_amount=Decimal("50.00"),
+        uncategorized_amount=Decimal("20.00"),
+        blik_not_ok_amount=Decimal("10.00"),
+        action_req_amount=Decimal("10.00"),
+        allegro_not_ok_amount=Decimal("10.00"),
+        categorizable_amount=Decimal("30.00"),
+        categorizable_amount_by_month={"2024-01": Decimal("30.00")},
+        currency_code="PLN",
         time_stamp=datetime(2024, 1, 1, tzinfo=UTC),
     )
     return MetricsState(

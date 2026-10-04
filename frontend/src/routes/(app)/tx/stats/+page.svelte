@@ -29,6 +29,7 @@
   let loading = true;
   let refreshLoading = false;
   let networkError: string | null = null;
+  let metricMode: 'count' | 'amount' = 'count';
 
   let categorizableByMonth = {
     labels: [] as string[],
@@ -38,11 +39,27 @@
   let categorizableCanvas: HTMLCanvasElement | null = null;
   let categorizableChart: Chart | null = null;
 
-  function toChartData(obj: Record<string, number>) {
+  function toChartData(obj: Record<string, number | string>) {
     return {
       labels: Object.keys(obj),
-      values: Object.values(obj)
+      values: Object.values(obj).map(Number)
     };
+  }
+
+  function formatAmount(value: string | number | undefined, currencyCode = 'PLN') {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return 'n/a';
+
+    return new Intl.NumberFormat('pl-PL', {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  }
+
+  function metricValue(count: number, amount: string, currencyCode: string) {
+    return metricMode === 'count' ? String(count) : formatAmount(amount, currencyCode);
   }
 
   function wait(ms: number) {
@@ -173,7 +190,10 @@
           labels: categorizableByMonth.labels,
           datasets: [
             {
-              label: 'Categorizable',
+              label:
+                metricMode === 'count'
+                  ? 'Categorizable'
+                  : `Categorizable (${result.currency_code})`,
               data: categorizableByMonth.values,
               backgroundColor: '#3b82f6'
             }
@@ -197,7 +217,16 @@
       return;
     }
 
-    categorizableByMonth = toChartData(result.categorizable_by_month);
+    categorizableByMonth =
+      metricMode === 'count'
+        ? toChartData(result.categorizable_by_month)
+        : toChartData(result.categorizable_amount_by_month);
+  }
+
+  async function setMetricMode(mode: 'count' | 'amount') {
+    metricMode = mode;
+    updateUiFromStatus(statusData);
+    await syncCharts(data);
   }
 
   onMount(() => {
@@ -263,7 +292,25 @@
     <div class="badge badge-sm">
       generated at: {formatTimestamp(data?.time_stamp)} in {formatFetchSeconds(data?.fetch_seconds)}
     </div>
-    <div>
+    <div class="flex flex-wrap justify-end gap-2">
+      <div class="join">
+        <button
+          type="button"
+          class:btn-active={metricMode === 'count'}
+          class="btn join-item btn-sm normal-case"
+          on:click={() => setMetricMode('count')}
+        >
+          Count
+        </button>
+        <button
+          type="button"
+          class:btn-active={metricMode === 'amount'}
+          class="btn join-item btn-sm normal-case"
+          on:click={() => setMetricMode('amount')}
+        >
+          Amount
+        </button>
+      </div>
       <button
         class="btn btn-ghost btn-sm normal-case"
         on:click={() => loadStats(true)}
@@ -319,7 +366,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title text-primary">Single-part transactions</div>
-        <div class="stat-value text-primary">{d.single_part_transactions}</div>
+        <div class="stat-value text-primary">
+          {metricValue(d.single_part_transactions, d.single_part_amount, d.currency_code)}
+        </div>
       </div>
     </div>
 
@@ -329,7 +378,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title text-secondary">Uncategorized</div>
-        <div class="stat-value text-secondary">{d.uncategorized_transactions}</div>
+        <div class="stat-value text-secondary">
+          {metricValue(d.uncategorized_transactions, d.uncategorized_amount, d.currency_code)}
+        </div>
       </div>
     </div>
 
@@ -339,7 +390,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title text-warning">Action req</div>
-        <div class="stat-value text-warning">{d.action_req}</div>
+        <div class="stat-value text-warning">
+          {metricValue(d.action_req, d.action_req_amount, d.currency_code)}
+        </div>
       </div>
     </div>
 
@@ -349,9 +402,14 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title">Categorizable</div>
-        <div class="stat-value">{d.categorizable}</div>
+        <div class="stat-value">
+          {metricValue(d.categorizable, d.categorizable_amount, d.currency_code)}
+        </div>
         <div class="stat-desc">
-          BLIK not OK: {d.blik_not_ok} | Allegro not OK: {d.allegro_not_ok}
+          BLIK not OK:
+          {metricValue(d.blik_not_ok, d.blik_not_ok_amount, d.currency_code)}
+          | Allegro not OK:
+          {metricValue(d.allegro_not_ok, d.allegro_not_ok_amount, d.currency_code)}
         </div>
       </div>
     </div>
@@ -360,7 +418,10 @@
 
 {#if !networkError && !isFailed(statusData?.status) && !hasNoData(statusData)}
   <div class="card bg-base-100 mt-6 w-full p-6 shadow-xl">
-    <div class="text-xl font-semibold">Categorizable by month</div>
+    <div class="text-xl font-semibold">
+      Categorizable by month
+      {metricMode === 'amount' ? `(${data?.currency_code ?? 'PLN'})` : ''}
+    </div>
 
     <div class="divider mt-2 mb-2"></div>
 
