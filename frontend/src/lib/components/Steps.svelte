@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { Pathname } from '$app/types';
+  import type { Path } from '$app/types';
 
   type StepItem = {
     label: string;
-    href: Pathname | '#';
+    href: Path | '#';
   };
 
   export let steps: StepItem[] = [];
