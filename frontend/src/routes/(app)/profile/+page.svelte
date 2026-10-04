@@ -4,7 +4,7 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { getMe } from '#lib/api/me';
+  import { getMe } from '#lib/api/me.js';
 
   type MeUser = Awaited<ReturnType<typeof getMe>>;
 
@@ -81,7 +81,7 @@
         </div>
 
         <div class="flex justify-end gap-3">
-          <a href={resolve('/settings/secrets')} class="btn btn-ghost btn-sm">
+          <a href={resolve('settings/secrets')} class="btn btn-ghost btn-sm">
             <Icon src={icons.Key} class="h-4 w-4" />
             Secrets
           </a>
