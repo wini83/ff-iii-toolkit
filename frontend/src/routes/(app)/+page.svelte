@@ -29,14 +29,14 @@
 
   const quickActions = [
     {
-      href: '/tx/categorize',
+      href: 'tx/categorize',
       title: 'Categorize transactions',
       description: 'Process the screening queue month by month and assign categories quickly.',
       icon: icons.DocumentMagnifyingGlass,
       tone: 'primary'
     },
     {
-      href: '/blik/upload',
+      href: 'blik/upload',
       title: 'Upload BLIK file',
       description: 'Start a fresh import flow and move directly into preview and matching.',
       icon: icons.InboxArrowDown,
@@ -71,8 +71,8 @@
       title: 'Transactions',
       description: 'Categorization and statistics for the monthly screening workflow.',
       hrefs: [
-        { label: 'Categorize', href: '/tx/categorize' },
-        { label: 'Stats', href: '/tx/stats' }
+        { label: 'Categorize', href: 'tx/categorize' },
+        { label: 'Stats', href: 'tx/stats' }
       ],
       icon: icons.ShoppingBag,
       tone: 'primary'
@@ -81,9 +81,9 @@
       title: 'BLIK Sync',
       description: 'File upload, preview, match flow and sync statistics in one area.',
       hrefs: [
-        { label: 'Upload', href: '/blik/upload' },
-        { label: 'Preview', href: '/blik/file' },
-        { label: 'Stats', href: '/blik/stats' }
+        { label: 'Upload', href: 'blik/upload' },
+        { label: 'Preview', href: 'blik/file' },
+        { label: 'Stats', href: 'blik/stats' }
       ],
       icon: icons.DocumentCurrencyEuro,
       tone: 'secondary'
