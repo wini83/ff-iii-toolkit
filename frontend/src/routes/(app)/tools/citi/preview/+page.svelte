@@ -28,7 +28,6 @@
   async function syncUrl(fileId: string) {
     const next = new URL(page.url.href);
     next.searchParams.set('file_id', fileId);
-    // eslint-disable-next-line svelte/no-navigation-without-resolve
     await goto(resolve('tools/citi/preview') + `?${next.searchParams.toString()}`, {
       replace: true,
       reset: false
