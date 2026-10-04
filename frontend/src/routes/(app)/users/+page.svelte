@@ -3,13 +3,13 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-  import CreateUserModal from '$lib/components/users/CreateUserModal.svelte';
-  import InviteResultModal from '$lib/components/users/InviteResultModal.svelte';
-  import type { InviteResult } from '$lib/components/users/types';
-  import UserActionsMenu from '$lib/components/users/UserActionsMenu.svelte';
-  import { users } from '$lib/api/users';
-  import type { components, operations } from '$lib/api/schema';
+  import TableSkeleton from '#lib/components/TableSkeleton.svelte';
+  import CreateUserModal from '#lib/components/users/CreateUserModal.svelte';
+  import InviteResultModal from '#lib/components/users/InviteResultModal.svelte';
+  import type { InviteResult } from '#lib/components/users/types';
+  import UserActionsMenu from '#lib/components/users/UserActionsMenu.svelte';
+  import { users } from '#lib/api/users';
+  import type { components, operations } from '#lib/api/schema';
 
   type UserResponse = components['schemas']['UserResponse'];
   type CreateUserPayload =
