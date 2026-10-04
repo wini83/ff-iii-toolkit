@@ -2,12 +2,12 @@
   import { onDestroy, onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { allegro } from '#lib/api/allegro';
-  import type { components } from '#lib/api/schema';
+  import { allegro } from '#lib/api/allegro.js';
+  import type { components } from '#lib/api/schema.js';
 
   type AllegroMatchResponse = components['schemas']['AllegroMatchResponse'];
   type AllegroMatchResult = components['schemas']['api__models__allegro__MatchResult'];
@@ -32,7 +32,7 @@
   let isStatsModalOpen = false;
   let actionableOnly = false;
 
-  $: secretId = $page.params.id;
+  $: secretId = page.params.id;
   $: login = matchResponse?.login ?? null;
   $: currentPage = Math.floor(offset / pageSize) + 1;
   $: visibleRows = actionableOnly ? rows.filter(isActionableRow) : rows;
@@ -379,7 +379,7 @@
   }
 
   function openPayments() {
-    goto(resolve(`/allegro/${secretId}/payments`));
+    goto(resolve(`allegro/${secretId}/payments`));
   }
 
   onMount(() => {
