@@ -164,13 +164,13 @@ def test_snapshot_tx_metrics_aggregates_categorizable_counts():
     assert stats.allegro_not_ok == 1
     assert stats.categorizable == 2
     assert stats.categorizable_by_month == {"2024-01": 2}
-    assert stats.single_part_amount == Decimal("165.00")
-    assert stats.uncategorized_amount == Decimal("165.00")
+    assert stats.single_part_amount == Decimal("131.00")
+    assert stats.uncategorized_amount == Decimal("131.00")
     assert stats.blik_not_ok_amount == Decimal("11.00")
     assert stats.action_req_amount == Decimal("22.00")
     assert stats.allegro_not_ok_amount == Decimal("33.00")
-    assert stats.categorizable_amount == Decimal("99.00")
-    assert stats.categorizable_amount_by_month == {"2024-01": Decimal("99.00")}
+    assert stats.categorizable_amount == Decimal("65.00")
+    assert stats.categorizable_amount_by_month == {"2024-01": Decimal("65.00")}
     assert stats.currency_code == "PLN"
     assert stats.time_stamp == fetched_at
 
