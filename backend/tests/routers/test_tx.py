@@ -99,14 +99,15 @@ def _metrics_state() -> MetricsState[TXStatisticsMetrics]:
         allegro_not_ok=1,
         categorizable=3,
         categorizable_by_month={"2024-01": 3},
-        single_part_amount=Decimal("50.00"),
-        uncategorized_amount=Decimal("20.00"),
-        blik_not_ok_amount=Decimal("10.00"),
-        action_req_amount=Decimal("10.00"),
-        allegro_not_ok_amount=Decimal("10.00"),
-        categorizable_amount=Decimal("30.00"),
-        categorizable_amount_by_month={"2024-01": Decimal("30.00")},
-        currency_code="PLN",
+        single_part_amount={"PLN": Decimal("50.00")},
+        uncategorized_amount={"PLN": Decimal("20.00")},
+        blik_not_ok_amount={"PLN": Decimal("10.00")},
+        action_req_amount={"PLN": Decimal("10.00")},
+        allegro_not_ok_amount={"PLN": Decimal("10.00")},
+        categorizable_amount={"PLN": Decimal("30.00")},
+        categorizable_amount_by_month={
+            "2024-01": {"PLN": Decimal("30.00")}
+        },
         time_stamp=datetime(2024, 1, 1, tzinfo=UTC),
     )
     return MetricsState(
