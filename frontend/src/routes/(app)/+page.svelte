@@ -43,14 +43,14 @@
       tone: 'secondary'
     },
     {
-      href: '/tools/velobank',
+      href: 'tools/velobank',
       title: 'Open VeloBank import',
       description: 'Upload VeloBank PDF, review operations and download CSV for Firefly.',
       icon: icons.DocumentArrowUp,
       tone: 'success'
     },
     {
-      href: '/allegro/accounts',
+      href: 'allegro/accounts',
       title: 'Review Allegro accounts',
       description: 'Open configured marketplace accounts and jump into payments or matches.',
       icon: icons.BuildingStorefront,
@@ -92,8 +92,8 @@
       title: 'Allegro',
       description: 'Marketplace accounts, imported payments, matching decisions and stats.',
       hrefs: [
-        { label: 'Accounts', href: '/allegro/accounts' },
-        { label: 'Stats', href: '/allegro/stats' }
+        { label: 'Accounts', href: 'allegro/accounts' },
+        { label: 'Stats', href: 'allegro/stats' }
       ],
       icon: icons.ChartBar,
       tone: 'warning'
@@ -102,14 +102,14 @@
       title: 'Import Tools',
       description:
         'Focused import flows for bank and file-based sources that need preview and export.',
-      hrefs: [{ label: 'VeloBank Import', href: '/tools/velobank' }],
+      hrefs: [{ label: 'VeloBank Import', href: 'tools/velobank' }],
       icon: icons.ArchiveBoxArrowDown,
       tone: 'success'
     },
     {
       title: 'Settings',
       description: 'Configuration entry points for integration secrets and application setup.',
-      hrefs: [{ label: 'Secrets', href: '/settings/secrets' }],
+      hrefs: [{ label: 'Secrets', href: 'settings/secrets' }],
       icon: icons.Key,
       tone: 'success'
     }
