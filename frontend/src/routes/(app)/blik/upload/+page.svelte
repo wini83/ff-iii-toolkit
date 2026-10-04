@@ -3,8 +3,8 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import Steps from '$lib/components/Steps.svelte';
-  import { blik } from '$lib/api/blik';
+  import Steps from '#lib/components/Steps.svelte';
+  import { blik } from '#lib/api/blik';
 
   let file: File | null = null;
   let fileName = '';
