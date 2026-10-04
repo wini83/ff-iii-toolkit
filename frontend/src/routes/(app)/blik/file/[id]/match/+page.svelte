@@ -2,11 +2,11 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import { blik } from '#lib/api/blik';
-  import type { components } from '#lib/api/schema';
+  import { blik } from '#lib/api/blik.js';
+  import type { components } from '#lib/api/schema.js';
 
   type MatchData = components['schemas']['FileMatchResponse'];
   type MatchRow = components['schemas']['api__models__blik_files__MatchResult'];
@@ -43,7 +43,7 @@
     reason: string | null;
   }> = [];
 
-  $: fileId = $page.params.id ?? '';
+  $: fileId = page.params.id ?? '';
   $: oneMatches =
     matchData?.transactions_with_one_match ?? rows.filter((row) => row.matches.length === 1).length;
   $: manyMatches =
@@ -396,11 +396,11 @@
   }
 
   function openPreview() {
-    goto(resolve(`/blik/file/${fileId}`));
+    goto(resolve(`blik/file/${fileId}`));
   }
 
   function openUpload() {
-    goto(resolve('/blik/upload'));
+    goto(resolve('blik/upload'));
   }
 
   onMount(() => {
