@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import Steps from '$lib/components/Steps.svelte';
+  import Steps from '#lib/components/Steps.svelte';
 
   let fileId = '';
 
