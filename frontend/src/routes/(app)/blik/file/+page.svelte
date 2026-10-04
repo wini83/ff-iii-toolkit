@@ -8,7 +8,7 @@
   function goToFile() {
     const trimmed = fileId.trim();
     if (!trimmed) return; // zero jazdy bez trzymanki
-    goto(resolve(`/blik/file/${trimmed}`));
+    goto(resolve(`blik/file/${trimmed}`));
   }
 </script>
 
