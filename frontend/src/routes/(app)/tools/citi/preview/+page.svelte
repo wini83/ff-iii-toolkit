@@ -30,9 +30,8 @@
     next.searchParams.set('file_id', fileId);
     // eslint-disable-next-line svelte/no-navigation-without-resolve
     await goto(resolve('tools/citi/preview') + `?${next.searchParams.toString()}`, {
-      replaceState: true,
-      noScroll: true,
-      keepFocus: true
+      replace: true,
+      reset: false
     });
   }
 
