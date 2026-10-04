@@ -4,8 +4,8 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import * as api from '#lib/api/velobank';
-  import type { AccountMappings, AccountOption, VeloBankPreview } from '#lib/api/velobank';
+  import * as api from '#lib/api/velobank.js';
+  import type { AccountMappings, AccountOption, VeloBankPreview } from '#lib/api/velobank.js';
 
   let selectedFile: File | null = null;
   let fileInput: HTMLInputElement;
@@ -44,8 +44,8 @@
     else url.searchParams.delete('file_id');
     replaceState(
       url.searchParams.size
-        ? resolve(`/tools/velobank?${url.searchParams.toString()}`)
-        : resolve('/tools/velobank'),
+        ? resolve(`tools/velobank?${url.searchParams.toString()}`)
+        : resolve('tools/velobank'),
       {}
     );
   }
