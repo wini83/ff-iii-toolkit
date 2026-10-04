@@ -4,7 +4,7 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { getMe } from '$lib/api/me';
+  import { getMe } from '#lib/api/me';
 
   type MeUser = Awaited<ReturnType<typeof getMe>>;
 
