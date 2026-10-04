@@ -44,12 +44,11 @@ class TXStatisticsMetrics(BaseMetrics):
     allegro_not_ok: int
     categorizable: int
     categorizable_by_month: dict[str, int]
-    single_part_amount: Decimal
-    uncategorized_amount: Decimal
-    blik_not_ok_amount: Decimal
-    action_req_amount: Decimal
-    allegro_not_ok_amount: Decimal
-    categorizable_amount: Decimal
-    categorizable_amount_by_month: dict[str, Decimal]
-    currency_code: str
+    single_part_amount: dict[str, Decimal]
+    uncategorized_amount: dict[str, Decimal]
+    blik_not_ok_amount: dict[str, Decimal]
+    action_req_amount: dict[str, Decimal]
+    allegro_not_ok_amount: dict[str, Decimal]
+    categorizable_amount: dict[str, Decimal]
+    categorizable_amount_by_month: dict[str, dict[str, Decimal]]
     time_stamp: datetime
