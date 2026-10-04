@@ -1,6 +1,6 @@
 import { apiRequest } from './auth';
-import { normalizeApiError, ApiError } from '$lib/api/errors';
-import type { components } from '$lib/api/schema';
+import { normalizeApiError, ApiError } from '#lib/api/errors';
+import type { components } from '#lib/api/schema';
 
 type CitiImportParseResponse = components['schemas']['CitiImportParseResponse'];
 type CitiImportTextRequest = components['schemas']['CitiImportTextRequest'];
