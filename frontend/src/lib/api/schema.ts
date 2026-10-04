@@ -1639,23 +1639,21 @@ export interface components {
         [key: string]: number;
       };
       /** Single Part Amount */
-      single_part_amount: string;
+      single_part_amount: { [key: string]: string };
       /** Uncategorized Amount */
-      uncategorized_amount: string;
+      uncategorized_amount: { [key: string]: string };
       /** Blik Not Ok Amount */
-      blik_not_ok_amount: string;
+      blik_not_ok_amount: { [key: string]: string };
       /** Action Req Amount */
-      action_req_amount: string;
+      action_req_amount: { [key: string]: string };
       /** Allegro Not Ok Amount */
-      allegro_not_ok_amount: string;
+      allegro_not_ok_amount: { [key: string]: string };
       /** Categorizable Amount */
-      categorizable_amount: string;
+      categorizable_amount: { [key: string]: string };
       /** Categorizable Amount By Month */
       categorizable_amount_by_month: {
-        [key: string]: string;
+        [key: string]: { [key: string]: string };
       };
-      /** Currency Code */
-      currency_code: string;
       /**
        * Time Stamp
        * Format: date-time
