@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getFireflyStatus } from '$lib/api/system';
-  import type { components } from '$lib/api/schema';
+  import { getFireflyStatus } from '#lib/api/system';
+  import type { components } from '#lib/api/schema';
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
