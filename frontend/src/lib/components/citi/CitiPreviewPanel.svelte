@@ -2,7 +2,7 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
   import TableSkeleton from '#lib/components/TableSkeleton.svelte';
-  import type { components } from '#lib/api/schema';
+  import type { components } from '#lib/api/schema.js';
 
   type CitiImportParseResponse = components['schemas']['CitiImportParseResponse'];
 
