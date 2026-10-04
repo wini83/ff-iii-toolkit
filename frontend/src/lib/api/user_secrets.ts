@@ -1,6 +1,6 @@
 import { apiRequest } from './auth';
-import { normalizeApiError } from '$lib/api/errors';
-import type { components } from '$lib/api/schema';
+import { normalizeApiError } from '#lib/api/errors';
+import type { components } from '#lib/api/schema';
 
 type UserSecret = components['schemas']['UserSecretResponse'];
 type CreateUserSecretRequest = components['schemas']['CreateSecretPayload'];
