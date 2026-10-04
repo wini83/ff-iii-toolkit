@@ -12,8 +12,8 @@
     Legend
   } from 'chart.js';
 
-  import { allegro } from '$lib/api/allegro';
-  import type { components } from '$lib/api/schema';
+  import { allegro } from '#lib/api/allegro';
+  import type { components } from '#lib/api/schema';
 
   Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
