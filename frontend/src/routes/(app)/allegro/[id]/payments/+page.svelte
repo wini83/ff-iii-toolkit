@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
@@ -18,7 +18,11 @@
   let pageSize = 20;
   let offset = 0;
 
-  $: secretId = page.params.id;
+  let secretId = page.params.id;
+
+  afterNavigate(() => {
+    secretId = page.params.id;
+  });
   $: accountLogin = payments.length > 0 ? (payments[0]?.allegro_login ?? null) : null;
   $: currentPage = Math.floor(offset / pageSize) + 1;
   $: hasNextPage = payments.length === pageSize;
