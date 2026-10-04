@@ -1,6 +1,6 @@
 [project]
 name = "ff-iii-toolkit"
-version = "3.2.0"
+version = "3.3.0"
 description = "Firefly III Toolkit monorepo release tooling"
 requires-python = ">=3.12"
 dependencies = []
@@ -15,7 +15,7 @@ name = "cz_conventional_commits"
 tag_format = "v$version"
 version_scheme = "pep440"
 version_provider = "commitizen"
-version = "3.2.0"
+version = "3.3.0"
 version_files = [
     "pyproject.toml:^version = \"(?P<version>.*)\"",
     "VERSION",

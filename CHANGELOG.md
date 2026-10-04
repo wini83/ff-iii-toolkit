@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.3.0 (2026-10-04)
+
+### Feat
+
+- add VeloBank PDF web import with preview and CSV export (#41)
+
 ## v3.2.0 (2026-10-02)
 
 ### Feat
