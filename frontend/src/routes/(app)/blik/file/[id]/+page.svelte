@@ -3,7 +3,7 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import Steps from '$lib/components/Steps.svelte';
+  import Steps from '#lib/components/Steps.svelte';
   import type { PageData } from './$types';
 
   export let data: PageData;
