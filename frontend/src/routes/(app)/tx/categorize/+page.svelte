@@ -6,8 +6,8 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { getScreeningMonth, assignCategory, applyTag, getCategorySuggestions } from '$lib/api/tx';
-  import type { operations, components } from '$lib/api/schema';
+  import { getScreeningMonth, assignCategory, applyTag, getCategorySuggestions } from '#lib/api/tx';
+  import type { operations, components } from '#lib/api/schema';
 
   type ScreeningMonthResponse =
     operations['get_screening_month_api_tx_screening_get']['responses'][200]['content']['application/json'];
