@@ -406,8 +406,10 @@
           {metricValue(d.categorizable, d.categorizable_amount, d.currency_code)}
         </div>
         <div class="stat-desc">
-          BLIK not OK: {metricValue(d.blik_not_ok, d.blik_not_ok_amount, d.currency_code)} |
-          Allegro not OK: {metricValue(d.allegro_not_ok, d.allegro_not_ok_amount, d.currency_code)}
+          BLIK not OK:
+          {metricValue(d.blik_not_ok, d.blik_not_ok_amount, d.currency_code)}
+          | Allegro not OK:
+          {metricValue(d.allegro_not_ok, d.allegro_not_ok_amount, d.currency_code)}
         </div>
       </div>
     </div>
@@ -417,7 +419,8 @@
 {#if !networkError && !isFailed(statusData?.status) && !hasNoData(statusData)}
   <div class="card bg-base-100 mt-6 w-full p-6 shadow-xl">
     <div class="text-xl font-semibold">
-      Categorizable by month {metricMode === 'amount' ? `(${data?.currency_code ?? 'PLN'})` : ''}
+      Categorizable by month
+      {metricMode === 'amount' ? `(${data?.currency_code ?? 'PLN'})` : ''}
     </div>
 
     <div class="divider mt-2 mb-2"></div>
