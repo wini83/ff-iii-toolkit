@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
@@ -16,8 +16,12 @@
   let success = false;
   let formError: string | null = null;
 
-  $: token = page.url.searchParams.get('token')?.trim() ?? '';
+  let token = page.url.searchParams.get('token')?.trim() ?? '';
   $: tokenMissing = token.length === 0;
+
+  afterNavigate(() => {
+    token = page.url.searchParams.get('token')?.trim() ?? '';
+  });
 
   function getErrorMessage(error: unknown, fallback: string): string {
     if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
