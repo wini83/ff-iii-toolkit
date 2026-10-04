@@ -1,11 +1,11 @@
 import { redirect, type RequestEvent } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { decodeJwt } from '$lib/jwt';
+import { decodeJwt } from '#lib/jwt';
 import {
   clearAuthCookies,
   propagateBackendAuthCookies,
   setAccessTokenCookie
-} from '$lib/server/auth-cookies';
+} from '#lib/server/auth-cookies';
 
 type RefreshResponse = {
   access_token?: string;
