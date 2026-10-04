@@ -3,8 +3,8 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import { citi } from '$lib/api/citi';
-  import type { components } from '$lib/api/schema';
+  import { citi } from '#lib/api/citi';
+  import type { components } from '#lib/api/schema';
 
   type CitiImportParseResponse = components['schemas']['CitiImportParseResponse'];
   type ImportMode = 'file' | 'text';
