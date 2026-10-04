@@ -1,4 +1,4 @@
-import type { components } from '$lib/api/schema';
+import type { components } from '#lib/api/schema';
 
 export type FireflyAccountRef = components['schemas']['SimplifiedAccountRef'];
 
