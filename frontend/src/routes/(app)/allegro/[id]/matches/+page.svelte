@@ -6,8 +6,8 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { allegro } from '$lib/api/allegro';
-  import type { components } from '$lib/api/schema';
+  import { allegro } from '#lib/api/allegro';
+  import type { components } from '#lib/api/schema';
 
   type AllegroMatchResponse = components['schemas']['AllegroMatchResponse'];
   type AllegroMatchResult = components['schemas']['api__models__allegro__MatchResult'];
