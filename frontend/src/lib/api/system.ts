@@ -1,5 +1,5 @@
 import { createApiClient } from './client';
-import type { components } from '$lib/api/schema';
+import type { components } from '#lib/api/schema';
 
 /** Lazy init — tworzymy klienta dopiero gdy naprawdę jest potrzebny */
 let apiPromise: ReturnType<typeof createApiClient> | null = null;
