@@ -3,7 +3,7 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import Steps from '$lib/components/Steps.svelte';
+  import Steps from '#lib/components/Steps.svelte';
   import type { PageData } from './$types';
 
   export let data: PageData;
@@ -29,7 +29,7 @@
   $: content = (preview?.content ?? []) as PreviewRow[];
 
   function goToMatch() {
-    goto(resolve(`/blik/file/${file_id}/match`));
+    goto(resolve(`blik/file/${file_id}/match`));
   }
 
   function formatAmount(v?: number) {
@@ -44,9 +44,9 @@
 <Steps
   activeIndex={1}
   steps={[
-    { label: 'Upload', href: '/blik/upload' },
-    { label: 'Preview', href: `/blik/file/${file_id}` },
-    { label: 'Match', href: `/blik/file/${file_id}/match` }
+    { label: 'Upload', href: 'blik/upload' },
+    { label: 'Preview', href: `blik/file/${file_id}` },
+    { label: 'Match', href: `blik/file/${file_id}/match` }
   ]}
 />
 

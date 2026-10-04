@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import type { components } from '$lib/api/schema';
+import type { components } from '#lib/api/schema.js';
 
 type CitiPreviewResponse = components['schemas']['CitiImportParseResponse'];
 

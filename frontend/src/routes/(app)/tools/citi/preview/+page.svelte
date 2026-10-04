@@ -1,13 +1,13 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import CitiPreviewPanel from '$lib/components/citi/CitiPreviewPanel.svelte';
-  import { citi } from '$lib/api/citi';
+  import CitiPreviewPanel from '#lib/components/citi/CitiPreviewPanel.svelte';
+  import { citi } from '#lib/api/citi.js';
   import type { PageData } from './$types';
-  import type { components } from '$lib/api/schema';
+  import type { components } from '#lib/api/schema.js';
 
   export let data: PageData;
 
@@ -26,13 +26,11 @@
   }
 
   async function syncUrl(fileId: string) {
-    const next = new URL($page.url);
+    const next = new URL(page.url.href);
     next.searchParams.set('file_id', fileId);
-    // eslint-disable-next-line svelte/no-navigation-without-resolve
-    await goto(resolve('/tools/citi/preview') + `?${next.searchParams.toString()}`, {
-      replaceState: true,
-      noScroll: true,
-      keepFocus: true
+    await goto(resolve('tools/citi/preview') + `?${next.searchParams.toString()}`, {
+      replace: true,
+      reset: false
     });
   }
 
@@ -132,7 +130,7 @@
         </div>
 
         <div class="flex flex-wrap gap-3">
-          <a href={resolve('/tools/citi')} class="btn btn-outline btn-sm">
+          <a href={resolve('tools/citi')} class="btn btn-outline btn-sm">
             <Icon src={icons.DocumentArrowUp} class="h-4 w-4" />
             Back to import
           </a>

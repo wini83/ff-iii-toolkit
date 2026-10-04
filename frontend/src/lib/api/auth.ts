@@ -1,6 +1,6 @@
 import { createApiClient } from './client';
-import { normalizeApiError } from '$lib/api/errors';
-import type { components } from '$lib/api/schema';
+import { normalizeApiError } from '#lib/api/errors.js';
+import type { components } from '#lib/api/schema.js';
 
 type ApiClient = Awaited<ReturnType<typeof createApiClient>>;
 type ApiResponse<T> = { data?: T; error?: unknown; response: Response };

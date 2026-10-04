@@ -1,21 +1,21 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import Steps from '$lib/components/Steps.svelte';
+  import Steps from '#lib/components/Steps.svelte';
 
   let fileId = '';
 
   function goToFile() {
     const trimmed = fileId.trim();
     if (!trimmed) return; // zero jazdy bez trzymanki
-    goto(resolve(`/blik/file/${trimmed}`));
+    goto(resolve(`blik/file/${trimmed}`));
   }
 </script>
 
 <Steps
   activeIndex={1}
   steps={[
-    { label: 'Upload', href: '/blik/upload' },
+    { label: 'Upload', href: 'blik/upload' },
     { label: 'Preview', href: `#` },
     { label: 'Match', href: `#` }
   ]}

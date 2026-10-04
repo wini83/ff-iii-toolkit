@@ -19,7 +19,7 @@
         ></path></svg
       >
       <h1 class="text-5xl font-bold">{page.status} {page.error?.message ?? 'Page not found'}</h1>
-      <a href={resolve('/')} class="btn btn-primary mt-8">Home</a>
+      <a href={resolve('')} class="btn btn-primary mt-8">Home</a>
     </div>
   </div>
 </div>

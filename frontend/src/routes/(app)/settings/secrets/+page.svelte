@@ -3,9 +3,9 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { ApiError } from '$lib/api/errors';
-  import { userSecrets } from '$lib/api/user_secrets';
-  import type { components } from '$lib/api/schema';
+  import { ApiError } from '#lib/api/errors.js';
+  import { userSecrets } from '#lib/api/user_secrets.js';
+  import type { components } from '#lib/api/schema.js';
 
   type UserSecret = components['schemas']['UserSecretResponse'];
   type SecretType = components['schemas']['SecretType'];

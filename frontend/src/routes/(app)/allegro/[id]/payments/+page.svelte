@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { allegro } from '$lib/api/allegro';
-  import type { components } from '$lib/api/schema';
+  import { allegro } from '#lib/api/allegro.js';
+  import type { components } from '#lib/api/schema.js';
 
   type AllegroPayment = components['schemas']['AllegroPayment'];
   const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
@@ -18,7 +18,11 @@
   let pageSize = 20;
   let offset = 0;
 
-  $: secretId = $page.params.id;
+  let secretId = page.params.id;
+
+  afterNavigate(() => {
+    secretId = page.params.id;
+  });
   $: accountLogin = payments.length > 0 ? (payments[0]?.allegro_login ?? null) : null;
   $: currentPage = Math.floor(offset / pageSize) + 1;
   $: hasNextPage = payments.length === pageSize;
@@ -124,11 +128,11 @@
   }
 
   function openMatches() {
-    goto(resolve(`/allegro/${secretId}/matches`));
+    goto(resolve(`allegro/${secretId}/matches`));
   }
 
   function openAccounts() {
-    goto(resolve('/allegro/accounts'));
+    goto(resolve('allegro/accounts'));
   }
 
   onMount(() => {

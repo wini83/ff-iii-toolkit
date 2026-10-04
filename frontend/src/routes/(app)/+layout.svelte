@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
 
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import AppSidebar from '$lib/components/AppSidebar.svelte';
-  import { getMe } from '$lib/api/me';
-  import { userSecrets } from '$lib/api/user_secrets';
-  import type { components } from '$lib/api/schema';
+  import AppSidebar from '#lib/components/AppSidebar.svelte';
+  import { getMe } from '#lib/api/me.js';
+  import { userSecrets } from '#lib/api/user_secrets.js';
+  import type { components } from '#lib/api/schema.js';
 
   type MeUser = Awaited<ReturnType<typeof getMe>>;
   type Toast = { id: string; type: 'success' | 'error' | 'info' | 'warning'; msg: string };
@@ -22,8 +22,11 @@
   // prosty state dla drawer
   let drawerOpen = false;
   let meUser: MeUser | null = null;
-  let dynamicTitle: string;
-  let headTitle: string;
+  let dynamicTitle = resolveRouteTitle(page.url.pathname);
+  let headTitle =
+    dynamicTitle === DEFAULT_APP_TITLE
+      ? DEFAULT_APP_TITLE
+      : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
   let theme: 'light' | 'dark' = 'light';
   let vaultStatus: VaultStatus | null = null;
   let vaultLoading = false;
@@ -63,11 +66,13 @@
     return DEFAULT_APP_TITLE;
   }
 
-  $: dynamicTitle = resolveRouteTitle($page.url.pathname);
-  $: headTitle =
-    dynamicTitle === DEFAULT_APP_TITLE
-      ? DEFAULT_APP_TITLE
-      : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
+  afterNavigate(() => {
+    dynamicTitle = resolveRouteTitle(page.url.pathname);
+    headTitle =
+      dynamicTitle === DEFAULT_APP_TITLE
+        ? DEFAULT_APP_TITLE
+        : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
+  });
 
   function applyTheme(nextTheme: 'light' | 'dark') {
     theme = nextTheme;
@@ -189,7 +194,7 @@
   }
 
   function openSecretsSettings() {
-    void goto(resolve('/settings/secrets'));
+    void goto(resolve('settings/secrets'));
   }
 
   async function logout() {
@@ -197,7 +202,7 @@
       await fetch('/logout', { method: 'POST' });
     } finally {
       meUser = null;
-      await goto(resolve('/login'), { invalidateAll: true });
+      await goto(resolve('login'), { invalidateAll: true });
     }
   }
 
@@ -457,10 +462,10 @@
               class="menu menu-sm dropdown-content bg-base-100 rounded-box border-base-200 mt-3 w-56 border p-2 shadow-xl"
             >
               <li>
-                <a href={resolve('/profile')}><Icon src={icons.User} class="h-5 w-5" /> Profile</a>
+                <a href={resolve('profile')}><Icon src={icons.User} class="h-5 w-5" /> Profile</a>
               </li>
               <li>
-                <a href={resolve('/settings/secrets')}>
+                <a href={resolve('settings/secrets')}>
                   <Icon src={icons.Key} class="h-5 w-5" /> Secrets
                 </a>
               </li>

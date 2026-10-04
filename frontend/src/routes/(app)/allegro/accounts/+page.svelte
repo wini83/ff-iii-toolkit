@@ -5,9 +5,9 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { allegro } from '$lib/api/allegro';
-  import { userSecrets } from '$lib/api/user_secrets';
-  import type { components } from '$lib/api/schema';
+  import { allegro } from '#lib/api/allegro.js';
+  import { userSecrets } from '#lib/api/user_secrets.js';
+  import type { components } from '#lib/api/schema.js';
 
   type UserSecret = components['schemas']['UserSecretResponse'];
   type VaultStatus = components['schemas']['VaultStatusResponse'];
@@ -116,15 +116,15 @@
   }
 
   function openPayments(secretId: string) {
-    goto(resolve(`/allegro/${secretId}/payments`));
+    goto(resolve(`allegro/${secretId}/payments`));
   }
 
   function openMatches(secretId: string) {
-    goto(resolve(`/allegro/${secretId}/matches`));
+    goto(resolve(`allegro/${secretId}/matches`));
   }
 
   function openSettings() {
-    goto(resolve('/settings/secrets'));
+    goto(resolve('settings/secrets'));
   }
 
   onMount(() => {

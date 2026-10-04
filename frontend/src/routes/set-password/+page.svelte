@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { setPassword } from '$lib/api/auth';
-  import { ApiError } from '$lib/api/errors';
+  import { setPassword } from '#lib/api/auth.js';
+  import { ApiError } from '#lib/api/errors.js';
 
   const REDIRECT_DELAY_MS = 2200;
 
@@ -16,8 +16,12 @@
   let success = false;
   let formError: string | null = null;
 
-  $: token = $page.url.searchParams.get('token')?.trim() ?? '';
+  let token = page.url.searchParams.get('token')?.trim() ?? '';
   $: tokenMissing = token.length === 0;
+
+  afterNavigate(() => {
+    token = page.url.searchParams.get('token')?.trim() ?? '';
+  });
 
   function getErrorMessage(error: unknown, fallback: string): string {
     if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
@@ -58,7 +62,7 @@
       confirmPassword = '';
 
       setTimeout(() => {
-        goto(resolve('/login'));
+        goto(resolve('login'));
       }, REDIRECT_DELAY_MS);
     } catch (error: unknown) {
       formError = getErrorMessage(error, 'Failed to set password. Please try again.');
@@ -144,7 +148,7 @@
             </div>
           </div>
 
-          <a href={resolve('/login')} class="btn btn-primary mt-6 w-full">
+          <a href={resolve('login')} class="btn btn-primary mt-6 w-full">
             <Icon src={icons.ArrowRightEndOnRectangle} class="h-5 w-5" />
             Go to login
           </a>
@@ -157,7 +161,7 @@
             </div>
           </div>
 
-          <a href={resolve('/login')} class="btn btn-outline mt-6 w-full">Go to login</a>
+          <a href={resolve('login')} class="btn btn-outline mt-6 w-full">Go to login</a>
         {:else}
           <form class="space-y-5" on:submit|preventDefault={submitForm}>
             <label class="form-control">
@@ -205,7 +209,7 @@
             </button>
           </form>
 
-          <a href={resolve('/login')} class="btn btn-ghost mt-4 w-full">Back to login</a>
+          <a href={resolve('login')} class="btn btn-ghost mt-4 w-full">Back to login</a>
         {/if}
       </div>
     </section>

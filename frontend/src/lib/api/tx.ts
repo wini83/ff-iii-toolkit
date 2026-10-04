@@ -1,6 +1,6 @@
 import { apiRequest } from './auth';
-import { normalizeApiError } from '$lib/api/errors';
-import type { operations, components } from '$lib/api/schema';
+import { normalizeApiError } from '#lib/api/errors.js';
+import type { operations, components } from '#lib/api/schema.js';
 
 type TxTag = components['schemas']['TxTag'];
 type TxMetricsStatusResponse = components['schemas']['TxMetricsStatusResponse'];

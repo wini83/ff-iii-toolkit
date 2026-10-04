@@ -1,7 +1,7 @@
 import { fail, redirect, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { propagateBackendAuthCookies, setAccessTokenCookie } from '$lib/server/auth-cookies';
-import type { components } from '$lib/api/schema';
+import { propagateBackendAuthCookies, setAccessTokenCookie } from '#lib/server/auth-cookies.js';
+import type { components } from '#lib/api/schema.js';
 
 /**
  * Nie sprawdzamy żadnej konfiguracji runtime.

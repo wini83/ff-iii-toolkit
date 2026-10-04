@@ -16,8 +16,8 @@
     Filler
   } from 'chart.js';
 
-  import { blik } from '$lib/api/blik';
-  import type { components } from '$lib/api/schema';
+  import { blik } from '#lib/api/blik.js';
+  import type { components } from '#lib/api/schema.js';
 
   Chart.register(
     BarController,

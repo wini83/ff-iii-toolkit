@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getFireflyStatus } from '$lib/api/system';
-  import type { components } from '$lib/api/schema';
+  import { getFireflyStatus } from '#lib/api/system.js';
+  import type { components } from '#lib/api/schema.js';
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
@@ -29,28 +29,28 @@
 
   const quickActions = [
     {
-      href: '/tx/categorize',
+      href: 'tx/categorize',
       title: 'Categorize transactions',
       description: 'Process the screening queue month by month and assign categories quickly.',
       icon: icons.DocumentMagnifyingGlass,
       tone: 'primary'
     },
     {
-      href: '/blik/upload',
+      href: 'blik/upload',
       title: 'Upload BLIK file',
       description: 'Start a fresh import flow and move directly into preview and matching.',
       icon: icons.InboxArrowDown,
       tone: 'secondary'
     },
     {
-      href: '/tools/velobank',
+      href: 'tools/velobank',
       title: 'Open VeloBank import',
       description: 'Upload VeloBank PDF, review operations and download CSV for Firefly.',
       icon: icons.DocumentArrowUp,
       tone: 'success'
     },
     {
-      href: '/allegro/accounts',
+      href: 'allegro/accounts',
       title: 'Review Allegro accounts',
       description: 'Open configured marketplace accounts and jump into payments or matches.',
       icon: icons.BuildingStorefront,
@@ -71,8 +71,8 @@
       title: 'Transactions',
       description: 'Categorization and statistics for the monthly screening workflow.',
       hrefs: [
-        { label: 'Categorize', href: '/tx/categorize' },
-        { label: 'Stats', href: '/tx/stats' }
+        { label: 'Categorize', href: 'tx/categorize' },
+        { label: 'Stats', href: 'tx/stats' }
       ],
       icon: icons.ShoppingBag,
       tone: 'primary'
@@ -81,9 +81,9 @@
       title: 'BLIK Sync',
       description: 'File upload, preview, match flow and sync statistics in one area.',
       hrefs: [
-        { label: 'Upload', href: '/blik/upload' },
-        { label: 'Preview', href: '/blik/file' },
-        { label: 'Stats', href: '/blik/stats' }
+        { label: 'Upload', href: 'blik/upload' },
+        { label: 'Preview', href: 'blik/file' },
+        { label: 'Stats', href: 'blik/stats' }
       ],
       icon: icons.DocumentCurrencyEuro,
       tone: 'secondary'
@@ -92,8 +92,8 @@
       title: 'Allegro',
       description: 'Marketplace accounts, imported payments, matching decisions and stats.',
       hrefs: [
-        { label: 'Accounts', href: '/allegro/accounts' },
-        { label: 'Stats', href: '/allegro/stats' }
+        { label: 'Accounts', href: 'allegro/accounts' },
+        { label: 'Stats', href: 'allegro/stats' }
       ],
       icon: icons.ChartBar,
       tone: 'warning'
@@ -102,14 +102,14 @@
       title: 'Import Tools',
       description:
         'Focused import flows for bank and file-based sources that need preview and export.',
-      hrefs: [{ label: 'VeloBank Import', href: '/tools/velobank' }],
+      hrefs: [{ label: 'VeloBank Import', href: 'tools/velobank' }],
       icon: icons.ArchiveBoxArrowDown,
       tone: 'success'
     },
     {
       title: 'Settings',
       description: 'Configuration entry points for integration secrets and application setup.',
-      hrefs: [{ label: 'Secrets', href: '/settings/secrets' }],
+      hrefs: [{ label: 'Secrets', href: 'settings/secrets' }],
       icon: icons.Key,
       tone: 'success'
     }
@@ -168,7 +168,7 @@
         </div>
 
         <div class="flex flex-wrap justify-end gap-3">
-          <a href={resolve('/tx/categorize')} class="btn btn-primary">
+          <a href={resolve('tx/categorize')} class="btn btn-primary">
             <Icon src={icons.DocumentMagnifyingGlass} class="h-5 w-5" />
             Open screening
           </a>
