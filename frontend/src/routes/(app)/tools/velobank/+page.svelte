@@ -4,8 +4,8 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import * as api from '$lib/api/velobank';
-  import type { AccountMappings, AccountOption, VeloBankPreview } from '$lib/api/velobank';
+  import * as api from '#lib/api/velobank';
+  import type { AccountMappings, AccountOption, VeloBankPreview } from '#lib/api/velobank';
 
   let selectedFile: File | null = null;
   let fileInput: HTMLInputElement;
