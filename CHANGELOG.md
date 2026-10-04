@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.3.1 (2026-10-04)
+
+### Refactor
+
+- add amount view to transaction statistics (#43)
+
 ## v3.3.0 (2026-10-04)
 
 ### Feat
