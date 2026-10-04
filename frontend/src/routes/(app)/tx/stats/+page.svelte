@@ -444,9 +444,7 @@
 
 {#if !networkError && !isFailed(statusData?.status) && !hasNoData(statusData)}
   <div class="card bg-base-100 mt-6 w-full p-6 shadow-xl">
-    <div class="text-xl font-semibold">
-      Categorizable by month
-    </div>
+    <div class="text-xl font-semibold">Categorizable by month</div>
 
     <div class="divider mt-2 mb-2"></div>
 
