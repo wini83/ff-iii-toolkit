@@ -190,7 +190,10 @@
           labels: categorizableByMonth.labels,
           datasets: [
             {
-              label: metricMode === 'count' ? 'Categorizable' : `Categorizable (${result.currency_code})`,
+              label:
+                metricMode === 'count'
+                  ? 'Categorizable'
+                  : `Categorizable (${result.currency_code})`,
               data: categorizableByMonth.values,
               backgroundColor: '#3b82f6'
             }
@@ -363,7 +366,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title text-primary">Single-part transactions</div>
-        <div class="stat-value text-primary">{metricValue(d.single_part_transactions, d.single_part_amount, d.currency_code)}</div>
+        <div class="stat-value text-primary">
+          {metricValue(d.single_part_transactions, d.single_part_amount, d.currency_code)}
+        </div>
       </div>
     </div>
 
@@ -373,7 +378,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title text-secondary">Uncategorized</div>
-        <div class="stat-value text-secondary">{metricValue(d.uncategorized_transactions, d.uncategorized_amount, d.currency_code)}</div>
+        <div class="stat-value text-secondary">
+          {metricValue(d.uncategorized_transactions, d.uncategorized_amount, d.currency_code)}
+        </div>
       </div>
     </div>
 
@@ -383,7 +390,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title text-warning">Action req</div>
-        <div class="stat-value text-warning">{metricValue(d.action_req, d.action_req_amount, d.currency_code)}</div>
+        <div class="stat-value text-warning">
+          {metricValue(d.action_req, d.action_req_amount, d.currency_code)}
+        </div>
       </div>
     </div>
 
@@ -393,7 +402,9 @@
           <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
         </div>
         <div class="stat-title">Categorizable</div>
-        <div class="stat-value">{metricValue(d.categorizable, d.categorizable_amount, d.currency_code)}</div>
+        <div class="stat-value">
+          {metricValue(d.categorizable, d.categorizable_amount, d.currency_code)}
+        </div>
         <div class="stat-desc">
           BLIK not OK: {metricValue(d.blik_not_ok, d.blik_not_ok_amount, d.currency_code)} |
           Allegro not OK: {metricValue(d.allegro_not_ok, d.allegro_not_ok_amount, d.currency_code)}
