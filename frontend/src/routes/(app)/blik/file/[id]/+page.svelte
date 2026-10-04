@@ -29,7 +29,7 @@
   $: content = (preview?.content ?? []) as PreviewRow[];
 
   function goToMatch() {
-    goto(resolve(`/blik/file/${file_id}/match`));
+    goto(resolve(`blik/file/${file_id}/match`));
   }
 
   function formatAmount(v?: number) {
