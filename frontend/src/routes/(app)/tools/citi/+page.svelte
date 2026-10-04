@@ -3,8 +3,8 @@
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import { citi } from '#lib/api/citi';
-  import type { components } from '#lib/api/schema';
+  import { citi } from '#lib/api/citi.js';
+  import type { components } from '#lib/api/schema.js';
 
   type CitiImportParseResponse = components['schemas']['CitiImportParseResponse'];
   type ImportMode = 'file' | 'text';
@@ -67,7 +67,7 @@
 
   async function goToPreview(result: CitiImportParseResponse) {
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    await goto(resolve('/tools/citi/preview') + `?file_id=${encodeURIComponent(result.file_id)}`);
+    await goto(resolve('tools/citi/preview') + `?file_id=${encodeURIComponent(result.file_id)}`);
   }
 
   async function parseFile() {
@@ -214,7 +214,7 @@
           </div>
         </div>
 
-        <a href={resolve('/tools/citi/preview')} class="btn btn-outline btn-sm self-start">
+        <a href={resolve('tools/citi/preview')} class="btn btn-outline btn-sm self-start">
           <Icon src={icons.DocumentMagnifyingGlass} class="h-4 w-4" />
           Open preview directly
         </a>
