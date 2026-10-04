@@ -297,7 +297,7 @@
         <button
           type="button"
           class:btn-active={metricMode === 'count'}
-          class="btn btn-sm join-item normal-case"
+          class="btn join-item btn-sm normal-case"
           on:click={() => setMetricMode('count')}
         >
           Count
@@ -305,7 +305,7 @@
         <button
           type="button"
           class:btn-active={metricMode === 'amount'}
-          class="btn btn-sm join-item normal-case"
+          class="btn join-item btn-sm normal-case"
           on:click={() => setMetricMode('amount')}
         >
           Amount
