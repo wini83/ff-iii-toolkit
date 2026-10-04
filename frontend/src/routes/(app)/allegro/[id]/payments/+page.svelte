@@ -6,8 +6,8 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { allegro } from '$lib/api/allegro';
-  import type { components } from '$lib/api/schema';
+  import { allegro } from '#lib/api/allegro';
+  import type { components } from '#lib/api/schema';
 
   type AllegroPayment = components['schemas']['AllegroPayment'];
   const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
