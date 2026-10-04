@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getFireflyStatus } from '#lib/api/system';
-  import type { components } from '#lib/api/schema';
+  import { getFireflyStatus } from '#lib/api/system.js';
+  import type { components } from '#lib/api/schema.js';
   import { resolve } from '$app/paths';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
@@ -168,7 +168,7 @@
         </div>
 
         <div class="flex flex-wrap justify-end gap-3">
-          <a href={resolve('/tx/categorize')} class="btn btn-primary">
+          <a href={resolve('tx/categorize')} class="btn btn-primary">
             <Icon src={icons.DocumentMagnifyingGlass} class="h-5 w-5" />
             Open screening
           </a>
