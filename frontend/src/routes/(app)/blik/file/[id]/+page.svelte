@@ -44,9 +44,9 @@
 <Steps
   activeIndex={1}
   steps={[
-    { label: 'Upload', href: '/blik/upload' },
-    { label: 'Preview', href: `/blik/file/${file_id}` },
-    { label: 'Match', href: `/blik/file/${file_id}/match` }
+    { label: 'Upload', href: 'blik/upload' },
+    { label: 'Preview', href: `blik/file/${file_id}` },
+    { label: 'Match', href: `blik/file/${file_id}/match` }
   ]}
 />
 
