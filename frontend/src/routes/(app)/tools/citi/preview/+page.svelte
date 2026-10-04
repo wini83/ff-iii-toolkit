@@ -4,10 +4,10 @@
   import { page } from '$app/stores';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import CitiPreviewPanel from '$lib/components/citi/CitiPreviewPanel.svelte';
-  import { citi } from '$lib/api/citi';
+  import CitiPreviewPanel from '#lib/components/citi/CitiPreviewPanel.svelte';
+  import { citi } from '#lib/api/citi';
   import type { PageData } from './$types';
-  import type { components } from '$lib/api/schema';
+  import type { components } from '#lib/api/schema';
 
   export let data: PageData;
 
