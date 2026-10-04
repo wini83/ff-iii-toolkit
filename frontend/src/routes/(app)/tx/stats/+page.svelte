@@ -216,10 +216,7 @@
           labels: categorizableByMonth.labels,
           datasets: [
             {
-              label:
-                metricMode === 'count'
-                  ? 'Categorizable'
-                  : 'Categorizable amount',
+              label: metricMode === 'count' ? 'Categorizable' : 'Categorizable amount',
               data: categorizableByMonth.values,
               backgroundColor: '#3b82f6'
             }
