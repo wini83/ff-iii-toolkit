@@ -1638,6 +1638,24 @@ export interface components {
       categorizable_by_month: {
         [key: string]: number;
       };
+      /** Single Part Amount */
+      single_part_amount: string;
+      /** Uncategorized Amount */
+      uncategorized_amount: string;
+      /** Blik Not Ok Amount */
+      blik_not_ok_amount: string;
+      /** Action Req Amount */
+      action_req_amount: string;
+      /** Allegro Not Ok Amount */
+      allegro_not_ok_amount: string;
+      /** Categorizable Amount */
+      categorizable_amount: string;
+      /** Categorizable Amount By Month */
+      categorizable_amount_by_month: {
+        [key: string]: string;
+      };
+      /** Currency Code */
+      currency_code: string;
       /**
        * Time Stamp
        * Format: date-time
