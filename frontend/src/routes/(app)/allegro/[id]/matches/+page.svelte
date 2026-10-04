@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
@@ -32,7 +32,11 @@
   let isStatsModalOpen = false;
   let actionableOnly = false;
 
-  $: secretId = page.params.id;
+  let secretId = page.params.id;
+
+  afterNavigate(() => {
+    secretId = page.params.id;
+  });
   $: login = matchResponse?.login ?? null;
   $: currentPage = Math.floor(offset / pageSize) + 1;
   $: visibleRows = actionableOnly ? rows.filter(isActionableRow) : rows;
