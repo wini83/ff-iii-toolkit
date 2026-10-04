@@ -5,8 +5,8 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { setPassword } from '$lib/api/auth';
-  import { ApiError } from '$lib/api/errors';
+  import { setPassword } from '#lib/api/auth';
+  import { ApiError } from '#lib/api/errors';
 
   const REDIRECT_DELAY_MS = 2200;
 
