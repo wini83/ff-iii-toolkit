@@ -27,9 +27,9 @@ HEADERS = [
 COUNTERPARTY = re.compile(r"Przelew (?:z|na) rachun(?:ku|ek):\s*((?:\d\s*){26})(?!\d)")
 
 
-def render_csv(
+def export_rows(
     statement: VeloBankStatement, *, account_name: str, own_accounts: dict[str, str]
-) -> str:
+) -> list[dict[str, str]]:
     """Export signed amounts and preserve identical legitimate operations.
 
     Args:
@@ -40,9 +40,7 @@ def render_csv(
     Returns:
         CSV with dates, descriptions, account mapping and generated external IDs.
     """
-    output = StringIO(newline="")
-    writer = csv.DictWriter(output, fieldnames=HEADERS, delimiter=";")
-    writer.writeheader()
+    rows: list[dict[str, str]] = []
     occurrences: Counter[str] = Counter()
     for tx in statement.transactions:
         card = re.search(r"Operacja kartą .*? na kwotę .*? w (.+)", tx.description)
@@ -72,7 +70,7 @@ def render_csv(
         )
         digest = hashlib.sha256(key.encode()).hexdigest()
         occurrences[digest] += 1
-        writer.writerow(
+        rows.append(
             {
                 "Date": tx.date.isoformat(),
                 "Booking date": tx.booking_date.isoformat(),
@@ -87,4 +85,22 @@ def render_csv(
                 "External ID": f"velobank-v1-{digest}-{occurrences[digest]}",
             }
         )
+    return rows
+
+
+def render_csv(
+    statement: VeloBankStatement, *, account_name: str, own_accounts: dict[str, str]
+) -> str:
+    """Render the same account mapping and identifiers used by the web preview."""
+    return render_rows(
+        export_rows(statement, account_name=account_name, own_accounts=own_accounts)
+    )
+
+
+def render_rows(rows: list[dict[str, str]]) -> str:
+    """Serialize already mapped rows, including a chunk of a complete statement."""
+    output = StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=HEADERS, delimiter=";")
+    writer.writeheader()
+    writer.writerows(rows)
     return output.getvalue()

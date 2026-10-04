@@ -14,6 +14,7 @@ FastAPI backend for reconciling Firefly III transactions with BLIK CSV imports a
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
 - [Configuration (.env)](#configuration-env)
+- [VeloBank web import](#velobank-web-import)
 - [VeloBank PDF CLI](#velobank-pdf-cli)
 - [API overview](#api-overview)
 - [Development](#development)
@@ -171,6 +172,29 @@ Endpoint summary from current routers:
 | `POST` | `/api/users/{user_id}/demote` | Superuser | Demote from superuser. |
 | `DELETE` | `/api/users/{user_id}` | Superuser | Delete user. |
 | `GET` | `/api/users/audit-log` | Superuser | Query audit-log entries. |
+
+## VeloBank web import
+
+Open **Import Tools → VeloBank Import** to upload a text-based account-history
+PDF, review all debits and credits, map your Firefly asset accounts and download
+a CSV. Account suggestions are read from the configured Firefly connection;
+exact names can also be entered manually. Use **Update preview** after editing
+account mappings, and **Save mappings for next time** to persist them for your
+user. Map only accounts you own so card repayments become transfers.
+
+Uploads are limited to 10 MiB, 50 pages and 5000 operations. Source PDFs are
+closed and removed after parsing. Parsed previews are owned by the uploading
+user, expire after 30 minutes and are lost on a server restart. Previews live
+in process memory, so this flow requires a single backend worker; multiple
+workers would need a shared preview store. Only account mappings are saved in the
+database. Run `alembic upgrade head` before starting the updated backend.
+
+The preview and CSV use the same parser, mappings and generated identifiers as
+the CLI. Export options include splitting the CSV into a ZIP without changing
+identifiers. Downloading does not write transactions to Firefly; use the Data
+Importer configuration described below. The duplicate detection limitations
+below apply to both interfaces. The old Citi routes remain available at
+`/tools/citi` for historical files, but are no longer in the main navigation.
 
 ## VeloBank PDF CLI
 
