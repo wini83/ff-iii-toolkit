@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
@@ -43,7 +43,11 @@
     reason: string | null;
   }> = [];
 
-  $: fileId = page.params.id ?? '';
+  let fileId = page.params.id ?? '';
+
+  afterNavigate(() => {
+    fileId = page.params.id ?? '';
+  });
   $: oneMatches =
     matchData?.transactions_with_one_match ?? rows.filter((row) => row.matches.length === 1).length;
   $: manyMatches =
