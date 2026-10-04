@@ -12,8 +12,8 @@
     Legend
   } from 'chart.js';
 
-  import { getMetricsStatus, refreshMetricsStatus } from '#lib/api/tx';
-  import type { components } from '#lib/api/schema';
+  import { getMetricsStatus, refreshMetricsStatus } from '#lib/api/tx.js';
+  import type { components } from '#lib/api/schema.js';
 
   Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
