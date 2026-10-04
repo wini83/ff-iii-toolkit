@@ -22,11 +22,12 @@ def _tx(
     description: str,
     tags: set[str] | None = None,
     category: Category | None = None,
+    amount: Decimal = Decimal("10.00"),
 ) -> Transaction:
     return Transaction(
         id=tx_id,
         date=tx_date,
-        amount=Decimal("10.00"),
+        amount=amount,
         type=TxType.WITHDRAWAL,
         description=description,
         tags=tags or set(),
@@ -100,6 +101,7 @@ def test_snapshot_allegro_metrics_aggregates_counts_and_months():
             tx_date=date(2024, 1, 20),
             description="allegro order",
             tags={TxTag.allegro_done},
+            amount=Decimal("44.00"),
         ),
         _tx(3, tx_date=date(2024, 2, 8), description="other"),
     ]
@@ -124,21 +126,22 @@ def test_snapshot_allegro_metrics_aggregates_counts_and_months():
 
 def test_snapshot_tx_metrics_aggregates_categorizable_counts():
     transactions = [
-        _tx(1, tx_date=date(2024, 1, 1), description="blik"),
+        _tx(1, tx_date=date(2024, 1, 1), description="blik", amount=Decimal("11.00")),
         _tx(
             2,
             tx_date=date(2024, 1, 2),
             description="other",
             tags={TxTag.action_req},
+            amount=Decimal("22.00"),
         ),
-        _tx(3, tx_date=date(2024, 1, 3), description="allegro order"),
+        _tx(3, tx_date=date(2024, 1, 3), description="allegro order", amount=Decimal("33.00")),
         _tx(
             4,
             tx_date=date(2024, 1, 4),
             description="allegro order",
             tags={TxTag.allegro_done},
         ),
-        _tx(5, tx_date=date(2024, 1, 5), description="groceries"),
+        _tx(5, tx_date=date(2024, 1, 5), description="groceries", amount=Decimal("-55.00")),
     ]
     fetched_at = datetime(2024, 3, 3, 8, 0, tzinfo=UTC)
     snapshot_service = MagicMock()
@@ -161,6 +164,14 @@ def test_snapshot_tx_metrics_aggregates_categorizable_counts():
     assert stats.allegro_not_ok == 1
     assert stats.categorizable == 2
     assert stats.categorizable_by_month == {"2024-01": 2}
+    assert stats.single_part_amount == Decimal("165.00")
+    assert stats.uncategorized_amount == Decimal("165.00")
+    assert stats.blik_not_ok_amount == Decimal("11.00")
+    assert stats.action_req_amount == Decimal("22.00")
+    assert stats.allegro_not_ok_amount == Decimal("33.00")
+    assert stats.categorizable_amount == Decimal("99.00")
+    assert stats.categorizable_amount_by_month == {"2024-01": Decimal("99.00")}
+    assert stats.currency_code == "PLN"
     assert stats.time_stamp == fetched_at
 
 
