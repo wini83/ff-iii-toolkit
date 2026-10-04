@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import type { InviteResult } from '#lib/components/users/types';
+  import type { InviteResult } from '#lib/components/users/types.js';
 
   export let open = false;
   export let invite: InviteResult | null = null;
