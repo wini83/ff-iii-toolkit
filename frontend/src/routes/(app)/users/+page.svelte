@@ -6,10 +6,10 @@
   import TableSkeleton from '#lib/components/TableSkeleton.svelte';
   import CreateUserModal from '#lib/components/users/CreateUserModal.svelte';
   import InviteResultModal from '#lib/components/users/InviteResultModal.svelte';
-  import type { InviteResult } from '#lib/components/users/types';
+  import type { InviteResult } from '#lib/components/users/types.js';
   import UserActionsMenu from '#lib/components/users/UserActionsMenu.svelte';
-  import { users } from '#lib/api/users';
-  import type { components, operations } from '#lib/api/schema';
+  import { users } from '#lib/api/users.js';
+  import type { components, operations } from '#lib/api/schema.js';
 
   type UserResponse = components['schemas']['UserResponse'];
   type CreateUserPayload =
