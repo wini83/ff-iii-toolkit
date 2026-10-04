@@ -5,8 +5,8 @@
   import { page } from '$app/stores';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import { blik } from '$lib/api/blik';
-  import type { components } from '$lib/api/schema';
+  import { blik } from '#lib/api/blik';
+  import type { components } from '#lib/api/schema';
 
   type MatchData = components['schemas']['FileMatchResponse'];
   type MatchRow = components['schemas']['api__models__blik_files__MatchResult'];
