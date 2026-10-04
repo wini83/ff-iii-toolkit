@@ -2,12 +2,12 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { getScreeningMonth, assignCategory, applyTag, getCategorySuggestions } from '#lib/api/tx';
-  import type { operations, components } from '#lib/api/schema';
+  import { getScreeningMonth, assignCategory, applyTag, getCategorySuggestions } from '#lib/api/tx.js';
+  import type { operations, components } from '#lib/api/schema.js';
 
   type ScreeningMonthResponse =
     operations['get_screening_month_api_tx_screening_get']['responses'][200]['content']['application/json'];
@@ -174,7 +174,7 @@
   }
 
   function resolveYearMonth() {
-    const params = $page.url.searchParams;
+    const params = page.url.searchParams;
     const now = new Date();
 
     year = Number(params.get('year')) || now.getFullYear();
@@ -322,13 +322,13 @@
   function prevMonth() {
     const d = new Date(year, month - 2, 1);
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    goto(resolve('/tx/categorize') + `?year=${d.getFullYear()}&month=${d.getMonth() + 1}`);
+    goto(resolve('tx/categorize') + `?year=${d.getFullYear()}&month=${d.getMonth() + 1}`);
   }
 
   function nextMonth() {
     const d = new Date(year, month, 1);
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    goto(resolve('/tx/categorize') + `?year=${d.getFullYear()}&month=${d.getMonth() + 1}`);
+    goto(resolve('tx/categorize') + `?year=${d.getFullYear()}&month=${d.getMonth() + 1}`);
   }
 
   function jumpToPeriod() {
@@ -339,7 +339,7 @@
     if (nextYear < 1) return;
 
     // eslint-disable-next-line svelte/no-navigation-without-resolve
-    goto(resolve('/tx/categorize') + `?year=${nextYear}&month=${nextMonth}`);
+    goto(resolve('tx/categorize') + `?year=${nextYear}&month=${nextMonth}`);
   }
 
   onMount(() => {
@@ -349,7 +349,7 @@
   });
 
   $: if (initialized) {
-    const params = $page.url.searchParams;
+    const params = page.url.searchParams;
     const y = Number(params.get('year'));
     const m = Number(params.get('month'));
 
