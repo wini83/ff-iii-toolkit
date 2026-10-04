@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
-  import type { components } from '#lib/api/schema';
+  import type { components } from '#lib/api/schema.js';
 
   type UserResponse = components['schemas']['UserResponse'];
 
