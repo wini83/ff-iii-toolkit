@@ -3,8 +3,8 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { users } from '#lib/api/users';
-  import type { components } from '#lib/api/schema';
+  import { users } from '#lib/api/users.js';
+  import type { components } from '#lib/api/schema.js';
 
   type AuditLogItem = components['schemas']['AuditLogItem'];
 
