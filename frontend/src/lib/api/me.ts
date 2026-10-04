@@ -1,6 +1,6 @@
 import { apiRequest } from './auth';
-import { normalizeApiError } from '$lib/api/errors';
-import type { operations } from '$lib/api/schema';
+import { normalizeApiError } from '#lib/api/errors';
+import type { operations } from '#lib/api/schema';
 
 type MeResponse = operations['get_me_api_me_get']['responses'][200]['content']['application/json'];
 
