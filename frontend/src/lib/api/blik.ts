@@ -1,6 +1,6 @@
 import { apiRequest } from './auth';
-import { normalizeApiError } from '#lib/api/errors';
-import type { components } from '#lib/api/schema';
+import { normalizeApiError } from '#lib/api/errors.js';
+import type { components } from '#lib/api/schema.js';
 
 type BlikMetricsStatusResponse = components['schemas']['BlikMetricsStatusResponse'];
 type BlikApplyDecision = components['schemas']['api__models__blik_files__ApplyDecision'];
