@@ -6,7 +6,12 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
 
-  import { getScreeningMonth, assignCategory, applyTag, getCategorySuggestions } from '#lib/api/tx.js';
+  import {
+    getScreeningMonth,
+    assignCategory,
+    applyTag,
+    getCategorySuggestions
+  } from '#lib/api/tx.js';
   import type { operations, components } from '#lib/api/schema.js';
 
   type ScreeningMonthResponse =
