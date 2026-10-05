@@ -71,12 +71,6 @@ from tests.services.velobank_import.test_velobank import ACCOUNT, record
             "KWIACIARNIA BEAUT83154",
             "KWIACIARNIA BEAUT83154, Szczecin",
         ),
-        (
-            "",
-            "TEST HOLDER-Warszawa-Shop-with-hyphens-616",
-            "Shop-with-hyphens",
-            "Shop-with-hyphens, Warszawa",
-        ),
         ("", "Shop, City, PL", "Shop", "Shop, City, PL"),
         (
             "1234 ",
@@ -138,3 +132,28 @@ def test_non_card_and_incomplete_descriptions_are_preserved(raw, payee):
     row = export_rows(statement, account_name="Card", own_accounts={})[0]
     assert row["Description"] == raw
     assert row["Payee"] == payee
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        "TEST HOLDER-Bielsko-Biala-Corona Coffee-616",
+        "TEST KOWALSKI-NOWAK-Szczecin-Corona Coffee-616",
+        "TEST HOLDER-Warszawa-Shop-with-hyphens-616",
+        "TEST HOLDER-Szczecin- -616",
+        "TEST HOLDER- -ESUS-616",
+    ],
+)
+@pytest.mark.parametrize("amount", ["-12.34", "12.34"])
+def test_ambiguous_or_empty_legacy_fields_require_review(details, amount):
+    raw = f"Operacja kartą na kwotę 12,34 PLN w {details}"
+    statement = VeloBankStatement(ACCOUNT, [record(raw, amount)])
+    accounts = {"PL" + ACCOUNT: "Card"}
+    entry = VeloBankPreviewStore().create(uuid4(), statement)
+    preview = preview_data(entry, accounts)["preview"][0]
+    row = export_rows(statement, account_name="Card", own_accounts=accounts)[0]
+    assert preview["payee"] == row["Payee"] == "Unknown counterparty"
+    assert preview["description"] == row["Description"] == raw
+    assert preview["needs_review"]
+    other_side = "Destination account" if amount.startswith("-") else "Source account"
+    assert row[other_side] == "Unknown counterparty"

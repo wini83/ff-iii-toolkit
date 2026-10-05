@@ -27,8 +27,9 @@ HEADERS = [
 COUNTERPARTY = re.compile(r"Przelew (?:z|na) rachun(?:ku|ek):\s*((?:\d\s*){26})(?!\d)")
 CARD = re.compile(r"^Operacja kartą\s+(.*?)na kwotę\s+.*?\s+w\s+(.+)$")
 LEGACY_CARD = re.compile(
-    r"^[^-]+-\s*(?P<city>[^-]+)-\s*(?P<merchant>.+?)(?:-\s*|\s+)\d{3}$"
+    r"^[^-]+-\s*(?P<city>[^-]+)-\s*(?P<merchant>[^-]+?)(?:-\s*|\s+)\d{3}$"
 )
+LEGACY_CODE = re.compile(r"(?:-\s*|\s+)\d{3}$")
 
 
 def _card_details(description: str) -> tuple[str, str] | None:
@@ -39,10 +40,17 @@ def _card_details(description: str) -> tuple[str, str] | None:
     details = card[2].strip()
     # The older format omits the card number and includes the holder and a
     # trailing numeric code. Limit this interpretation to that variant.
-    legacy = LEGACY_CARD.fullmatch(details) if not card[1].strip() else None
-    if legacy:
+    if not card[1].strip() and details.count("-") >= 2 and LEGACY_CODE.search(details):
+        # Extra hyphens could belong to the holder, city or merchant. Without
+        # another delimiter we cannot determine that split safely.
+        legacy = LEGACY_CARD.fullmatch(details)
+        if not legacy:
+            return None
         merchant = legacy["merchant"].strip()
-        return merchant, f"{merchant}, {legacy['city'].strip()}"
+        city = legacy["city"].strip()
+        if not merchant or not city:
+            return None
+        return merchant, f"{merchant}, {city}"
     merchant = details.split(",", 1)[0].strip()
     if not merchant:
         return None
