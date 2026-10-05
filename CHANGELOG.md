@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.3.4 (2026-10-05)
+
+### Fix
+
+- **velobank**: recognize legacy card merchants and clean descriptions (#62)
+
 ## v3.3.3 (2026-10-04)
 
 ### Fix
