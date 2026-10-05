@@ -25,6 +25,28 @@ HEADERS = [
     "External ID",
 ]
 COUNTERPARTY = re.compile(r"Przelew (?:z|na) rachun(?:ku|ek):\s*((?:\d\s*){26})(?!\d)")
+CARD = re.compile(r"^Operacja kartą\s+(.*?)na kwotę\s+.*?\s+w\s+(.+)$")
+LEGACY_CARD = re.compile(
+    r"^[^-]+-\s*(?P<city>[^-]+)-\s*(?P<merchant>.+?)(?:-\s*|\s+)\d{3}$"
+)
+
+
+def _card_details(description: str) -> tuple[str, str] | None:
+    """Extract the merchant and location without changing the bank's raw text."""
+    card = CARD.fullmatch(normalize(description))
+    if not card:
+        return None
+    details = card[2].strip()
+    # The older format omits the card number and includes the holder and a
+    # trailing numeric code. Limit this interpretation to that variant.
+    legacy = LEGACY_CARD.fullmatch(details) if not card[1].strip() else None
+    if legacy:
+        merchant = legacy["merchant"].strip()
+        return merchant, f"{merchant}, {legacy['city'].strip()}"
+    merchant = details.split(",", 1)[0].strip()
+    if not merchant:
+        return None
+    return merchant, details
 
 
 def export_rows(
@@ -43,12 +65,12 @@ def export_rows(
     rows: list[dict[str, str]] = []
     occurrences: Counter[str] = Counter()
     for tx in statement.transactions:
-        card = re.search(r"Operacja kartą .*? na kwotę .*? w (.+)", tx.description)
+        card = _card_details(tx.description)
         name = re.search(
             r"(?:Nadawca|Odbiorca): (.*?)(?:, Tytuł:| Tytuł:|$)", tx.description
         )
         payee = (
-            card[1] if card else name[1].rstrip(",") if name else "Unknown counterparty"
+            card[0] if card else name[1].rstrip(",") if name else "Unknown counterparty"
         )
         account_match = COUNTERPARTY.search(tx.description)
         other_iban = "PL" + re.sub(r"\s", "", account_match[1]) if account_match else ""
@@ -77,7 +99,7 @@ def export_rows(
                 "Amount": f"{tx.amount:.2f}",
                 "Currency": tx.currency,
                 "Payee": payee,
-                "Description": tx.description,
+                "Description": card[1] if card else tx.description,
                 "Source account": account_name if outgoing else other_name,
                 "Destination account": other_name if outgoing else account_name,
                 "Source IBAN": this_iban if outgoing else other_iban,
