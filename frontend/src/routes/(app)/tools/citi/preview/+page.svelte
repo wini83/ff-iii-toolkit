@@ -28,7 +28,7 @@
   async function syncUrl(fileId: string) {
     const next = new URL(page.url.href);
     next.searchParams.set('file_id', fileId);
-    await goto(resolve('tools/citi/preview') + `?${next.searchParams.toString()}`, {
+    await goto(resolve(`tools/citi/preview?${next.searchParams.toString()}`), {
       replace: true,
       reset: false
     });

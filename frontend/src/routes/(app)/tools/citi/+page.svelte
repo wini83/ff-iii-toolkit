@@ -66,7 +66,7 @@
   }
 
   async function goToPreview(result: CitiImportParseResponse) {
-    await goto(resolve('tools/citi/preview') + `?file_id=${encodeURIComponent(result.file_id)}`);
+    await goto(resolve(`tools/citi/preview?file_id=${encodeURIComponent(result.file_id)}`));
   }
 
   async function parseFile() {
