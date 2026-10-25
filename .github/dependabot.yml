@@ -6,6 +6,10 @@ updates:
     schedule:
       interval: weekly
     target-branch: main
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
     open-pull-requests-limit: 5
     groups:
       python-non-major:
@@ -18,6 +22,10 @@ updates:
     schedule:
       interval: weekly
     target-branch: main
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
     open-pull-requests-limit: 5
     groups:
       frontend-non-major:
@@ -30,6 +38,10 @@ updates:
     schedule:
       interval: weekly
     target-branch: main
+    commit-message:
+      prefix: ci
+      prefix-development: ci
+      include: scope
     open-pull-requests-limit: 5
     groups:
       actions:
