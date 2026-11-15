@@ -42,19 +42,19 @@ class RedisSnapshotStore(SnapshotStore):
         try:
             async with asyncio.timeout(SNAPSHOT_REDIS_TIMEOUT_SECONDS):
                 payload = await self.redis.get(self.key)
-        except (RedisError, OSError):
-            raise SnapshotStoreUnavailable(
-                "Transaction snapshot cache unavailable"
-            ) from None
-        if payload is None:
-            return None
-        try:
+            if payload is None:
+                return None
             return deserialize_snapshot(payload)
-        except InvalidSnapshot:
+        except (InvalidSnapshot, UnicodeDecodeError):
+            # Redis may decode UTF-8 before the JSON validator sees the value.
             # Do not delete here: another process may already have replaced the
             # bad value. A successful refresh atomically overwrites it instead.
             logger.warning("Ignoring invalid transaction snapshot cache payload")
             return None
+        except (RedisError, OSError):
+            raise SnapshotStoreUnavailable(
+                "Transaction snapshot cache unavailable"
+            ) from None
 
     async def set_snapshot(self, snapshot: TransactionSnapshot) -> None:
         payload = serialize_snapshot(snapshot)

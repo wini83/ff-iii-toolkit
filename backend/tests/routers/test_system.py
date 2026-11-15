@@ -220,3 +220,21 @@ def test_snapshot_endpoint_returns_503_on_cache_failure(client, monkeypatch):
     assert response.status_code == 503
     assert response.json() == {"detail": "Transaction snapshot cache unavailable"}
     assert "password" not in response.text
+
+
+def test_snapshot_endpoint_treats_invalid_utf8_as_empty_cache(client, monkeypatch):
+    from services.snapshot.redis_store import RedisSnapshotStore
+
+    redis = AsyncMock()
+    redis.get.side_effect = UnicodeDecodeError(
+        "utf-8", b"\xffsecret-cache-data", 0, 1, "invalid start byte"
+    )
+    client.app.state.snapshot_store = RedisSnapshotStore(redis)
+    monkeypatch.setattr(
+        "api.deps_services.get_firefly_base_service", lambda: AsyncMock()
+    )
+    response = client.get("/api/system/transaction-snapshot")
+    assert response.status_code == 200
+    assert response.json()["has_snapshot"] is False
+    assert response.json()["is_stale"] is True
+    assert "secret-cache-data" not in response.text

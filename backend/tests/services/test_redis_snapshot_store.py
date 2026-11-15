@@ -117,7 +117,8 @@ def test_operation_timeout_does_not_fall_back_to_memory(monkeypatch):
         asyncio.run(RedisSnapshotStore(redis).get_snapshot())
 
 
-def test_real_redis_key_expiry_and_recovery_after_corruption():
+@pytest.mark.parametrize("payload", ["malformed", b"\xff\xfesecret-cache-data"])
+def test_real_redis_key_expiry_and_recovery_after_corruption(payload):
     url = os.getenv("TEST_REDIS_URL")
     if not url:
         pytest.skip("Set TEST_REDIS_URL for Redis integration tests")
@@ -127,8 +128,18 @@ def test_real_redis_key_expiry_and_recovery_after_corruption():
             key = f"toolkit:test:expiry:{uuid4().hex}"
             store = RedisSnapshotStore(redis, key=key, retention_seconds=60)
             try:
-                await redis.set(key, "malformed", ex=60)
+                await redis.set(key, payload, ex=60)
                 assert await store.get_snapshot() is None
+                assert await store.is_stale(300)
+                firefly = MagicMock()
+                firefly.fetch_transactions_with_metrics = AsyncMock(
+                    return_value=([], FetchMetrics(0, 1, 0, 0))
+                )
+                service = TransactionSnapshotService(store, firefly)
+                rebuilt = await service.get_snapshot()
+                firefly.fetch_transactions_with_metrics.assert_awaited_once()
+                assert await store.get_snapshot() == rebuilt
+                assert not await store.is_stale(300)
                 valid = snapshot(stale=True)
                 await store.set_snapshot(valid)
                 assert 0 < await redis.ttl(key) <= 60
@@ -222,3 +233,20 @@ def test_snapshot_survives_restart_of_api_process():
         assert timestamps[0] == timestamps[1]
     finally:
         asyncio.run(cleanup())
+
+
+def test_redis_decode_error_is_a_cache_miss_without_deletion_or_payload_logging(
+    monkeypatch,
+):
+    warning = MagicMock()
+    monkeypatch.setattr("services.snapshot.redis_store.logger.warning", warning)
+    redis = AsyncMock()
+    redis.get.side_effect = UnicodeDecodeError(
+        "utf-8", b"\xffsecret-cache-data", 0, 1, "invalid start byte"
+    )
+    store = RedisSnapshotStore(redis)
+    assert asyncio.run(store.get_snapshot()) is None
+    assert asyncio.run(store.is_stale(300))
+    redis.delete.assert_not_awaited()
+    warning.assert_called_with("Ignoring invalid transaction snapshot cache payload")
+    assert warning.call_count == 2
