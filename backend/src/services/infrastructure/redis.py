@@ -1,5 +1,6 @@
 """Optional Redis connection infrastructure; no application stores use it yet."""
 
+import asyncio
 from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
 from typing import cast
@@ -9,6 +10,15 @@ from redis.asyncio import Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
+
+REDIS_PROBE_TIMEOUT_SECONDS = 2
+
+
+async def _ping(client: Redis) -> None:
+    # Bound the entire probe, including DNS, handshake and URL-specified timeouts.
+    async with asyncio.timeout(REDIS_PROBE_TIMEOUT_SECONDS):
+        # redis-py shares the PING annotation with its synchronous client.
+        await cast(Awaitable[bool], client.ping())
 
 
 @asynccontextmanager
@@ -29,9 +39,8 @@ async def redis_connection(url: SecretStr | None) -> AsyncGenerator[Redis | None
                 max_connections=10,
                 decode_responses=True,
             )
-            # redis-py shares the PING annotation with its synchronous client.
-            await cast(Awaitable[bool], client.ping())
-        except (RedisError, OSError, ValueError):
+            await _ping(client)
+        except (RedisError, OSError, ValueError, TimeoutError):
             raise RuntimeError("Redis startup readiness check failed") from None
         yield client
     finally:
@@ -43,7 +52,7 @@ async def redis_health(client: Redis | None) -> str:
     if client is None:
         return "not_configured"
     try:
-        await cast(Awaitable[bool], client.ping())
-    except (RedisError, OSError):
+        await _ping(client)
+    except (RedisError, OSError, TimeoutError):
         return "error"
     return "ok"

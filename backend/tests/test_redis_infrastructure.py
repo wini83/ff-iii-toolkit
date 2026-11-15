@@ -91,3 +91,58 @@ def test_real_redis_connection_round_trip():
                 await client.delete(key)
 
     asyncio.run(check())
+
+
+def test_startup_probe_deadline_overrides_url_timeouts(monkeypatch):
+    monkeypatch.setattr(
+        "services.infrastructure.redis.REDIS_PROBE_TIMEOUT_SECONDS", 0.05
+    )
+
+    async def check():
+        # Accept TCP but never answer the handshake/PING. The URL disables the
+        # socket read timeout, so only the outer probe deadline can stop it.
+        async def stall(reader, writer):
+            try:
+                await reader.read()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        server = await asyncio.start_server(stall, "127.0.0.1", 0)
+        async with server:
+            port = server.sockets[0].getsockname()[1]
+            url = SecretStr(
+                f"redis://127.0.0.1:{port}/0?socket_timeout=0&socket_connect_timeout=60"
+            )
+            async with asyncio.timeout(1):
+                with pytest.raises(RuntimeError, match="Redis startup readiness"):
+                    async with redis_connection(url):
+                        pytest.fail("Stalled Redis must not pass startup")
+
+    asyncio.run(check())
+
+
+def test_health_probe_deadline_returns_error(monkeypatch):
+    monkeypatch.setattr(
+        "services.infrastructure.redis.REDIS_PROBE_TIMEOUT_SECONDS", 0.01
+    )
+    cancelled = False
+
+    async def stall():
+        nonlocal cancelled
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled = True
+
+    client = AsyncMock()
+    client.ping.side_effect = stall
+
+    async def check():
+        async with asyncio.timeout(1):
+            assert await redis_health(client) == "error"
+        assert cancelled
+        client.ping.side_effect = None
+        assert await redis_health(client) == "ok"
+
+    asyncio.run(check())

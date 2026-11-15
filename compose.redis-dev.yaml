@@ -1,4 +1,6 @@
 # Only for a host-run backend. Do not combine with the production stack.
+name: ff-iii-toolkit-redis-dev
+
 services:
   redis:
     image: redis:8.2-alpine

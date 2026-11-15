@@ -52,7 +52,9 @@ remain unchanged. No existing application data is migrated into Redis.
 Without `REDIS_URL`, startup is unchanged and health reports Redis as
 `not_configured`. With it configured, a failed initial PING stops startup with a
 generic message. Connection errors and URLs are not logged. Connection and command
-timeouts are 2 seconds each with no automatic retries. Later failures make
+timeouts default to 2 seconds each with no automatic retries. Each startup and
+health PING also has a hard 2-second overall deadline, including connection and
+handshake; URL query parameters cannot disable that probe deadline. Later failures make
 `/api/system/health` return 503 and `external_services.redis=error`; successful
 probes restore 200. Docker marks containers unhealthy but does not restart them
 solely for that status. The client pool closes on shutdown.
