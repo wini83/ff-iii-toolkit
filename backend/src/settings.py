@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     TAG_BLIK_DONE: str = "blik_done"
     MATCH_WITH_UNMATCHED_FUTURE_DAYS: int = 7
     TRANSACTION_SNAPSHOT_TTL_SECONDS: int = Field(default=300, gt=0)
+    TRANSACTION_SNAPSHOT_REFRESH_LEASE_SECONDS: int = Field(default=210, gt=0)
+    TRANSACTION_SNAPSHOT_REFRESH_TIMEOUT_SECONDS: int = Field(default=220, gt=0)
     TRANSACTION_SNAPSHOT_RETENTION_SECONDS: int = Field(default=86400, gt=0)
     TRANSACTION_SNAPSHOT_REDIS_KEY: str = Field(
         default="ff-iii-toolkit:snapshot:v1:transactions", min_length=1

@@ -1,9 +1,8 @@
-"""Optional Redis connection infrastructure; no application stores use it yet."""
+"""Optional Redis connection infrastructure owned by the application lifespan."""
 
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import cast
 
 from pydantic import SecretStr
 from redis.asyncio import Redis
@@ -17,8 +16,7 @@ REDIS_PROBE_TIMEOUT_SECONDS = 2
 async def _ping(client: Redis) -> None:
     # Bound the entire probe, including DNS, handshake and URL-specified timeouts.
     async with asyncio.timeout(REDIS_PROBE_TIMEOUT_SECONDS):
-        # redis-py shares the PING annotation with its synchronous client.
-        await cast(Awaitable[bool], client.ping())
+        await client.ping()
 
 
 @asynccontextmanager
