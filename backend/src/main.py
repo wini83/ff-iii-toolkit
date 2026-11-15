@@ -24,6 +24,7 @@ from services.db.engine import (
     create_session_factory,
 )
 from services.db.init import DatabaseBootstrap
+from services.infrastructure.redis import redis_connection
 from settings import settings
 from utils.logger import setup_logging
 
@@ -68,13 +69,16 @@ def create_app(*, bootstrap: DatabaseBootstrap | None = None) -> FastAPI:
                 await asyncio.sleep(60)
                 get_velobank_preview_store().purge_expired()
 
-        cleanup = asyncio.create_task(purge_previews())
-        try:
-            yield
-        finally:
-            cleanup.cancel()
-            with suppress(asyncio.CancelledError):
-                await cleanup
+        async with redis_connection(settings.REDIS_URL) as redis:
+            app.state.redis = redis
+            cleanup = asyncio.create_task(purge_previews())
+            try:
+                yield
+            finally:
+                cleanup.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup
+                app.state.redis = None
 
     app.router.lifespan_context = lifespan
 

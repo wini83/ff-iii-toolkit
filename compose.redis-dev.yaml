@@ -1,0 +1,15 @@
+# Only for a host-run backend. Do not combine with the production stack.
+services:
+  redis:
+    image: redis:8.2-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    ports:
+      - "127.0.0.1:6379:6379"

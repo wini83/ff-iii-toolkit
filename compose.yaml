@@ -1,5 +1,26 @@
 services:
+  redis:
+    image: redis:8.2-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - redis_private
   backend:
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+      - redis_private
     build:
       context: ./backend
     env_file:
@@ -40,3 +61,7 @@ services:
 
 volumes:
   backend-data:
+
+networks:
+  redis_private:
+    internal: true

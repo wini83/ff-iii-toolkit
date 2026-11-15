@@ -23,6 +23,7 @@ from api.models.system import (
 )
 from services.db.passwords import hash_password
 from services.guards import require_active_user, require_internal_api_key
+from services.infrastructure.redis import redis_health
 from services.snapshot import TransactionSnapshotService
 from services.snapshot.models import TransactionSnapshot
 from services.system.bootstrap import BootstrapAlreadyDone, BootstrapService
@@ -65,13 +66,19 @@ async def health_check(
     except Exception:
         db_status = "error"
         overall_status = "error"
+    redis_status = await redis_health(getattr(request.app.state, "redis", None))
+    if redis_status == "error":
+        overall_status = "error"
     if overall_status == "error":
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     bootstrapped = db_service.is_bootstrapped()
 
     return HealthResponse(
-        status=overall_status, database=db_status, bootstrapped=bootstrapped
+        status=overall_status,
+        database=db_status,
+        bootstrapped=bootstrapped,
+        external_services={"redis": redis_status},
     )
 
 
