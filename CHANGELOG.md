@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.4.0 (2026-11-15)
+
+### Feat
+
+- **snapshot**: persist transaction snapshots in Redis (#114)
+
 ## v3.3.4 (2026-10-05)
 
 ### Fix
