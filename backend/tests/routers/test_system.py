@@ -74,7 +74,7 @@ def test_transaction_snapshot_status_with_snapshot(client):
     assert r.json()["has_snapshot"] is True
     assert r.json()["snapshot_fetched_at"] == "2026-03-26T10:00:00Z"
     assert r.json()["expires_at"] == "2026-03-27T10:00:00Z"
-    assert r.json()["is_stale"] is False
+    assert r.json()["is_stale"] is True
     assert r.json()["transaction_count"] == 0
     assert r.json()["schema_version"] == 1
 
@@ -203,3 +203,20 @@ def test_firefly_status_uses_luciferin_about(client, monkeypatch, failed):
     assert response.json()["api_version"] == (None if failed else "6.7.4")
     assert "test-token" not in response.text
     firefly.get_about.assert_awaited_once_with()
+
+
+def test_snapshot_endpoint_returns_503_on_cache_failure(client, monkeypatch):
+    from redis.exceptions import ConnectionError
+
+    from services.snapshot.redis_store import RedisSnapshotStore
+
+    redis = AsyncMock()
+    redis.get.side_effect = ConnectionError("redis://private:password@host")
+    client.app.state.snapshot_store = RedisSnapshotStore(redis)
+    monkeypatch.setattr(
+        "api.deps_services.get_firefly_base_service", lambda: AsyncMock()
+    )
+    response = client.get("/api/system/transaction-snapshot")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Transaction snapshot cache unavailable"}
+    assert "password" not in response.text

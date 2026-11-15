@@ -71,6 +71,13 @@ class BlikMetricsManager:
 
             return self._state
 
+    async def aclose(self) -> None:
+        task = self._task
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self._task = None
+
     def _on_task_done(self, task: asyncio.Task[None]) -> None:
         try:
             task.result()

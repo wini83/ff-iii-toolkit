@@ -1,9 +1,12 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi import Request
 
 import api.deps_services as deps_services
+from main import create_app
 from services.allegro_service import AllegroService, allegro_client_factory
 from services.categorization import (
     AmountBucketizer,
@@ -132,9 +135,12 @@ def test_get_firefly_tx_service_uses_filters_from_settings(monkeypatch):
     assert service.filter_desc_allegro == "allegro-x"
 
 
-def test_get_snapshot_store_returns_cached_in_memory_store():
-    first = deps_services.get_snapshot_store()
-    second = deps_services.get_snapshot_store()
+def test_get_snapshot_store_returns_app_scoped_in_memory_store():
+    request = Request({"type": "http", "app": create_app()})
+    first = deps_services.get_snapshot_store(request)
+    second = deps_services.get_snapshot_store(request)
+    other = Request({"type": "http", "app": create_app()})
+    assert deps_services.get_snapshot_store(other) is not first
 
     assert isinstance(first, InMemorySnapshotStore)
     assert second is first
@@ -144,7 +150,7 @@ def test_get_transaction_snapshot_service_uses_store_and_firefly_service(monkeyp
     store = MagicMock()
     firefly_service = MagicMock()
 
-    monkeypatch.setattr(deps_services, "get_snapshot_store", lambda: store)
+    monkeypatch.setattr(deps_services, "get_snapshot_store", lambda request: store)
     monkeypatch.setattr(
         deps_services, "get_firefly_base_service", lambda: firefly_service
     )
@@ -154,7 +160,11 @@ def test_get_transaction_snapshot_service_uses_store_and_firefly_service(monkeyp
         SimpleNamespace(TRANSACTION_SNAPSHOT_TTL_SECONDS=86400),
     )
 
-    service = deps_services.get_transaction_snapshot_service()
+    request = Request({"type": "http", "app": create_app()})
+    service = asyncio.run(deps_services.get_transaction_snapshot_service(request))
+    assert (
+        asyncio.run(deps_services.get_transaction_snapshot_service(request)) is service
+    )
 
     assert isinstance(service, TransactionSnapshotService)
     assert service.store is store
@@ -166,15 +176,14 @@ def test_get_snapshot_blik_metrics_service_uses_snapshot_service(monkeypatch):
     snapshot_service = MagicMock()
 
     monkeypatch.setattr(
-        deps_services, "get_transaction_snapshot_service", lambda: snapshot_service
-    )
-    monkeypatch.setattr(
         deps_services,
         "settings",
         SimpleNamespace(BLIK_DESCRIPTION_FILTER="blik-only"),
     )
 
-    service = deps_services.get_snapshot_blik_metrics_service()
+    service = deps_services.get_snapshot_blik_metrics_service(
+        snapshot_service=snapshot_service
+    )
 
     assert isinstance(service, SnapshotBlikMetricsService)
     assert service.snapshot_service is snapshot_service
@@ -185,15 +194,14 @@ def test_get_snapshot_allegro_metrics_service_uses_snapshot_service(monkeypatch)
     snapshot_service = MagicMock()
 
     monkeypatch.setattr(
-        deps_services, "get_transaction_snapshot_service", lambda: snapshot_service
-    )
-    monkeypatch.setattr(
         deps_services,
         "settings",
         SimpleNamespace(ALLEGRO_DESCRIPTION_FILTER="allegro-only"),
     )
 
-    service = deps_services.get_snapshot_allegro_metrics_service()
+    service = deps_services.get_snapshot_allegro_metrics_service(
+        snapshot_service=snapshot_service
+    )
 
     assert isinstance(service, SnapshotAllegroMetricsService)
     assert service.snapshot_service is snapshot_service
@@ -204,9 +212,6 @@ def test_get_snapshot_tx_metrics_service_uses_both_filters(monkeypatch):
     snapshot_service = MagicMock()
 
     monkeypatch.setattr(
-        deps_services, "get_transaction_snapshot_service", lambda: snapshot_service
-    )
-    monkeypatch.setattr(
         deps_services,
         "settings",
         SimpleNamespace(
@@ -215,7 +220,9 @@ def test_get_snapshot_tx_metrics_service_uses_both_filters(monkeypatch):
         ),
     )
 
-    service = deps_services.get_snapshot_tx_metrics_service()
+    service = deps_services.get_snapshot_tx_metrics_service(
+        snapshot_service=snapshot_service
+    )
 
     assert isinstance(service, SnapshotTxMetricsService)
     assert service.snapshot_service is snapshot_service
@@ -226,12 +233,11 @@ def test_get_snapshot_tx_metrics_service_uses_both_filters(monkeypatch):
 def test_get_category_suggestion_service_uses_snapshot_provider(monkeypatch):
     snapshot_service = MagicMock()
 
-    monkeypatch.setattr(
-        deps_services, "get_transaction_snapshot_service", lambda: snapshot_service
+    service = deps_services.get_category_suggestion_service(
+        snapshot_service=snapshot_service
     )
 
-    service = deps_services.get_category_suggestion_service()
-
+    assert service._snapshot_provider._snapshot_service is snapshot_service
     assert isinstance(service, DefaultCategorySuggestionService)
     assert isinstance(service._snapshot_provider, SnapshotCategorizationProvider)
     assert isinstance(service._similarity_engine, WeightedTransactionSimilarityEngine)

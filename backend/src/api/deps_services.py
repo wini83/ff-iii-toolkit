@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from fastapi import Cookie, Depends, Header
+from fastapi import Cookie, Depends, Header, Request
 from ff_iii_luciferin.api import FireflyClient
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,6 @@ from services.firefly_enrichment_service import FireflyEnrichmentService
 from services.firefly_tx_service import FireflyTxService
 from services.secret_crypto_service import SecretCryptoService
 from services.snapshot import (
-    InMemorySnapshotStore,
     SnapshotAllegroMetricsService,
     SnapshotBlikMetricsService,
     SnapshotStore,
@@ -72,50 +71,66 @@ def get_firefly_tx_service() -> FireflyTxService:
     )
 
 
-@lru_cache(maxsize=1)
-def get_snapshot_store() -> SnapshotStore:
-    return InMemorySnapshotStore()
+def get_snapshot_store(request: Request) -> SnapshotStore:
+    return request.app.state.snapshot_store
 
 
-@lru_cache(maxsize=1)
-def get_transaction_snapshot_service() -> TransactionSnapshotService:
-    return TransactionSnapshotService(
-        store=get_snapshot_store(),
-        firefly_service=get_firefly_base_service(),
-        max_age_seconds=settings.TRANSACTION_SNAPSHOT_TTL_SECONDS,
-    )
+async def get_transaction_snapshot_service(
+    request: Request,
+) -> TransactionSnapshotService:
+    service = getattr(request.app.state, "transaction_snapshot_service", None)
+    if service is None:
+        service = TransactionSnapshotService(
+            store=get_snapshot_store(request),
+            firefly_service=get_firefly_base_service(),
+            max_age_seconds=settings.TRANSACTION_SNAPSHOT_TTL_SECONDS,
+        )
+        request.app.state.transaction_snapshot_service = service
+    return service
 
 
-@lru_cache(maxsize=1)
-def get_snapshot_blik_metrics_service() -> SnapshotBlikMetricsService:
+def get_snapshot_blik_metrics_service(
+    snapshot_service: TransactionSnapshotService = Depends(
+        get_transaction_snapshot_service
+    ),
+) -> SnapshotBlikMetricsService:
     return SnapshotBlikMetricsService(
-        snapshot_service=get_transaction_snapshot_service(),
+        snapshot_service=snapshot_service,
         filter_desc_blik=settings.BLIK_DESCRIPTION_FILTER,
     )
 
 
-@lru_cache(maxsize=1)
-def get_snapshot_allegro_metrics_service() -> SnapshotAllegroMetricsService:
+def get_snapshot_allegro_metrics_service(
+    snapshot_service: TransactionSnapshotService = Depends(
+        get_transaction_snapshot_service
+    ),
+) -> SnapshotAllegroMetricsService:
     return SnapshotAllegroMetricsService(
-        snapshot_service=get_transaction_snapshot_service(),
+        snapshot_service=snapshot_service,
         filter_desc_allegro=getattr(settings, "ALLEGRO_DESCRIPTION_FILTER", "allegro"),
     )
 
 
-@lru_cache(maxsize=1)
-def get_snapshot_tx_metrics_service() -> SnapshotTxMetricsService:
+def get_snapshot_tx_metrics_service(
+    snapshot_service: TransactionSnapshotService = Depends(
+        get_transaction_snapshot_service
+    ),
+) -> SnapshotTxMetricsService:
     return SnapshotTxMetricsService(
-        snapshot_service=get_transaction_snapshot_service(),
+        snapshot_service=snapshot_service,
         filter_desc_blik=settings.BLIK_DESCRIPTION_FILTER,
         filter_desc_allegro=getattr(settings, "ALLEGRO_DESCRIPTION_FILTER", "allegro"),
     )
 
 
-@lru_cache(maxsize=1)
-def get_category_suggestion_service() -> CategorySuggestionService:
+def get_category_suggestion_service(
+    snapshot_service: TransactionSnapshotService = Depends(
+        get_transaction_snapshot_service
+    ),
+) -> CategorySuggestionService:
     amount_bucketizer = AmountBucketizer()
     snapshot_provider = SnapshotCategorizationProvider(
-        snapshot_service=get_transaction_snapshot_service(),
+        snapshot_service=snapshot_service,
         amount_bucketizer=amount_bucketizer,
     )
     similarity_engine = WeightedTransactionSimilarityEngine(

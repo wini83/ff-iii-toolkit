@@ -26,6 +26,7 @@ from services.guards import require_active_user, require_internal_api_key
 from services.infrastructure.redis import redis_health
 from services.snapshot import TransactionSnapshotService
 from services.snapshot.models import TransactionSnapshot
+from services.snapshot.store import snapshot_is_stale
 from services.system.bootstrap import BootstrapAlreadyDone, BootstrapService
 from settings import settings
 
@@ -107,7 +108,7 @@ async def transaction_snapshot_status(
             is_stale=True,
         )
 
-    is_stale = await snapshot_service.store.is_stale(snapshot_service.max_age_seconds)
+    is_stale = snapshot_is_stale(snapshot, snapshot_service.max_age_seconds)
 
     return _build_transaction_snapshot_status_response(
         snapshot_service,

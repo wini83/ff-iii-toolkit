@@ -217,3 +217,45 @@ def test_get_cached_snapshot_timestamp_returns_none_for_stale_snapshot():
         assert await service.get_cached_snapshot_timestamp() is None
 
     asyncio.run(run_test())
+
+
+def test_freshness_is_checked_on_the_snapshot_that_will_be_returned():
+    # Another worker could refresh Redis between GET and is_stale(). Never
+    # approve the old object based on a second read of newer cached data.
+    store = AsyncMock()
+    store.get_snapshot.return_value = TransactionSnapshot(
+        transactions=[build_transaction()],
+        metrics=build_metrics(),
+        fetched_at=datetime.now(UTC) - timedelta(seconds=301),
+    )
+    store.is_stale.return_value = False
+    firefly = MagicMock()
+    firefly.fetch_transactions_with_metrics = AsyncMock(
+        return_value=([], FetchMetrics(0, 1, 0, 0))
+    )
+    service = TransactionSnapshotService(store, firefly)
+    result = asyncio.run(service.get_snapshot())
+    assert result.transactions == []
+    firefly.fetch_transactions_with_metrics.assert_awaited_once()
+    store.is_stale.assert_not_awaited()
+
+
+def test_service_shutdown_cancels_refresh_before_closing_store():
+    async def check():
+        started = asyncio.Event()
+
+        async def fetch():
+            started.set()
+            await asyncio.Event().wait()
+
+        firefly = MagicMock()
+        firefly.fetch_transactions_with_metrics = AsyncMock(side_effect=fetch)
+        service = TransactionSnapshotService(InMemorySnapshotStore(), firefly)
+        request_task = asyncio.create_task(service.get_snapshot())
+        await started.wait()
+        await service.aclose()
+        result = await asyncio.gather(request_task, return_exceptions=True)
+        assert isinstance(result[0], asyncio.CancelledError)
+        assert service._refresh_task is None
+
+    asyncio.run(check())

@@ -121,7 +121,11 @@ cd backend
 TEST_REDIS_URL=redis://127.0.0.1:6379/0 uv run pytest tests/test_redis_infrastructure.py
 ```
 
-The integration test uses a unique key with a short TTL and removes it afterward.
+With `REDIS_URL` set, the backend stores transaction snapshots in Redis.
+Freshness remains 300 seconds by default; Redis retention defaults to 24 hours.
+See the deployment guide for schema validation, expiry and failure behavior.
+
+The integration tests use unique keys with short TTLs and remove them afterward.
 Without `TEST_REDIS_URL` it is skipped; Backend CI always supplies a real Redis
 service. Redis setup, health behavior, VPS rollout, and rollback are documented in
 [`deploy/README.md`](deploy/README.md#redis-infrastructure).

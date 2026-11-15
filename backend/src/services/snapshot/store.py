@@ -4,6 +4,17 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
 
 from services.snapshot.models import TransactionSnapshot
+from services.snapshot.serialization import serialize_snapshot
+
+
+def snapshot_is_stale(
+    snapshot: TransactionSnapshot | None, max_age_seconds: int
+) -> bool:
+    if snapshot is None:
+        return True
+    if snapshot.fetched_at.tzinfo is None or snapshot.fetched_at.utcoffset() is None:
+        raise ValueError("TransactionSnapshot.fetched_at must be timezone-aware")
+    return datetime.now(UTC) - snapshot.fetched_at > timedelta(seconds=max_age_seconds)
 
 
 class SnapshotStore(ABC):
@@ -32,19 +43,11 @@ class InMemorySnapshotStore(SnapshotStore):
         return self._snapshot
 
     async def set_snapshot(self, snapshot: TransactionSnapshot) -> None:
+        serialize_snapshot(snapshot)
         self._snapshot = snapshot
 
     async def invalidate(self) -> None:
         self._snapshot = None
 
     async def is_stale(self, max_age_seconds: int) -> bool:
-        snapshot = self._snapshot
-        if snapshot is None:
-            return True
-
-        if snapshot.fetched_at.tzinfo is None:
-            raise ValueError("TransactionSnapshot.fetched_at must be timezone-aware")
-
-        return datetime.now(UTC) - snapshot.fetched_at > timedelta(
-            seconds=max_age_seconds
-        )
+        return snapshot_is_stale(self._snapshot, max_age_seconds)

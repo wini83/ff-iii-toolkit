@@ -15,6 +15,15 @@ from sqlalchemy.pool import StaticPool
 from alembic import command
 from api.deps_db import get_db
 from main import create_app  # 👈 TO JEST KLUCZ
+from services.snapshot.store import InMemorySnapshotStore
+from settings import settings
+
+
+@pytest.fixture(autouse=True)
+def isolate_runtime_redis(monkeypatch):
+    # Unit API lifespans do not depend on a developer's backend/.env Redis.
+    # Integration stores/processes opt in separately using TEST_REDIS_URL.
+    monkeypatch.setattr(settings, "REDIS_URL", None)
 
 
 def _run_migrations(connection) -> None:
@@ -47,7 +56,7 @@ def db():
 
 @pytest.fixture(scope="function")
 def client(db):
-    app = create_app()  # 👈 TESTOWA APPKA, BEZ BOOTSTRAPU
+    app = create_app(snapshot_store=InMemorySnapshotStore())
 
     def override_get_db(request: Request):
         yield db

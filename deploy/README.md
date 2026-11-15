@@ -46,8 +46,9 @@ allocator/client overhead. `noeviction` rejects writes at the dataset limit;
 measure real usage before selecting eviction rules for future stores.
 
 Persistence is disabled (no AOF, snapshots, or volume). Recreating Redis loses
-its contents. This change only adds connectivity: all existing in-memory stores
-remain unchanged. No existing application data is migrated into Redis.
+its contents. With `REDIS_URL` configured, transaction snapshots now use Redis.
+Other stores (vault sessions, jobs, import previews) remain unchanged. A missing
+snapshot is rebuilt from Firefly; the cache is never the source of truth.
 
 Without `REDIS_URL`, startup is unchanged and health reports Redis as
 `not_configured`. With it configured, a failed initial PING stops startup with a
@@ -102,3 +103,53 @@ For the repository production stack, version rollback follows the standard
 procedure above. To disable Redis while retaining the new backend version,
 remove its `REDIS_URL` and Redis `depends_on` entries, recreate the backend,
 then stop Redis. This change requires no database migration or rollback.
+
+
+### Transaction snapshot storage
+
+`REDIS_URL` automatically selects `RedisSnapshotStore` in the API lifespan.
+Without it, each API instance uses an isolated `InMemorySnapshotStore`. Unit tests
+can inject an in-memory store into `create_app(snapshot_store=...)`. API services
+using snapshots are scoped to that application lifespan, so an API restart does
+not retain a closed Redis client or an old in-process snapshot service.
+
+The single JSON key defaults to `ff-iii-toolkit:snapshot:v1:transactions` and is
+configurable with `TRANSACTION_SNAPSHOT_REDIS_KEY`. Use a different key for each
+independent Firefly dataset or dev/prod environment sharing a Redis instance.
+Version 1 validates transactions, metrics, timezone-aware `fetched_at`, and
+`schema_version`; amounts are JSON decimal strings, not floating-point values.
+No pickle is used. Each replacement is one atomic `SET` including its expiry.
+
+Freshness still uses `now - fetched_at > TRANSACTION_SNAPSHOT_TTL_SECONDS`
+(default 300 seconds). `TRANSACTION_SNAPSHOT_RETENTION_SECONDS` (default 86400)
+is the Redis expiry from the last successful write, independent of freshness.
+Reads do not extend it. Stale snapshots remain available to the existing status
+endpoint, with `is_stale=true` and the original `snapshot_fetched_at`/`expires_at`.
+Snapshot consumers refresh stale data before using it; retaining a key never
+extends the freshness window. Expiry or a Redis restart produces a cache miss.
+An API process restart can reuse a still-fresh snapshot from the same Redis.
+
+Malformed JSON or an unsupported schema version is treated as a cache miss and
+logged with a generic message, without including transaction data. The next
+successful Firefly fetch overwrites it. A read does not delete the malformed key,
+which avoids deleting a newer value written by another process. Redis connection,
+timeout, wrong-type, or memory-limit errors fail explicitly; snapshot endpoints
+return HTTP 503 with a generic message. There is no automatic memory fallback and
+no stale financial-data fallback after a failed refresh. Existing background
+metrics jobs retain their FAILED/error response contract. Redis operations have a
+2-second overall deadline. In-process refresh coalescing is preserved; distributed
+refresh locking is outside this issue, so multiple API processes may still fetch
+simultaneously.
+
+For rollout, publish images containing this change and recreate the API with the
+same private Redis setup. No migration or seed is needed; the first access fills
+the cache. To revert to memory, remove `REDIS_URL` from the API environment
+(including the Compose environment override) and recreate it. Cached Redis data
+can expire naturally; keep the application database volume. Older images ignore
+the cache and do not require converting it.
+
+Backend CI runs shared memory/Redis store contracts and a restart test that writes
+a snapshot through the API in one Python process, then starts a second API process
+and verifies reuse without another Firefly fetch. To run them locally, start the
+dev Redis and run `TEST_REDIS_URL=redis://127.0.0.1:6379/0 uv run pytest` from
+`backend/`.
