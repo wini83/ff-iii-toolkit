@@ -3,7 +3,7 @@ import os
 from typing import Any, no_type_check
 
 from dotenv import load_dotenv
-from pydantic import field_validator
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env immediately
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     FIREFLY_TOKEN: str | None = None
     allowed_origins: Any = ["*"]
     DEMO_MODE: bool = False
+    REDIS_URL: SecretStr | None = None
 
     SECRET_KEY: str  # = Field(..., env="SECRET_KEY")
     PASSWORD_SET_TOKEN_PEPPER: str | None = None

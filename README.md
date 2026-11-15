@@ -96,3 +96,32 @@ integrated gateway on port 8080. The same commands are available through the roo
 
 For a versioned production deployment and rollback procedure, see
 [`deploy/README.md`](deploy/README.md).
+
+### Redis with a host-run backend
+
+The full local Compose stack configures Redis automatically. When running FastAPI
+on your host (including VS Code debugging), start only the development Redis:
+
+```sh
+docker compose -f compose.redis-dev.yaml up -d --wait
+```
+
+Set `REDIS_URL=redis://127.0.0.1:6379/0` in `backend/.env`, then start FastAPI as
+usual. This separate development file publishes Redis only on loopback; do not
+use it on the VPS. It uses the separate Compose project
+`ff-iii-toolkit-redis-dev`, so starting or stopping it does not manage the full
+stack's Redis. Do not override its project name with `-p` or `COMPOSE_PROJECT_NAME`
+when using these commands. Redis contains disposable data and has no persistence.
+Stop it with `docker compose -f compose.redis-dev.yaml down`.
+
+Run the real Redis connection test against that instance:
+
+```sh
+cd backend
+TEST_REDIS_URL=redis://127.0.0.1:6379/0 uv run pytest tests/test_redis_infrastructure.py
+```
+
+The integration test uses a unique key with a short TTL and removes it afterward.
+Without `TEST_REDIS_URL` it is skipped; Backend CI always supplies a real Redis
+service. Redis setup, health behavior, VPS rollout, and rollback are documented in
+[`deploy/README.md`](deploy/README.md#redis-infrastructure).
