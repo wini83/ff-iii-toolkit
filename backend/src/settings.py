@@ -3,7 +3,7 @@ import os
 from typing import Any, no_type_check
 
 from dotenv import load_dotenv
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env immediately
@@ -29,7 +29,11 @@ class Settings(BaseSettings):
     BLIK_DESCRIPTION_FILTER: str = "BLIK - płatność w internecie"
     TAG_BLIK_DONE: str = "blik_done"
     MATCH_WITH_UNMATCHED_FUTURE_DAYS: int = 7
-    TRANSACTION_SNAPSHOT_TTL_SECONDS: int = 300
+    TRANSACTION_SNAPSHOT_TTL_SECONDS: int = Field(default=300, gt=0)
+    TRANSACTION_SNAPSHOT_RETENTION_SECONDS: int = Field(default=86400, gt=0)
+    TRANSACTION_SNAPSHOT_REDIS_KEY: str = Field(
+        default="ff-iii-toolkit:snapshot:v1:transactions", min_length=1
+    )
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     REFRESH_COOKIE_NAME: str = "refresh_token"
     REFRESH_TOKEN_SECURE: bool = False

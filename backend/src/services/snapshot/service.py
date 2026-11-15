@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from services.firefly_base_service import FireflyBaseService
 from services.snapshot.models import TransactionSnapshot
-from services.snapshot.store import SnapshotStore
+from services.snapshot.store import SnapshotStore, snapshot_is_stale
 
 logger = logging.getLogger(__name__)
 SNAPSHOT_FETCH_TIMEOUT_SECONDS = 180
@@ -25,7 +25,9 @@ class TransactionSnapshotService:
 
     async def get_snapshot(self) -> TransactionSnapshot:
         snapshot = await self.store.get_snapshot()
-        if snapshot is not None and not await self.store.is_stale(self.max_age_seconds):
+        if snapshot is not None and not snapshot_is_stale(
+            snapshot, self.max_age_seconds
+        ):
             return snapshot
         return await self._ensure_snapshot(force_refresh=False)
 
@@ -39,7 +41,7 @@ class TransactionSnapshotService:
         snapshot = await self.store.get_snapshot()
         if snapshot is None:
             return None
-        if await self.store.is_stale(self.max_age_seconds):
+        if snapshot_is_stale(snapshot, self.max_age_seconds):
             return None
         return snapshot.fetched_at
 
@@ -47,8 +49,8 @@ class TransactionSnapshotService:
         async with self._refresh_lock:
             if not force_refresh:
                 snapshot = await self.store.get_snapshot()
-                if snapshot is not None and not await self.store.is_stale(
-                    self.max_age_seconds
+                if snapshot is not None and not snapshot_is_stale(
+                    snapshot, self.max_age_seconds
                 ):
                     return snapshot
 
@@ -79,6 +81,13 @@ class TransactionSnapshotService:
         )
         await self.store.set_snapshot(snapshot)
         return snapshot
+
+    async def aclose(self) -> None:
+        task = self._refresh_task
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self._refresh_task = None
 
     def _log_refresh_task_failure(
         self, task: asyncio.Task[TransactionSnapshot]
