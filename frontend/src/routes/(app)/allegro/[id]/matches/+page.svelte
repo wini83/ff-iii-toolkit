@@ -7,6 +7,7 @@
   import * as icons from '@steeze-ui/heroicons';
 
   import { allegro } from '#lib/api/allegro.js';
+  import { isMatchingCacheMiss } from '#lib/api/errors.js';
   import type { components } from '#lib/api/schema.js';
 
   type AllegroMatchResponse = components['schemas']['AllegroMatchResponse'];
@@ -135,7 +136,10 @@
 
   function canSelectCandidate(row: AllegroMatchResult, paymentExternalId: string) {
     return (
-      !isRowProcessed(row) && !appliedCandidates.has(candidateKey(row.tx.id, paymentExternalId))
+      !applying &&
+      !loading &&
+      !isRowProcessed(row) &&
+      !appliedCandidates.has(candidateKey(row.tx.id, paymentExternalId))
     );
   }
 
@@ -277,6 +281,8 @@
     let processed = 0;
     applyPollingCanceled = false;
 
+    let shouldRefresh = false;
+    let cacheMiss = false;
     applying = true;
     try {
       const startJob = await allegro.applyMatches(routeSecretId, decisions);
@@ -297,6 +303,11 @@
         if (polled) finalJob = polled;
       }
 
+      if (isBusy(finalJob.status)) {
+        emitToast('info', 'Apply is still running. Refresh later to verify the result.');
+        return;
+      }
+      shouldRefresh = true;
       if (finalJob.status === 'failed') {
         throw new Error('Apply job failed.');
       }
@@ -326,13 +337,33 @@
         emitToast('info', 'Apply finished with no successful updates.');
       }
     } catch (error: unknown) {
-      emitToast('error', extractErrorMessage(error, 'Failed to apply selected matches'));
+      if (isMatchingCacheMiss(error)) {
+        shouldRefresh = true;
+        cacheMiss = true;
+      } else {
+        emitToast('error', extractErrorMessage(error, 'Failed to apply selected matches'));
+      }
     } finally {
+      if (shouldRefresh && !applyPollingCanceled) {
+        const refreshed = await refreshMatches();
+        if (cacheMiss && refreshed) {
+          emitToast('info', 'Matching results refreshed. Review and select matches again.');
+        }
+      }
       applying = false;
     }
   }
 
   async function loadMatches() {
+    if (applying) {
+      emitToast('info', 'Refresh is disabled while apply is running.');
+      return;
+    }
+
+    await refreshMatches();
+  }
+
+  async function refreshMatches() {
     const routeSecretId = getNonEmptyString(secretId);
 
     if (!routeSecretId) {
@@ -349,30 +380,34 @@
       matchResponse = result;
       rows = result?.content ?? [];
       selectedCandidates = new Set();
+      appliedCandidates = new Set();
+      return true;
     } catch (error: unknown) {
       networkError = extractErrorMessage(error, 'Failed to load Allegro matches');
       emitToast('error', networkError);
       matchResponse = null;
       rows = [];
       selectedCandidates = new Set();
+      return false;
     } finally {
       loading = false;
     }
   }
 
   function goToPreviousPage() {
-    if (loading || offset === 0) return;
+    if (loading || applying || offset === 0) return;
     offset = Math.max(0, offset - pageSize);
     void loadMatches();
   }
 
   function goToNextPage() {
-    if (loading) return;
+    if (loading || applying) return;
     offset += pageSize;
     void loadMatches();
   }
 
   function onPageSizeChange(event: Event) {
+    if (loading || applying) return;
     const target = event.currentTarget;
     if (!(target instanceof HTMLSelectElement)) return;
     const value = Number.parseInt(target.value, 10);
@@ -467,17 +502,25 @@
             <button
               class="btn btn-outline btn-sm"
               on:click={goToPreviousPage}
-              disabled={loading || offset === 0}
+              disabled={loading || applying || offset === 0}
             >
               Prev
             </button>
             <span class="text-sm">Page {currentPage}</span>
-            <button class="btn btn-outline btn-sm" on:click={goToNextPage} disabled={loading}>
+            <button
+              class="btn btn-outline btn-sm"
+              on:click={goToNextPage}
+              disabled={loading || applying}
+            >
               Next
             </button>
           </div>
 
-          <button class="btn btn-ghost btn-sm" disabled={loading} on:click={loadMatches}>
+          <button
+            class="btn btn-ghost btn-sm"
+            disabled={loading || applying}
+            on:click={loadMatches}
+          >
             {#if loading}
               <span class="loading loading-spinner loading-sm"></span>
             {:else}
@@ -685,12 +728,16 @@
             <button
               class="btn btn-outline btn-sm"
               on:click={goToPreviousPage}
-              disabled={loading || offset === 0}
+              disabled={loading || applying || offset === 0}
             >
               Prev
             </button>
             <span class="text-sm">Page {currentPage}</span>
-            <button class="btn btn-outline btn-sm" on:click={goToNextPage} disabled={loading}>
+            <button
+              class="btn btn-outline btn-sm"
+              on:click={goToNextPage}
+              disabled={loading || applying}
+            >
               Next
             </button>
           </div>

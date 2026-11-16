@@ -83,3 +83,8 @@ export function normalizeApiError(
 
   return new ApiError(fallback, status);
 }
+
+/** The API requires a new preview after TTL expiry or cross-tab invalidation. */
+export function isMatchingCacheMiss(error: unknown): boolean {
+  return error instanceof Error && /^No match data found(?:[;.]|$)/i.test(error.message);
+}

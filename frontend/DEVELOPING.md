@@ -54,3 +54,15 @@ Normalny release (bez prerelease):
 ```sh
 npm run release
 ```
+
+## Matching UI regression tests
+
+Run `npx playwright install chromium` once, then `npm run test:matching`.
+The browser tests cover BLIK and Allegro successive apply selections, terminal
+job failures, expired/invalidated results and refresh failures. API responses and
+authentication are mocked with synthetic data; no Firefly or Allegro connection
+is required. The test runner starts its own Vite server on port 4173.
+
+To use an existing Chromium installation, set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/path/to/chromium`. Frontend CI installs
+Chromium and runs the same tests after typecheck, lint and build.
