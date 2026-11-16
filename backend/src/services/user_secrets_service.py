@@ -1,4 +1,5 @@
 # services/user_secrets_service.py
+import hashlib
 from types import EllipsisType
 from uuid import UUID
 
@@ -178,6 +179,17 @@ class UserSecretsService:
     # -------------------------------------------------
     # Queries (SAFE)
     # -------------------------------------------------
+
+    def matching_revision(self, *, secret_id: UUID, user_id: UUID) -> str:
+        obj = self.secret_repo.get_by_id(secret_id)
+        if obj is None or obj.type != SecretType.ALLEGRO:
+            raise SecretNotAccessible("Secret not found")
+        self._assert_ownership(secret=obj, user_id=user_id)
+        # Credentials are encrypted at rest. Rotation changes the cache scope;
+        # metadata edits alone do not change the identity of the Allegro account.
+        return hashlib.sha256(
+            (obj.ciphertext or b"") + (obj.secret_nonce or b"")
+        ).hexdigest()
 
     def list_secrets(self, *, user_id: UUID) -> list[UserSecretReadModel]:
         """

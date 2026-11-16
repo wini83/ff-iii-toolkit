@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 from services.domain.blik import BlikApplyJob
 from services.domain.job_base import JobStatus
 from services.domain.match_result import MatchResult
+from services.matching_cache.backend import Ticket
+from services.matching_cache.stores import BlikMatchStore
 
 
 class BlikApplyJobManager:
@@ -30,18 +32,37 @@ class BlikApplyJobManager:
 
 @dataclass
 class BlikStateStore:
-    matches_cache: dict[str, list[MatchResult]] = field(default_factory=dict)
+    match_store: BlikMatchStore = field(default_factory=BlikMatchStore)
     job_manager: BlikApplyJobManager = field(default_factory=BlikApplyJobManager)
 
-    def put_matches(self, *, file_id: str, matches: list[MatchResult]) -> None:
-        self.matches_cache[file_id] = matches
+    async def put_matches(
+        self,
+        *,
+        owner: UUID,
+        file_id: str,
+        matches: list[MatchResult],
+        revision: str = "digest",
+        ticket: Ticket | None = None,
+    ) -> bool:
+        return await self.match_store.put(
+            owner=owner,
+            file_id=file_id,
+            revision=revision,
+            matches=matches,
+            ticket=ticket,
+        )
 
-    def get_matches(self, *, file_id: str) -> list[MatchResult]:
-        return self.matches_cache.get(file_id, [])
-
-
-_state_store = BlikStateStore()
-
-
-def get_blik_state_store() -> BlikStateStore:
-    return _state_store
+    async def get_matches(
+        self,
+        *,
+        owner: UUID,
+        file_id: str,
+        revision: str = "digest",
+        consume: bool = False,
+    ) -> list[MatchResult]:
+        return (
+            await self.match_store.get(
+                owner=owner, file_id=file_id, revision=revision, consume=consume
+            )
+            or []
+        )

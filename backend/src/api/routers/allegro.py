@@ -148,11 +148,14 @@ async def preview_matches(
 async def apply_matches(
     secret_id: str,
     payload: ApplyPayload,
+    user_id: UUID = Depends(require_active_user),
     svc: AllegroApplicationService = Depends(get_allegro_application_runtime),
 ):
     try:
         job = await svc.start_apply_job(
-            secret_id=UUID(secret_id), decisions=map_payload_to_decisions(payload)
+            user_id=user_id,
+            secret_id=UUID(secret_id),
+            decisions=map_payload_to_decisions(payload),
         )
         return map_job_to_response(job)
     except ValueError as e:
@@ -177,6 +180,7 @@ async def auto_apply_single_matches(
     limit: int | None = Query(default=None, ge=1, le=500),
     # dry_run: bool = Query(default=False),
     # user_id: UUID = Depends(require_active_user),
+    user_id: UUID = Depends(require_active_user),
     svc: AllegroApplicationService = Depends(get_allegro_application_runtime),
 ):
     """
@@ -185,7 +189,7 @@ async def auto_apply_single_matches(
     """
     try:
         result = await svc.start_auto_apply_single_matches(
-            secret_id=UUID(secret_id), limit=limit
+            user_id=user_id, secret_id=UUID(secret_id), limit=limit
         )
 
         # result is expected to contain:
@@ -195,6 +199,8 @@ async def auto_apply_single_matches(
         # - dry_run: bool
         return map_job_to_response(result)
 
+    except InvalidSecretId as exc:
+        _raise_allegro_http_error(exc)
     except MatchesNotComputed as e:
         raise HTTPException(
             status_code=400, detail="No match data found; run preview first"
@@ -207,10 +213,11 @@ async def auto_apply_single_matches(
 
 
 @router.delete("/{secret_id}/cache")
-def clear_cache_for_secret(
+async def clear_cache_for_secret(
     secret_id: str,
     limit: int | None = Query(default=None, ge=1, le=100),
     offset: int | None = Query(default=None, ge=0),
+    user_id: UUID = Depends(require_active_user),
     svc: AllegroApplicationService = Depends(get_allegro_application_runtime),
 ):
     if (limit is None) != (offset is None):
@@ -225,12 +232,22 @@ def clear_cache_for_secret(
         raise HTTPException(status_code=400, detail="Invalid secret_id") from e
 
     if limit is None and offset is None:
-        cleared = svc.clear_cached_secret(secret_id=secret_uuid)
+        try:
+            cleared = await svc.clear_cached_secret(
+                user_id=user_id, secret_id=secret_uuid
+            )
+        except InvalidSecretId as exc:
+            _raise_allegro_http_error(exc)
         return {"scope": "secret", "cleared": cleared}
 
     assert limit is not None and offset is not None
     page = AllegroPageRequest(limit=limit, offset=offset)
-    cleared = svc.clear_cached_page(secret_id=secret_uuid, page=page)
+    try:
+        cleared = await svc.clear_cached_page(
+            user_id=user_id, secret_id=secret_uuid, page=page
+        )
+    except InvalidSecretId as exc:
+        _raise_allegro_http_error(exc)
     return {
         "scope": "page",
         "cleared": cleared,
@@ -242,9 +259,13 @@ def clear_cache_for_secret(
 @router.get("/apply-jobs/{job_id}", response_model=ApplyJobResponse)
 def get_apply_job(
     job_id: str,
+    user_id: UUID = Depends(require_active_user),
     svc: AllegroApplicationService = Depends(get_allegro_application_runtime),
 ):
-    job = svc.state_store.job_manager.get(UUID(job_id))
+    try:
+        job = svc.get_apply_job(user_id=user_id, job_id=UUID(job_id))
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid job_id") from exc
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return map_job_to_response(job)

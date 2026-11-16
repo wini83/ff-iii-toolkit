@@ -103,6 +103,7 @@ def test_apply_match_calls_update_transaction():
     evidence = MagicMock()
     evidence.build_tx_update.return_value = payload
 
+    service._get_current_transaction = AsyncMock(return_value=tx)
     asyncio.run(service.apply_match(tx, evidence))
 
     service.update_transaction.assert_awaited_once_with(tx, payload=payload)

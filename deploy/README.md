@@ -222,3 +222,56 @@ publication fencing after expiry, safe release, bounded waits and Firefly/Redis
 failures. Real-process tests start two APIs against one Redis and kill a lock-owner
 process to verify lease recovery. Run with the same `TEST_REDIS_URL` opt-in as the
 snapshot store tests; Backend CI supplies it automatically.
+
+
+### BLIK and Allegro matching caches (#111)
+
+With `REDIS_URL`, both features share a Redis matching backend in the
+`ff-iii-toolkit:{matching-v1}` namespace. Without it, application-scoped memory
+stores implement the same contracts for development and tests. Successful HTTP
+request/response schemas are unchanged.
+
+Each matching result uses validated JSON schema version 1, preserving Decimal,
+dates, transaction data, candidates and matching status. No vault cookie or
+plaintext secret is stored. Entries have a fixed 600-second TTL, a 2 MiB payload
+limit and at most 100 fields/pages per resource. Redis 8.2 (the Compose/CI version)
+provides individual hash-field expiration: writing or reading another page does
+not extend an older page's lifetime. Scope/revision metadata expires after 1800
+seconds. A bounded number of global/feature generation markers intentionally
+persists; invalidated financial payloads remain inaccessible and expire by their
+original deadlines.
+
+Cache scope includes the authenticated user and the CSV file or Allegro secret.
+New BLIK uploads bind their temporary file identifiers to their owner, and cache
+scope also includes the CSV content digest. **Re-upload BLIK files from older
+versions**; legacy file IDs do not prove ownership. CSV files still live in the
+API container's temporary directory; this migration does not add shared file
+storage between containers.
+
+Allegro cached operations recheck database ownership and an encrypted-credential
+fingerprint without decrypting the credential. Rotation or deletion makes old
+results inaccessible. Page keys include both limit and offset. Page/secret/all
+invalidation is preserved; clearing all Allegro results leaves BLIK untouched.
+Generation checks reject computations begun before an invalidation, even if they
+finish afterward. Preview endpoints continue recomputing current matches.
+
+Starting apply atomically reads the selected results and invalidates financial
+matching caches across both features, because all users share the configured
+Firefly ledger. Completion/cancellation and transaction category/tag updates
+invalidate pending computations again. Applying a selection additionally reads
+the current transaction from Firefly: changed date/amount/type/currency or a newly
+processed transaction is rejected, and updates preserve current notes/tags.
+
+Redis failures produce a sanitized 503 without falling back to another worker's
+memory. Payload writes and apply admission fail before modifying data during
+OOM. Invalidation alone may still run during OOM: it only deletes data or replaces
+fixed-size generation tokens, allowing completed updates to fence stale results.
+
+Apply jobs and metrics managers still execute and keep status in their local
+process (#112). **Use a single backend worker until job-state migration is done**;
+shared matching data alone does not make job polling portable across workers or
+make financial operations exactly-once.
+
+The normal `TEST_REDIS_URL` and isolated `TEST_REDIS_OOM_URL` test instances cover
+cache hit/miss, fixed TTL, invalidation, concurrent access, fencing, owner isolation,
+serialization, corruption and real memory exhaustion. All test records are synthetic.

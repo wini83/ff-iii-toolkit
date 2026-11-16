@@ -1,8 +1,9 @@
+import asyncio
 from datetime import date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -68,7 +69,7 @@ def _service(state_store: AllegroStateStore | None = None) -> AllegroApplication
     )
     metrics_provider.fetch_metrics = AsyncMock()
     metrics_provider.refresh_metrics = AsyncMock()
-    return AllegroApplicationService(
+    service = AllegroApplicationService(
         secrets_service=MagicMock(),
         enrichment_service=MagicMock(),
         metrics_provider=metrics_provider,
@@ -77,6 +78,9 @@ def _service(state_store: AllegroStateStore | None = None) -> AllegroApplication
         filter_desc_allegro="allegro",
     )
 
+    service.secrets_service.matching_revision.return_value = "revision"
+    return service
+
 
 def test_get_allegro_secrets_filters_only_allegro():
     service = _service()
@@ -84,7 +88,7 @@ def test_get_allegro_secrets_filters_only_allegro():
     blik_secret = SimpleNamespace(type=SecretType.AMAZON)
     service.secrets_service.list_secrets.return_value = [allegro_secret, blik_secret]
 
-    secrets = service.get_allegro_secrets(user_id=uuid4())
+    secrets = service.get_allegro_secrets(user_id=OWNER)
 
     assert secrets == [allegro_secret]
 
@@ -97,7 +101,7 @@ def test_fetch_allegro_data_wraps_missing_secret():
 
     with pytest.raises(InvalidSecretId, match="Secret with id"):
         service.fetch_allegro_data(
-            user_id=uuid4(),
+            user_id=OWNER,
             secret_id=uuid4(),
             vault_session_id="session-123",
             page=AllegroPageRequest(),
@@ -112,7 +116,7 @@ def test_fetch_allegro_data_wraps_external_error():
 
     with pytest.raises(ExternalServiceFailed, match="Failed to fetch allegro data"):
         service.fetch_allegro_data(
-            user_id=uuid4(),
+            user_id=OWNER,
             secret_id=uuid4(),
             vault_session_id="session-123",
             page=AllegroPageRequest(),
@@ -128,7 +132,7 @@ async def test_preview_matches_uses_unknown_login_for_empty_payments():
     service.enrichment_service.match_with_unmatched = AsyncMock(return_value=([], []))
 
     result = await service.preview_matches(
-        user_id=uuid4(),
+        user_id=OWNER,
         secret_id=secret_id,
         vault_session_id="session-123",
         page=page,
@@ -136,7 +140,12 @@ async def test_preview_matches_uses_unknown_login_for_empty_payments():
 
     assert result.login == "unknown"
     assert result.unmatched_payments == []
-    assert service.state_store.get_page_matches(secret_id=secret_id, page=page) == []
+    assert (
+        await service.state_store.get_page_matches(
+            owner=OWNER, secret_id=secret_id, page=page
+        )
+        == []
+    )
 
 
 @pytest.mark.anyio
@@ -163,7 +172,7 @@ async def test_preview_matches_returns_unmatched_payments():
     )
 
     result = await service.preview_matches(
-        user_id=uuid4(),
+        user_id=OWNER,
         secret_id=secret_id,
         vault_session_id="session-123",
         page=page,
@@ -177,14 +186,15 @@ async def test_start_apply_job_raises_when_matches_not_computed():
     service = _service()
 
     with pytest.raises(MatchesNotComputed):
-        await service.start_apply_job(secret_id=uuid4(), decisions=[])
+        await service.start_apply_job(user_id=OWNER, secret_id=uuid4(), decisions=[])
 
 
 @pytest.mark.anyio
 async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
     secret_id = uuid4()
     store = AllegroStateStore()
-    store.put_page_matches(
+    await store.put_page_matches(
+        owner=OWNER,
         secret_id=secret_id,
         entry=app_module.AllegroPageMatchCacheEntry(
             page=AllegroPageRequest(limit=25, offset=0),
@@ -207,6 +217,7 @@ async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
     monkeypatch.setattr(app_module, "create_task", fake_create_task)
 
     job = await service.start_apply_job(
+        user_id=OWNER,
         secret_id=secret_id,
         decisions=[MatchDecision(payment_id="p1", transaction_id=1)],
     )
@@ -272,7 +283,7 @@ async def test_run_apply_job_counts_success_and_failures():
 async def test_start_auto_apply_single_matches_raises_when_matches_not_computed():
     service = _service()
     with pytest.raises(MatchesNotComputed):
-        await service.start_auto_apply_single_matches(secret_id=uuid4())
+        await service.start_auto_apply_single_matches(user_id=OWNER, secret_id=uuid4())
 
 
 @pytest.mark.anyio
@@ -288,7 +299,8 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
 ):
     secret_id = uuid4()
     store = AllegroStateStore()
-    store.put_page_matches(
+    await store.put_page_matches(
+        owner=OWNER,
         secret_id=secret_id,
         entry=app_module.AllegroPageMatchCacheEntry(
             page=AllegroPageRequest(limit=2, offset=0),
@@ -311,7 +323,8 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
             ],
         ),
     )
-    store.put_page_matches(
+    await store.put_page_matches(
+        owner=OWNER,
         secret_id=secret_id,
         entry=app_module.AllegroPageMatchCacheEntry(
             page=AllegroPageRequest(limit=2, offset=2),
@@ -337,6 +350,7 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
     service.start_apply_job = AsyncMock(return_value=job)
 
     returned_job = await service.start_auto_apply_single_matches(
+        user_id=OWNER,
         secret_id=secret_id,
         limit=limit,
     )
@@ -370,7 +384,7 @@ async def test_preview_matches_fetches_and_caches_only_requested_page():
     )
 
     await service.preview_matches(
-        user_id=uuid4(),
+        user_id=OWNER,
         secret_id=secret_id,
         vault_session_id="session-123",
         page=page,
@@ -380,10 +394,14 @@ async def test_preview_matches_fetches_and_caches_only_requested_page():
     call = service.fetch_allegro_data.call_args
     assert call.kwargs["page"] == page
     assert (
-        service.state_store.get_page_matches(secret_id=secret_id, page=page) is not None
+        await service.state_store.get_page_matches(
+            owner=OWNER, secret_id=secret_id, page=page
+        )
+        is not None
     )
     assert (
-        service.state_store.get_page_matches(
+        await service.state_store.get_page_matches(
+            owner=OWNER,
             secret_id=secret_id,
             page=AllegroPageRequest(limit=5, offset=0),
         )
@@ -399,7 +417,8 @@ async def test_start_apply_job_uses_matches_loaded_from_cached_pages(monkeypatch
     page_two = AllegroPageRequest(limit=1, offset=1)
     p1 = _payment("p1", "full-1")
     p2 = _payment("p2", "full-2")
-    store.put_page_matches(
+    await store.put_page_matches(
+        owner=OWNER,
         secret_id=secret_id,
         entry=app_module.AllegroPageMatchCacheEntry(
             page=page_one,
@@ -410,7 +429,8 @@ async def test_start_apply_job_uses_matches_loaded_from_cached_pages(monkeypatch
             ],
         ),
     )
-    store.put_page_matches(
+    await store.put_page_matches(
+        owner=OWNER,
         secret_id=secret_id,
         entry=app_module.AllegroPageMatchCacheEntry(
             page=page_two,
@@ -433,6 +453,7 @@ async def test_start_apply_job_uses_matches_loaded_from_cached_pages(monkeypatch
     monkeypatch.setattr(app_module, "create_task", fake_create_task)
 
     await service.start_apply_job(
+        user_id=OWNER,
         secret_id=secret_id,
         decisions=[MatchDecision(payment_id="p2", transaction_id=2)],
     )
@@ -446,18 +467,29 @@ def test_clear_cached_page_delegates_to_state_store():
     secret_id = uuid4()
     page = AllegroPageRequest(limit=25, offset=0)
 
-    store.put_page_matches(
-        secret_id=secret_id,
-        entry=app_module.AllegroPageMatchCacheEntry(
-            page=page,
-            login="u1",
-            payments=[],
-            matches=[],
-        ),
+    asyncio.run(
+        store.put_page_matches(
+            owner=OWNER,
+            secret_id=secret_id,
+            entry=app_module.AllegroPageMatchCacheEntry(
+                page=page,
+                login="u1",
+                payments=[],
+                matches=[],
+            ),
+        )
     )
 
-    assert service.clear_cached_page(secret_id=secret_id, page=page) is True
-    assert store.get_page_matches(secret_id=secret_id, page=page) is None
+    assert (
+        asyncio.run(
+            service.clear_cached_page(user_id=OWNER, secret_id=secret_id, page=page)
+        )
+        is True
+    )
+    assert (
+        asyncio.run(store.get_page_matches(owner=OWNER, secret_id=secret_id, page=page))
+        is None
+    )
 
 
 def test_clear_cached_secret_delegates_to_state_store():
@@ -466,18 +498,24 @@ def test_clear_cached_secret_delegates_to_state_store():
     secret_id = uuid4()
     page = AllegroPageRequest(limit=25, offset=0)
 
-    store.put_page_matches(
-        secret_id=secret_id,
-        entry=app_module.AllegroPageMatchCacheEntry(
-            page=page,
-            login="u1",
-            payments=[],
-            matches=[],
-        ),
+    asyncio.run(
+        store.put_page_matches(
+            owner=OWNER,
+            secret_id=secret_id,
+            entry=app_module.AllegroPageMatchCacheEntry(
+                page=page,
+                login="u1",
+                payments=[],
+                matches=[],
+            ),
+        )
     )
 
-    assert service.clear_cached_secret(secret_id=secret_id) is True
-    assert store.get_all_matches(secret_id=secret_id) == []
+    assert (
+        asyncio.run(service.clear_cached_secret(user_id=OWNER, secret_id=secret_id))
+        is True
+    )
+    assert asyncio.run(store.get_all_matches(owner=OWNER, secret_id=secret_id)) == []
 
 
 @pytest.mark.anyio
@@ -538,3 +576,6 @@ async def test_refresh_metrics_state_uses_existing_manager():
 
     manager.refresh.assert_awaited_once()
     assert state is expected_state
+
+
+OWNER = UUID(int=1)

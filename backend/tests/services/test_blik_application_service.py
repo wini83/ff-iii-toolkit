@@ -2,7 +2,7 @@ import asyncio
 from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -54,7 +54,7 @@ def test_upload_csv_returns_encoded_id_and_count():
         )
     ]
     tmp_handle = MagicMock()
-    tmp_handle.name = "/tmp/abc123.csv"
+    tmp_handle.name = f"/tmp/blik-{OWNER.hex}-abc123.csv"
     tmp_cm = MagicMock()
     tmp_cm.__enter__.return_value = tmp_handle
     tmp_cm.__exit__.return_value = None
@@ -69,16 +69,16 @@ def test_upload_csv_returns_encoded_id_and_count():
         patch("services.blik_application_service.BankCSVReader") as reader_cls,
     ):
         reader_cls.return_value.parse.return_value = records
-        response = asyncio.run(service.upload_csv(file_bytes=file_bytes))
+        response = asyncio.run(service.upload_csv(user_id=OWNER, file_bytes=file_bytes))
 
     tmp_handle.write.assert_called_once_with(file_bytes)
     assert response.message == "File uploaded successfully"
     assert response.count == len(records)
-    assert response.id == encode_base64url("abc123")
+    assert response.id == _encoded("abc123")
 
 
 def test_preview_csv_returns_simplified_content():
-    encoded_id = encode_base64url("file123")
+    encoded_id = _encoded("file123")
     records = [
         BankRecord(
             date=date(2024, 1, 5),
@@ -95,16 +95,18 @@ def test_preview_csv_returns_simplified_content():
         patch("services.blik_application_service.os.path.exists", return_value=True),
     ):
         reader_cls.return_value.parse.return_value = records
-        response = asyncio.run(service.preview_csv(encoded_id=encoded_id))
+        response = asyncio.run(
+            service.preview_csv(user_id=OWNER, encoded_id=encoded_id)
+        )
 
     assert response.file_id == encoded_id
-    assert response.decoded_name == "file123"
+    assert response.decoded_name == f"blik-{OWNER.hex}-file123"
     assert response.size == 1
     assert response.content[0].details == "BLIK payment"
 
 
 def test_preview_matches_calls_service_and_returns_counts():
-    encoded_id = encode_base64url("file123")
+    encoded_id = _encoded("file123")
     csv_records = [
         BankRecord(
             date=date(2024, 1, 5),
@@ -173,7 +175,9 @@ def test_preview_matches_calls_service_and_returns_counts():
         patch("services.blik_application_service.os.path.exists", return_value=True),
     ):
         reader_cls.return_value.parse.return_value = csv_records
-        response = asyncio.run(service.preview_matches(encoded_id=encoded_id))
+        response = asyncio.run(
+            service.preview_matches(user_id=OWNER, encoded_id=encoded_id)
+        )
 
     blik_service.match.assert_awaited_once_with(
         candidates=csv_records,
@@ -181,7 +185,7 @@ def test_preview_matches_calls_service_and_returns_counts():
         tag_done=settings.TAG_BLIK_DONE,
     )
     assert response.file_id == encoded_id
-    assert response.decoded_name == "file123"
+    assert response.decoded_name == f"blik-{OWNER.hex}-file123"
     assert response.records_in_file == len(csv_records)
     assert response.transactions_found == len(matches)
     assert response.transactions_not_matched == 1
@@ -195,7 +199,7 @@ def test_preview_matches_calls_service_and_returns_counts():
 
 
 def test_preview_matches_propagates_firefly_error():
-    encoded_id = encode_base64url("file123")
+    encoded_id = _encoded("file123")
     csv_records = [
         BankRecord(
             date=date(2024, 1, 5),
@@ -220,7 +224,7 @@ def test_preview_matches_propagates_firefly_error():
     ):
         reader_cls.return_value.parse.return_value = csv_records
         with pytest.raises(ExternalServiceFailed):
-            asyncio.run(service.preview_matches(encoded_id=encoded_id))
+            asyncio.run(service.preview_matches(user_id=OWNER, encoded_id=encoded_id))
 
 
 def test_preview_csv_rejects_invalid_file_id():
@@ -230,10 +234,10 @@ def test_preview_csv_rejects_invalid_file_id():
         metrics_provider=MagicMock(),
         state_store=BlikStateStore(),
     )
-    bad_id = encode_base64url("../bad")
+    bad_id = _encoded("../bad")
 
     with pytest.raises(InvalidFileId):
-        asyncio.run(service.preview_csv(encoded_id=bad_id))
+        asyncio.run(service.preview_csv(user_id=OWNER, encoded_id=bad_id))
 
 
 def test_preview_csv_raises_when_file_missing():
@@ -243,13 +247,13 @@ def test_preview_csv_raises_when_file_missing():
         metrics_provider=MagicMock(),
         state_store=BlikStateStore(),
     )
-    encoded_id = encode_base64url("missing")
+    encoded_id = _encoded("missing")
 
     with (
         patch("services.blik_application_service.os.path.exists", return_value=False),
         pytest.raises(FileNotFound),
     ):
-        asyncio.run(service.preview_csv(encoded_id=encoded_id))
+        asyncio.run(service.preview_csv(user_id=OWNER, encoded_id=encoded_id))
 
 
 @pytest.mark.anyio
@@ -286,14 +290,15 @@ async def test_start_apply_job_raises_when_matches_not_computed():
 
     with pytest.raises(MatchesNotComputed):
         await service.start_apply_job(
-            encoded_id=encode_base64url("missing"),
+            user_id=OWNER,
+            encoded_id=_encoded("missing"),
             decisions=[],
         )
 
 
 @pytest.mark.anyio
 async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
-    encoded_id = encode_base64url("file123")
+    encoded_id = _encoded("file123")
     tx = Transaction(
         id=1,
         date=date(2024, 1, 5),
@@ -308,7 +313,7 @@ async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
     match = MatchResult(tx=tx, matches=[])
 
     store = BlikStateStore()
-    store.put_matches(file_id=encoded_id, matches=[match])
+    await store.put_matches(owner=OWNER, file_id=encoded_id, matches=[match])
     service = BlikApplicationService(
         enrichment_service=MagicMock(),
         metrics_provider=MagicMock(),
@@ -325,6 +330,7 @@ async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
     monkeypatch.setattr(app_module, "create_task", fake_create_task)
 
     job = await service.start_apply_job(
+        user_id=OWNER,
         encoded_id=encoded_id,
         decisions=[MatchDecision(transaction_id=1, selected_match_id="m1")],
     )
@@ -393,7 +399,7 @@ async def test_run_apply_job_counts_success_and_failures():
     ]
     job = BlikApplyJob(
         id=uuid4(),
-        file_id=encode_base64url("file123"),
+        file_id=_encoded("file123"),
         total=3,
         status=JobStatus.PENDING,
     )
@@ -423,7 +429,7 @@ async def test_run_apply_job_counts_success_and_failures():
 async def test_start_auto_apply_single_matches_builds_decisions_for_single_matches_only(
     limit, expected_ids
 ):
-    encoded_id = encode_base64url("file123")
+    encoded_id = _encoded("file123")
     tx1 = Transaction(
         id=1,
         date=date(2024, 1, 5),
@@ -487,7 +493,8 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
     )
 
     store = BlikStateStore()
-    store.put_matches(
+    await store.put_matches(
+        owner=OWNER,
         file_id=encoded_id,
         matches=[
             MatchResult(tx=tx1, matches=[evidence1]),
@@ -509,6 +516,7 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
     service.start_apply_job = AsyncMock(return_value=job)
 
     result = await service.start_auto_apply_single_matches(
+        user_id=OWNER,
         encoded_id=encoded_id,
         limit=limit,
     )
@@ -517,3 +525,20 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
     decisions = service.start_apply_job.await_args.kwargs["decisions"]
     assert [decision.transaction_id for decision in decisions] == expected_ids
     assert result is job
+
+
+def _encoded(value):
+    return encode_base64url(f"blik-{OWNER.hex}-{value}")
+
+
+@pytest.fixture(autouse=True)
+def legacy_file_stubs(monkeypatch):
+    monkeypatch.setattr(
+        BlikApplicationService, "_file_revision", staticmethod(lambda path: "digest")
+    )
+    monkeypatch.setattr(
+        "services.blik_application_service.os.path.exists", lambda path: True
+    )
+
+
+OWNER = UUID(int=1)

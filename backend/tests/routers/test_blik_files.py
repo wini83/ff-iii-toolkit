@@ -77,16 +77,16 @@ class FakeBlikApplicationService:
     async def refresh_metrics_state(self):
         return self.metrics_state
 
-    async def upload_csv(self, *, file_bytes: bytes):
+    async def upload_csv(self, *, user_id, file_bytes: bytes):
         self.uploaded_bytes = file_bytes
         return self.upload_response
 
-    async def preview_csv(self, *, encoded_id: str):
+    async def preview_csv(self, *, user_id, encoded_id: str):
         if self.preview_error:
             raise self.preview_error
         return self.preview_response
 
-    async def preview_matches(self, *, encoded_id: str):
+    async def preview_matches(self, *, user_id, encoded_id: str):
         if self.matches_error:
             raise self.matches_error
         return self.matches_response
@@ -94,6 +94,7 @@ class FakeBlikApplicationService:
     async def start_apply_job(
         self,
         *,
+        user_id,
         encoded_id: str,
         decisions,
     ):
@@ -111,14 +112,14 @@ class FakeBlikApplicationService:
         return self.apply_job_response
 
     async def start_auto_apply_single_matches(
-        self, *, encoded_id: str, limit: int | None = None
+        self, *, user_id, encoded_id: str, limit: int | None = None
     ):
         if self.auto_apply_error:
             raise self.auto_apply_error
         self.auto_apply_limit = limit
         return self.apply_job_response
 
-    def get_apply_job(self, *, job_id):
+    def get_apply_job(self, *, user_id, job_id):
         self.job_lookup_id = job_id
         return self.apply_job_response
 
