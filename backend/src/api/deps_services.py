@@ -31,6 +31,8 @@ from services.snapshot import (
     SnapshotTxMetricsService,
     TransactionSnapshotService,
 )
+from services.snapshot.coordination import RedisRefreshCoordinator
+from services.snapshot.redis_store import RedisSnapshotStore
 from services.system.bootstrap import BootstrapService
 from services.user_secrets_service import UserSecretsService
 from services.vault_service import VaultService
@@ -80,8 +82,19 @@ async def get_transaction_snapshot_service(
 ) -> TransactionSnapshotService:
     service = getattr(request.app.state, "transaction_snapshot_service", None)
     if service is None:
+        store = get_snapshot_store(request)
+        coordinator = (
+            RedisRefreshCoordinator(
+                store,
+                lease_seconds=settings.TRANSACTION_SNAPSHOT_REFRESH_LEASE_SECONDS,
+                wait_timeout_seconds=settings.TRANSACTION_SNAPSHOT_REFRESH_TIMEOUT_SECONDS,
+            )
+            if isinstance(store, RedisSnapshotStore)
+            else None
+        )
         service = TransactionSnapshotService(
-            store=get_snapshot_store(request),
+            store=store,
+            coordinator=coordinator,
             firefly_service=get_firefly_base_service(),
             max_age_seconds=settings.TRANSACTION_SNAPSHOT_TTL_SECONDS,
         )

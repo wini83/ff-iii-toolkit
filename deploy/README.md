@@ -137,9 +137,8 @@ timeout, wrong-type, or memory-limit errors fail explicitly; snapshot endpoints
 return HTTP 503 with a generic message. There is no automatic memory fallback and
 no stale financial-data fallback after a failed refresh. Existing background
 metrics jobs retain their FAILED/error response contract. Redis operations have a
-2-second overall deadline. In-process refresh coalescing is preserved; distributed
-refresh locking is outside this issue, so multiple API processes may still fetch
-simultaneously.
+2-second overall deadline. In-process refresh coalescing is preserved, with Redis coordination across
+processes as described below.
 
 For rollout, publish images containing this change and recreate the API with the
 same private Redis setup. No migration or seed is needed; the first access fills
@@ -153,3 +152,67 @@ a snapshot through the API in one Python process, then starts a second API proce
 and verifies reuse without another Firefly fetch. To run them locally, start the
 dev Redis and run `TEST_REDIS_URL=redis://127.0.0.1:6379/0 uv run pytest` from
 `backend/`.
+
+
+### Coordinated snapshot refresh (#109)
+
+When Redis storage is selected, the application factory also injects a
+`RedisRefreshCoordinator`. Memory-backed tests retain local coordination. The
+snapshot JSON schema and HTTP response fields remain unchanged.
+
+Two auxiliary keys are derived from `TRANSACTION_SNAPSHOT_REDIS_KEY`:
+
+- `:refresh-lock`: a unique owner token acquired with `SET NX PX` and a finite
+  lease (`TRANSACTION_SNAPSHOT_REFRESH_LEASE_SECONDS`, default 210 seconds).
+- `:revision`: the token of the last successful publication. It expires with the
+  snapshot, using the existing retention setting. Revisions do not use worker clocks.
+
+The 210-second lease exceeds the existing 180-second Firefly fetch timeout. There
+is no lease renewal. Owners re-read the snapshot after acquiring the lease. A
+single Lua operation checks ownership, atomically writes the JSON/revision pair
+with `MSET`, applies both expirations, and releases the lease. A worker whose lease
+expired cannot publish or delete a successor's lock. Its discarded candidate is
+never returned; it must observe a valid published winner or fail/retry. Redis
+operations retain a 2-second limit and sanitized availability errors. Failed
+fetches and cancellation release only the owner's token; if cleanup cannot reach
+Redis, the lease expires naturally.
+
+Fresh ordinary reads do not take the lock. Stale or missing reads normally share
+one fetch. Force refresh pins the revision observed at entry: an existing fresh
+snapshot alone does not satisfy it, but a fresh publication with a different
+revision does. Concurrent force requests can share an in-flight refresh. A force
+request observing a publication after an older local task has published waits
+for that task and then requests another revision. Identical timestamps/data do
+not collapse separate force requests.
+
+Waiters poll the small revision marker with 200–400 ms jitter, reading the full
+snapshot only at entry, after acquisition, or when a changed revision may satisfy
+them. Snapshot/revision reads use atomic `MGET` as bytes so malformed UTF-8 remains
+a cache miss. `TRANSACTION_SNAPSHOT_REFRESH_TIMEOUT_SECONDS` (default 220 seconds)
+bounds each caller, including baseline reads and waiting behind an older local
+task, and each coordination task. Cancelling one caller does not cancel shared
+work; application shutdown explicitly cancels tasks and releases ownership before
+closing Redis. Exhausting the budget produces an explicit availability failure
+(HTTP 503 for synchronous snapshot consumers), never an old financial snapshot.
+After a crashed owner consumes most of the budget, another attempt may be needed
+to complete a long fetch. Reverse-proxy/client timeouts for synchronous refreshes
+must allow the desired wait; existing background statistics can be polled normally.
+
+A lease crash/expiry can cause another Firefly fetch; exactly one upstream request
+cannot be guaranteed when a previous owner is paused or unreachable. The safety
+guarantee is owner-checked publication and no overwrite by the expired owner.
+This implementation targets the existing single Redis server, without distributed
+Redis failover/Redlock or Redis Cluster support.
+
+Deploy all API instances with this implementation before relying on coordination;
+older versions can still perform unconditional writes. Existing snapshot JSON is
+readable and a missing revision is supported. No database migration is required.
+Rollback to the previous image leaves compatible snapshot JSON; auxiliary keys
+expire naturally. Snapshot coordination alone does not migrate the other
+process-local vault, job, or import stores or make the entire API multi-worker ready.
+
+Tests exercise independent service instances, concurrent normal/forced reads,
+publication fencing after expiry, safe release, bounded waits and Firefly/Redis
+failures. Real-process tests start two APIs against one Redis and kill a lock-owner
+process to verify lease recovery. Run with the same `TEST_REDIS_URL` opt-in as the
+snapshot store tests; Backend CI supplies it automatically.
