@@ -13,6 +13,8 @@ async function matchingScreen(
     polling?: boolean;
   } = {}
 ) {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
   const token = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.test`;
   await page
     .context()
@@ -136,7 +138,23 @@ async function matchingScreen(
     .locator('label')
     .filter({ hasText: 'Select candidate' })
     .locator('input:enabled');
-  await expect(choices).toHaveCount(2);
+  try {
+    await expect(choices).toHaveCount(2);
+  } catch (error) {
+    console.error('Matching screen diagnostic', {
+      url: page.url(),
+      previews: state.previews,
+      pageErrors,
+      body: (await page.locator('body').innerText()).slice(0, 4000),
+      choices: await page.locator('input[type="checkbox"]').evaluateAll((inputs) =>
+        inputs.map((input) => ({
+          disabled: (input as HTMLInputElement).disabled,
+          html: input.outerHTML
+        }))
+      )
+    });
+    throw error;
+  }
   return { state, choices, apply: page.getByRole('button', { name: /Apply selected/ }) };
 }
 
