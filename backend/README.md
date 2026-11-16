@@ -183,18 +183,32 @@ account mappings, and **Save mappings for next time** to persist them for your
 user. Map only accounts you own so card repayments become transfers.
 
 Uploads are limited to 10 MiB, 50 pages and 5000 operations. Source PDFs are
-closed and removed after parsing. Parsed previews are owned by the uploading
-user, expire after 30 minutes and are lost on a server restart. Previews live
-in process memory, so this flow requires a single backend worker; multiple
-workers would need a shared preview store. Only account mappings are saved in the
-database. Run `alembic upgrade head` before starting the updated backend.
+closed and removed after parsing. Each serialized preview is limited to 2 MiB.
+Parsed previews belong to the uploading user and expire 30 minutes after creation;
+reading or exporting does not extend that deadline. There are at most five previews
+per user and 100 globally across backend workers. Creating another preview removes
+the oldest preview for that user or globally when the corresponding limit is reached.
+
+With `REDIS_URL` configured, previews are stored as versioned JSON in the
+`ff-iii-toolkit:{velobank-preview-v1}` namespace. Redis TTL removes payloads and
+the bounded index automatically; no scheduler is required. Previews survive API
+restarts within their TTL, but Redis is intentionally ephemeral (no AOF/RDB), so
+restarting Redis clears them. Redis failures (including memory exhaustion) return
+503 without falling back to process memory. Oversized previews return 413. The
+shared Redis `maxmemory` budget also covers transaction snapshots; the count limits
+are upper bounds, not reserved capacity.
+
+Without `REDIS_URL`, a bounded in-memory store is used for local development and
+tests. This mode requires a single backend worker and loses previews on API restart.
+Only account mappings are saved in the database. Run `alembic upgrade head` before
+starting the updated backend.
 
 The preview and CSV use the same parser, mappings and generated identifiers as
 the CLI. Export options include splitting the CSV into a ZIP without changing
 identifiers. Downloading does not write transactions to Firefly; use the Data
 Importer configuration described below. The duplicate detection limitations
-below apply to both interfaces. The old Citi routes remain available at
-`/tools/citi` for historical files, but are no longer in the main navigation.
+below apply to both interfaces. The obsolete Citi TXT importer and its UI/API
+routes have been removed; use VeloBank PDF import for current statements.
 
 ## VeloBank PDF CLI
 

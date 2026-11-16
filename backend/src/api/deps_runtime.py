@@ -1,7 +1,5 @@
 """Runtime-scoped dependencies (process singletons)."""
 
-from functools import lru_cache
-
 from fastapi import Depends, Request
 
 from api.deps_services import (
@@ -18,11 +16,6 @@ from services.allegro_service import AllegroService
 from services.allegro_state_store import AllegroStateStore
 from services.blik_application_service import BlikApplicationService
 from services.blik_state_store import get_blik_state_store
-from services.citi_import.cache import get_citi_import_store
-from services.citi_import.exporter import CitiCsvZipExporter
-from services.citi_import.mapper import CitiBankRecordMapper
-from services.citi_import.parser import CitiTextParser
-from services.citi_import.service import CitiImportService
 from services.firefly_enrichment_service import FireflyEnrichmentService
 from services.snapshot.metrics import (
     SnapshotAllegroMetricsService,
@@ -31,13 +24,12 @@ from services.snapshot.metrics import (
 )
 from services.tx_application_service import TxApplicationService
 from services.user_secrets_service import UserSecretsService
-from services.velobank_import.session import VeloBankPreviewStore
+from services.velobank_import.session import PreviewStore
 from settings import settings
 
 
-@lru_cache(maxsize=1)
-def get_velobank_preview_store() -> VeloBankPreviewStore:
-    return VeloBankPreviewStore()
+def get_velobank_preview_store(request: Request) -> PreviewStore:
+    return request.app.state.velobank_preview_store
 
 
 async def get_blik_application_runtime(
@@ -71,16 +63,6 @@ async def get_tx_application_runtime(
         )
         request.app.state.tx_application_runtime = service
     return service
-
-
-@lru_cache(maxsize=1)
-def get_citi_import_runtime() -> CitiImportService:
-    return CitiImportService(
-        parser=CitiTextParser(),
-        mapper=CitiBankRecordMapper(),
-        store=get_citi_import_store(),
-        exporter=CitiCsvZipExporter(),
-    )
 
 
 def get_allegro_runtime_state(request: Request) -> AllegroStateStore:

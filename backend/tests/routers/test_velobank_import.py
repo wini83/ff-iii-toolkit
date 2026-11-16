@@ -1,5 +1,6 @@
 """Use synthetic documents only; exercise authentication, isolation and export."""
 
+import asyncio
 import csv
 from datetime import date, timedelta
 from decimal import Decimal
@@ -119,7 +120,9 @@ def test_csv_zip_and_preview_share_ids_mapping_and_legitimate_duplicates(client,
         Decimal("20.00"),
         "PLN",
     )
-    entry = store.create(user.id, VeloBankStatement(ACCOUNT, [tx, tx, credit]))
+    entry = asyncio.run(
+        store.create(user.id, VeloBankStatement(ACCOUNT, [tx, tx, credit]))
+    )
     url = f"{ROOT}/files/{entry.id}"
     payload = {"accounts": {IBAN: "Card", OTHER_IBAN: "Main"}}
     preview = client.post(url + "/preview", json=payload, headers=headers).json()
@@ -199,9 +202,17 @@ def test_expiry_and_discard_prevent_further_exports(client, actor, tmp_path):
 def test_preview_store_limits_and_purge():
     store = VeloBankPreviewStore()
     owner = uuid4()
-    first = store.create(owner, VeloBankStatement(ACCOUNT, []))
+    statement = VeloBankStatement(
+        ACCOUNT,
+        [
+            VeloBankTransaction(
+                date(2026, 1, 1), date(2026, 1, 1), "Synthetic", Decimal("1"), "PLN"
+            )
+        ],
+    )
+    first = asyncio.run(store.create(owner, statement))
     for _ in range(5):
-        store.create(owner, VeloBankStatement(ACCOUNT, []))
+        asyncio.run(store.create(owner, statement))
     assert len(store._entries) == 5
     assert first.id not in store._entries
     from dataclasses import replace
@@ -268,3 +279,38 @@ def test_accounts_success_and_safe_upstream_failure(client, actor, monkeypatch):
     response = client.get(ROOT + "/accounts", headers=headers)
     assert response.status_code == 502
     assert "private upstream" not in response.text
+
+
+def test_preview_storage_failures_are_503_without_fallback(client, actor):
+    from unittest.mock import AsyncMock
+
+    from redis.exceptions import ConnectionError
+
+    from services.velobank_import.redis_store import RedisVeloBankPreviewStore
+
+    _, headers, _ = actor
+    redis = AsyncMock()
+    redis.get.side_effect = ConnectionError("redis://private:password@host")
+    client.app.dependency_overrides[get_velobank_preview_store] = lambda: (
+        RedisVeloBankPreviewStore(redis)
+    )
+    response = client.get(ROOT + "/files/" + str(uuid4()), headers=headers)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Preview storage unavailable"}
+    assert "password" not in response.text
+
+
+def test_oversized_serialized_preview_returns_413(client, actor, tmp_path, monkeypatch):
+    monkeypatch.setattr("services.velobank_import.session.MAX_PREVIEW_BYTES", 10)
+    _, headers, _ = actor
+    response = upload(client, headers, tmp_path)
+    assert response.status_code == 413
+    assert response.json() == {"detail": "Preview exceeds the storage size limit"}
+
+
+def test_obsolete_citi_routes_are_removed_from_api(client):
+    assert not any("/citi" in path for path in client.app.openapi()["paths"])
+    assert not any(
+        "Citi" in name for name in client.app.openapi()["components"]["schemas"]
+    )
+    assert client.get("/api/tools/citi/files/" + str(uuid4())).status_code == 404

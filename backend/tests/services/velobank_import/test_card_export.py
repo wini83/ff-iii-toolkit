@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import hashlib
 import json
@@ -86,7 +87,7 @@ def test_card_preview_and_csv(card_number, details, payee, description):
     tx = record(raw)
     statement = VeloBankStatement(ACCOUNT, [tx])
     accounts = {"PL" + ACCOUNT: "Card"}
-    entry = VeloBankPreviewStore().create(uuid4(), statement)
+    entry = asyncio.run(VeloBankPreviewStore().create(uuid4(), statement))
     preview = preview_data(entry, accounts)["preview"][0]
     exported = list(
         csv.DictReader(
@@ -149,7 +150,7 @@ def test_ambiguous_or_empty_legacy_fields_require_review(details, amount):
     raw = f"Operacja kartą na kwotę 12,34 PLN w {details}"
     statement = VeloBankStatement(ACCOUNT, [record(raw, amount)])
     accounts = {"PL" + ACCOUNT: "Card"}
-    entry = VeloBankPreviewStore().create(uuid4(), statement)
+    entry = asyncio.run(VeloBankPreviewStore().create(uuid4(), statement))
     preview = preview_data(entry, accounts)["preview"][0]
     row = export_rows(statement, account_name="Card", own_accounts=accounts)[0]
     assert preview["payee"] == row["Payee"] == "Unknown counterparty"
