@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.4.1 (2026-11-16)
+
+### Fix
+
+- **snapshot**: coordinate refresh across backend workers (#120)
+
 ## v3.4.0 (2026-11-15)
 
 ### Feat
