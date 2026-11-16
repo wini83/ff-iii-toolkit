@@ -16,24 +16,20 @@ from tests.services.test_allegro_application_service import _tx
 
 
 def test_apply_job_manager_create_and_get():
-    manager = AllegroApplyJobManager()
-    secret_id = uuid4()
+    async def check():
+        owner, secret_id = uuid4(), uuid4()
+        manager = AllegroApplyJobManager()
+        job = await manager.create(owner=owner, secret_id=secret_id, total=5)
+        assert job.secret_id == secret_id
+        assert job.total == 5
+        assert job.status == JobStatus.PENDING
+        assert isinstance(job.started_at, datetime)
+        assert job.started_at.tzinfo is not None
+        assert await manager.get(job.id, owner=owner) == job
+        assert await manager.get(job.id, owner=uuid4()) is None
+        assert await manager.get(uuid4(), owner=owner) is None
 
-    job = manager.create(secret_id=secret_id, total=5)
-
-    assert job.secret_id == secret_id
-    assert job.total == 5
-    assert job.status == JobStatus.PENDING
-    assert isinstance(job.started_at, datetime)
-    assert job.started_at.tzinfo is not None
-
-    fetched = manager.get(job.id)
-    assert fetched is job
-
-
-def test_apply_job_manager_get_missing_returns_none():
-    manager = AllegroApplyJobManager()
-    assert manager.get(uuid4()) is None
+    asyncio.run(check())
 
 
 def test_state_store_defaults_are_independent():

@@ -11,7 +11,6 @@ import services.allegro_application_service as app_module
 from services.allegro_application_service import AllegroApplicationService
 from services.allegro_state_store import AllegroStateStore
 from services.domain.allegro import (
-    AllegroApplyJob,
     AllegroOrderPayment,
     AllegroPageRequest,
     MatchDecision,
@@ -209,12 +208,12 @@ async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
 
     captured = {}
 
-    def fake_create_task(coro):
+    def fake_spawn(record, coro):
         captured["scheduled"] = True
         coro.close()
         return object()
 
-    monkeypatch.setattr(app_module, "create_task", fake_create_task)
+    monkeypatch.setattr(store.job_manager.runtime, "spawn", fake_spawn)
 
     job = await service.start_apply_job(
         user_id=OWNER,
@@ -256,11 +255,10 @@ async def test_run_apply_job_counts_success_and_failures():
         MatchResult(tx=tx2, matches=[pay2], status=MatchProcessingStatus.NEW),
     ]
 
-    job = AllegroApplyJob(
-        id=uuid4(),
+    job = await service.state_store.job_manager.create(
+        owner=OWNER,
         secret_id=uuid4(),
         total=4,
-        status=JobStatus.PENDING,
     )
 
     decisions = [
@@ -341,11 +339,10 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
         ),
     )
     service = _service(store)
-    job = AllegroApplyJob(
-        id=uuid4(),
+    job = await service.state_store.job_manager.create(
+        owner=OWNER,
         secret_id=secret_id,
         total=len(expected_pairs),
-        status=JobStatus.PENDING,
     )
     service.start_apply_job = AsyncMock(return_value=job)
 
@@ -445,12 +442,12 @@ async def test_start_apply_job_uses_matches_loaded_from_cached_pages(monkeypatch
 
     captured = {}
 
-    def fake_create_task(coro):
+    def fake_spawn(record, coro):
         captured["scheduled"] = True
         coro.close()
         return object()
 
-    monkeypatch.setattr(app_module, "create_task", fake_create_task)
+    monkeypatch.setattr(store.job_manager.runtime, "spawn", fake_spawn)
 
     await service.start_apply_job(
         user_id=OWNER,
@@ -527,6 +524,7 @@ async def test_get_metrics_state_recreates_manager_if_missing():
 
     assert state.status == JobStatus.RUNNING
     assert service.state_store.metrics_manager is not None
+    await service.state_store.metrics_manager.aclose()
 
 
 @pytest.mark.anyio

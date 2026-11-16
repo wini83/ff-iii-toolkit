@@ -34,7 +34,7 @@ Use-cases:
 
 Non-goals:
 - Not a Firefly III replacement or general-purpose accounting backend.
-- Not a durable job queue system; apply job execution and status remain process-local. Matching results use Redis when configured.
+- Not a durable job queue system: tasks execute in the API process. Apply/metrics state and matching results use Redis when configured; interrupted financial writes are never resumed automatically.
 - Not a frontend UI in this repository.
 
 ## Key features
@@ -51,7 +51,7 @@ High level:
 - Application services: `src/services/*_application_service.py`.
 - Firefly integration: `src/services/firefly_*_service.py` via `ff-iii-luciferin` client.
 - Persistence: SQLAlchemy models/repositories in `src/services/db/*` with Alembic migrations in `alembic/`.
-- Runtime state: in-memory caches for BLIK matches, Allegro matches/jobs, and metrics states.
+- Runtime state: shared Redis snapshots, matching results and job/metrics records when `REDIS_URL` is configured; application-scoped memory implementations for development. Task handles remain local.
 
 Request flow:
 ```text

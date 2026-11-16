@@ -77,7 +77,7 @@ class FakeAllegroSvc:
             raise self._start_error
         return self._job
 
-    def get_apply_job(self, *, user_id, job_id):
+    async def get_apply_job(self, *, user_id, job_id):
         return self.state_store.job_manager.get(job_id)
 
     def get_allegro_secrets(self, *, user_id):

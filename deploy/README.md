@@ -215,7 +215,7 @@ older versions can still perform unconditional writes. Existing snapshot JSON is
 readable and a missing revision is supported. No database migration is required.
 Rollback to the previous image leaves compatible snapshot JSON; auxiliary keys
 expire naturally. Snapshot coordination alone does not migrate the other
-process-local vault, job, or import stores or make the entire API multi-worker ready.
+process-local vault or temporary-file stores or make the entire API multi-worker ready.
 
 Tests exercise independent service instances, concurrent normal/forced reads,
 publication fencing after expiry, safe release, bounded waits and Firefly/Redis
@@ -267,11 +267,66 @@ memory. Payload writes and apply admission fail before modifying data during
 OOM. Invalidation alone may still run during OOM: it only deletes data or replaces
 fixed-size generation tokens, allowing completed updates to fence stale results.
 
-Apply jobs and metrics managers still execute and keep status in their local
-process (#112). **Use a single backend worker until job-state migration is done**;
-shared matching data alone does not make job polling portable across workers or
-make financial operations exactly-once.
+Apply jobs and metrics still execute in their local process. Their state is
+shared through Redis as described below (#112). Job polling is portable across
+workers; matching storage and job state do not make financial operations exactly-once.
+BLIK temporary files and vault sessions still require compatible worker routing/storage;
+keep the existing single-worker deployment until those concerns are addressed.
 
 The normal `TEST_REDIS_URL` and isolated `TEST_REDIS_OOM_URL` test instances cover
 cache hit/miss, fixed TTL, invalidation, concurrent access, fencing, owner isolation,
 serialization, corruption and real memory exhaustion. All test records are synthetic.
+
+
+### Asynchronous job state (#112)
+
+`REDIS_URL` also selects `RedisJobStore`, shared by BLIK/Allegro apply and all
+three metrics managers. JSON schema v1 records live under
+`ff-iii-toolkit:{jobs-v1}`. Each record is limited to 2 MiB and contains the job
+owner/type, execution token, status, progress/results and a lease deadline.
+Nested data is stored as an opaque JSON string inside the envelope so Redis Lua
+cannot change empty arrays or Decimal strings. HTTP response schemas are unchanged.
+There is no Celery, queue consumer or automatic replay; `asyncio.Task` handles
+remain local and are tracked until completion or application shutdown.
+
+Apply admission reserves a durable job **before** consuming matching results.
+A ledger-wide atomic claim allows only one active apply across both features.
+If consuming the preview fails, the reservation is marked failed and no financial
+request starts. If the process disappears between those steps, its pending job
+expires through the same interruption protocol. Repeating an already-consumed
+preview cannot start another apply. A concurrent active apply returns HTTP 409;
+Redis failures return sanitized HTTP 503 without a memory fallback.
+
+Executions renew a 120-second lease every 40 seconds. Redis server time controls
+lease checks. Every progress write validates the execution token, active status
+and deadline. Expired pending/running records become `failed` on their next
+poll/claim, retaining confirmed results and indicating any transaction that was
+in flight. Late writers cannot publish over a terminal job. Heartbeat/storage
+failure cancels local work, and progress persistence is required before each
+financial request and after each outcome. Subsequent financial requests stop
+when persistence fails. Graceful shutdown cancels and awaits owned tasks before
+closing Redis; hard process death is detected by lease expiry.
+
+A request already accepted by Firefly cannot be rolled back or fenced by Redis.
+If the process or connection fails after Firefly commits but before the result is
+saved, that transaction has an uncertain outcome. Restart never repeats it: read
+the failure, verify the result and generate a new matching preview. This provides
+single active admission while the lease is valid and **no automatic retries of
+financial writes**, not exactly-once execution under partitions or process pauses.
+Redis state itself has the durability of the configured Redis persistence; losing
+Redis data loses job history and leases. The existing dedicated `noeviction`
+configuration is required; do not use these records as an accounting audit log.
+
+Completed/failed records expire 24 hours after finalization. Polling does not
+extend that retention; active heartbeats refresh it. Metrics use shared claims
+per feature and keep snapshot-timestamp freshness checks. Failed/interrupted
+metrics remain visible until an explicit refresh (or record expiry), which can
+safely recompute them. Ownership for apply polling is persisted with the job,
+so results remain readable even if its temporary file or Allegro secret is removed;
+other users cannot read them. Memory mode follows the same lifecycle but cannot
+survive a process restart.
+
+Tests cover independent Redis clients, competing claims, TTL, heartbeats, stale
+execution rejection, application/process restart, owner checks, per-transaction
+checkpoint failures, immediate shutdown and real Redis OOM. The existing
+`TEST_REDIS_URL`/isolated `TEST_REDIS_OOM_URL` opt-ins apply.

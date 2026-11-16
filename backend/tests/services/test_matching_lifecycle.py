@@ -82,9 +82,12 @@ def test_allegro_apply_clear_and_job_lookup_authorize_secret_owner():
         assert await service.state_store.get_all_matches(
             owner=owner, secret_id=secret, revision=revision
         )
-        job = service.state_store.job_manager.create(secret_id=secret, total=0)
-        assert service.get_apply_job(user_id=outsider, job_id=job.id) is None
-        assert service.get_apply_job(user_id=owner, job_id=job.id) is job
+        job = await service.state_store.job_manager.create(
+            owner=owner, secret_id=secret, total=0
+        )
+        assert await service.get_apply_job(user_id=outsider, job_id=job.id) is None
+        assert await service.get_apply_job(user_id=owner, job_id=job.id) == job
+        await service.state_store.job_manager.abort_start(job)
         obj.ciphertext = b"rotated synthetic credential"
         with pytest.raises(MatchesNotComputed):
             await service.start_apply_job(user_id=owner, secret_id=secret, decisions=[])
@@ -185,9 +188,12 @@ def test_blik_file_owner_content_revision_and_job_owner(tmp_path):
         assert await service.state_store.get_matches(
             owner=owner, file_id=file_id, revision=revision
         )
-        job = service.state_store.job_manager.create(file_id=file_id, total=0)
-        assert service.get_apply_job(user_id=outsider, job_id=job.id) is None
-        assert service.get_apply_job(user_id=owner, job_id=job.id) is job
+        job = await service.state_store.job_manager.create(
+            owner=owner, file_id=file_id, total=0
+        )
+        assert await service.get_apply_job(user_id=outsider, job_id=job.id) is None
+        assert await service.get_apply_job(user_id=owner, job_id=job.id) == job
+        await service.state_store.job_manager.abort_start(job)
         path.write_bytes(b"changed CSV")
         with pytest.raises(MatchesNotComputed):
             await service.start_apply_job(
@@ -377,20 +383,20 @@ def test_apply_finishes_only_after_cache_invalidation(feature, cache_failure):
             BlikApplicationService if feature == "blik" else AllegroApplicationService
         )
         service = object.__new__(service_type)
-        service.state_store = SimpleNamespace(
-            match_store=SimpleNamespace(
-                backend=SimpleNamespace(invalidate_all=invalidate)
-            )
+        service.state_store = (
+            BlikStateStore() if feature == "blik" else AllegroStateStore()
         )
-        if feature == "blik":
-            service._apply_decisions = AsyncMock(return_value=[])
-        job = SimpleNamespace(
-            status=JobStatus.PENDING, applied=0, failed=0, results=[], finished_at=None
+        service.state_store.match_store.backend.invalidate_all = invalidate
+        resource = (
+            {"file_id": "synthetic"} if feature == "blik" else {"secret_id": uuid4()}
+        )
+        job = await service.state_store.job_manager.create(
+            owner=uuid4(), total=0, **resource
         )
         task = asyncio.create_task(
             service._run_apply_job(job=job, decisions=[], matches=[])
         )
-        await entered.wait()
+        await asyncio.wait_for(entered.wait(), 2)
         assert job.status == JobStatus.RUNNING
         assert job.finished_at is None
         release.set()

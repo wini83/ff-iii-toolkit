@@ -257,13 +257,13 @@ async def clear_cache_for_secret(
 
 
 @router.get("/apply-jobs/{job_id}", response_model=ApplyJobResponse)
-def get_apply_job(
+async def get_apply_job(
     job_id: str,
     user_id: UUID = Depends(require_active_user),
     svc: AllegroApplicationService = Depends(get_allegro_application_runtime),
 ):
     try:
-        job = svc.get_apply_job(user_id=user_id, job_id=UUID(job_id))
+        job = await svc.get_apply_job(user_id=user_id, job_id=UUID(job_id))
     except ValueError as exc:
         raise HTTPException(400, "Invalid job_id") from exc
     if job is None:

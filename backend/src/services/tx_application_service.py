@@ -10,6 +10,7 @@ from services.domain.metrics import TXStatisticsMetrics
 from services.exceptions import ExternalServiceFailed
 from services.firefly_base_service import FireflyServiceError
 from services.firefly_tx_service import FireflyTxService
+from services.jobs.runtime import JobRuntime
 from services.matching_cache.backend import MatchBackend, MemoryMatchBackend
 from services.tx_stats.manager import TxMetricsManager
 from services.tx_stats.models import MetricsState
@@ -30,13 +31,16 @@ class TxApplicationService:
         *,
         tx_service: FireflyTxService,
         matching_backend: MatchBackend | None = None,
+        job_runtime: JobRuntime | None = None,
         metrics_provider: MetricsProvider[TXStatisticsMetrics],
     ) -> None:
         self.matching_backend = (
             matching_backend if matching_backend is not None else MemoryMatchBackend()
         )
         self.tx_service = tx_service
-        self.tx_metrics_manager = TxMetricsManager(provider=metrics_provider)
+        self.tx_metrics_manager = TxMetricsManager(
+            provider=metrics_provider, runtime=job_runtime
+        )
 
     # --------------------------------------------------
     # SCREENING

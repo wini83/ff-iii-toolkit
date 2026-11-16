@@ -18,14 +18,21 @@ from api.routers.user_secrets import router as user_secrets_router
 from api.routers.users import router as users_router
 from api.routers.velobank_import import router as velobank_import_router
 from middleware import register_middlewares
-from services.allegro_state_store import AllegroStateStore
-from services.blik_state_store import BlikStateStore
+from services.allegro_state_store import AllegroApplyJobManager, AllegroStateStore
+from services.blik_state_store import BlikApplyJobManager, BlikStateStore
 from services.db.engine import (
     create_engine_from_url,
     create_session_factory,
 )
 from services.db.init import DatabaseBootstrap
 from services.infrastructure.redis import redis_connection
+from services.jobs.runtime import JobRuntime
+from services.jobs.store import (
+    JobBusy,
+    JobStoreUnavailable,
+    MemoryJobStore,
+    RedisJobStore,
+)
 from services.matching_cache.backend import (
     MatchCacheUnavailable,
     MemoryMatchBackend,
@@ -86,6 +93,18 @@ def create_app(
             content={"detail": "Transaction snapshot cache unavailable"},
         )
 
+    @app.exception_handler(JobStoreUnavailable)
+    async def jobs_unavailable(request: Request, exc: JobStoreUnavailable):
+        return JSONResponse(
+            status_code=503, content={"detail": "Job storage unavailable"}
+        )
+
+    @app.exception_handler(JobBusy)
+    async def jobs_busy(request: Request, exc: JobBusy):
+        return JSONResponse(
+            status_code=409, content={"detail": "An apply job is already running"}
+        )
+
     @app.exception_handler(MatchCacheUnavailable)
     async def matching_unavailable(request: Request, exc: MatchCacheUnavailable):
         return JSONResponse(
@@ -130,11 +149,16 @@ def create_app(
             app.state.matching_backend = (
                 RedisMatchBackend(redis) if redis is not None else MemoryMatchBackend()
             )
+            app.state.job_runtime = JobRuntime(
+                RedisJobStore(redis) if redis is not None else MemoryJobStore()
+            )
             app.state.allegro_runtime_state = AllegroStateStore(
-                match_store=AllegroMatchStore(app.state.matching_backend)
+                job_manager=AllegroApplyJobManager(app.state.job_runtime),
+                match_store=AllegroMatchStore(app.state.matching_backend),
             )
             app.state.blik_runtime_state = BlikStateStore(
-                match_store=BlikMatchStore(app.state.matching_backend)
+                job_manager=BlikApplyJobManager(app.state.job_runtime),
+                match_store=BlikMatchStore(app.state.matching_backend),
             )
             app.state.transaction_snapshot_service = None
             app.state.blik_application_runtime = None
@@ -156,6 +180,7 @@ def create_app(
             try:
                 yield
             finally:
+                await app.state.job_runtime.aclose()
                 if cleanup is not None:
                     cleanup.cancel()
                     with suppress(asyncio.CancelledError):
