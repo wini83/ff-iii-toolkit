@@ -136,10 +136,7 @@
 
   function canSelectCandidate(row: AllegroMatchResult, paymentExternalId: string) {
     return (
-      !applying &&
-      !loading &&
-      !isRowProcessed(row) &&
-      !appliedCandidates.has(candidateKey(row.tx.id, paymentExternalId))
+      !isRowProcessed(row) && !appliedCandidates.has(candidateKey(row.tx.id, paymentExternalId))
     );
   }
 
@@ -653,7 +650,9 @@
                               type="checkbox"
                               class="checkbox checkbox-primary checkbox-sm"
                               checked={selectedCandidates.has(key)}
-                              disabled={!canSelectCandidate(row, candidate.external_id)}
+                              disabled={applying ||
+                                loading ||
+                                !canSelectCandidate(row, candidate.external_id)}
                               on:change={() => toggleCandidate(row.tx.id, candidate.external_id)}
                             />
                             <div>

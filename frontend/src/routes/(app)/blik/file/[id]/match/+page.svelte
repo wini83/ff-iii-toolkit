@@ -164,12 +164,7 @@
   function canSelectCandidate(row: MatchRow, candidate: SimplifiedRecord) {
     const matchId = getNonEmptyString(candidate.match_id);
     if (!matchId) return false;
-    return (
-      !applying &&
-      !loading &&
-      !isRowProcessed(row) &&
-      !appliedMatches.has(matchKey(row.tx.id, matchId))
-    );
+    return !isRowProcessed(row) && !appliedMatches.has(matchKey(row.tx.id, matchId));
   }
 
   function toggleCandidate(txId: number, candidate: SimplifiedRecord) {
@@ -676,7 +671,9 @@
                                 type="checkbox"
                                 class="checkbox checkbox-primary checkbox-sm"
                                 checked={selectedMatches.get(row.tx.id) === candidateMatchId}
-                                disabled={!canSelectCandidate(row, candidate)}
+                                disabled={applying ||
+                                  loading ||
+                                  !canSelectCandidate(row, candidate)}
                                 on:change={() => toggleCandidate(row.tx.id, candidate)}
                               />
                               <div>
