@@ -429,3 +429,64 @@ def test_publication_normalizes_valid_integer_retention_before_expiry_commands()
             assert 0 < await redis.ttl(coordinator.revision_key) <= 60
 
     asyncio.run(check())
+
+
+def test_new_force_recovers_when_older_publication_response_is_lost():
+    async def check():
+        async with case() as (_, store, coordinator):
+            published, fail_response, baseline_seen = (
+                asyncio.Event(),
+                asyncio.Event(),
+                asyncio.Event(),
+            )
+            original_publish = coordinator.publish
+            original_read = coordinator.read_state
+            publications = 0
+            fetches = 0
+
+            async def fetch():
+                nonlocal fetches
+                fetches += 1
+                return [], FetchMetrics(0, fetches, 0, 0)
+
+            async def lost_response(token, value):
+                nonlocal publications
+                result = await original_publish(token, value)
+                publications += 1
+                if publications == 1:
+                    published.set()
+                    await fail_response.wait()
+                    raise SnapshotStoreUnavailable("Lost publication response")
+                return result
+
+            async def observed_read():
+                state = await original_read()
+                if published.is_set() and state.revision is not None:
+                    baseline_seen.set()
+                return state
+
+            coordinator.publish = lost_response
+            coordinator.read_state = observed_read
+            worker = service(store, coordinator, fetch)
+            first = asyncio.create_task(worker.refresh_snapshot())
+            try:
+                await asyncio.wait_for(published.wait(), 1)
+                first_revision = await coordinator.read_revision()
+                newer = asyncio.create_task(worker.refresh_snapshot())
+                await asyncio.wait_for(baseline_seen.wait(), 1)
+                fail_response.set()
+                older_result, newer_result = await asyncio.wait_for(
+                    asyncio.gather(first, newer, return_exceptions=True), 2
+                )
+                assert isinstance(older_result, SnapshotStoreUnavailable)
+                assert isinstance(newer_result, TransactionSnapshot)
+                assert newer_result.metrics.fetching_duration_ms == 2
+                assert fetches == 2
+                assert await coordinator.read_revision() != first_revision
+                assert await store.get_snapshot() == newer_result
+            finally:
+                fail_response.set()
+                await worker.aclose()
+                await asyncio.gather(first, return_exceptions=True)
+
+    asyncio.run(check())

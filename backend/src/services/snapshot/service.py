@@ -104,6 +104,11 @@ class TransactionSnapshotService:
                 result = await asyncio.shield(task)
                 if join:
                     return result
+            except Exception:
+                if join:
+                    raise
+                # This older task cannot satisfy our pinned force revision.
+                # Its failure must not prevent our own attempt in the same budget.
             finally:
                 if task.done() and self._refresh_task is task:
                     self._refresh_task = None
