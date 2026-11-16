@@ -34,7 +34,7 @@ Use-cases:
 
 Non-goals:
 - Not a Firefly III replacement or general-purpose accounting backend.
-- Not a durable job queue system; matching/apply runtime state is process memory.
+- Not a durable job queue system; apply job execution and status remain process-local. Matching results use Redis when configured.
 - Not a frontend UI in this repository.
 
 ## Key features
@@ -339,7 +339,7 @@ Image tags from `build.yml` metadata:
 - `403` on `/api/users/*`: route requires superuser.
 - `401` on `/api/auth/refresh`: refresh cookie missing/expired/invalid.
 - `404 File not found` for BLIK preview/matches: uploaded CSV temp file is missing from system temp dir.
-- `400 No match data found`: run preview matching endpoint first; caches are in-memory and reset on restart.
+- `400 No match data found`: run the matching preview again. Matching results expire after 10 minutes and are invalidated when relevant inputs change or an apply starts.
 - Firefly-related `502`: verify `FIREFLY_URL`, `FIREFLY_TOKEN`, and upstream Firefly availability.
 
 ## Contributing

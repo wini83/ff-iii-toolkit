@@ -1,16 +1,19 @@
 from collections.abc import Sequence
 from datetime import timedelta
 
-from ff_iii_luciferin.api import FireflyClient
+from ff_iii_luciferin.api import FireflyAPIError, FireflyClient
 
+from services.domain.bank_record import BankRecord
 from services.domain.base import BaseMatchItem
 from services.domain.evidence import Evidence
 from services.domain.match_result import MatchResult
 from services.domain.transaction import Transaction, TxTag
 from services.firefly_base_service import (
     FireflyBaseService,
+    FireflyServiceError,
     filter_by_description,
 )
+from services.mappers.firefly import tx_from_ff_tx
 from services.matcher import match_transactions
 from settings import settings
 
@@ -44,5 +47,30 @@ class FireflyEnrichmentService(FireflyBaseService):
         return matches
 
     async def apply_match(self, tx: Transaction, evidence: Evidence) -> None:
-        payload = evidence.build_tx_update(tx)
-        await self.update_transaction(tx, payload=payload)
+        # Cached matches identify the user's selection, not the current mutable
+        # transaction. Re-read before applying to preserve newer notes and tags.
+        current = await self._get_current_transaction(tx.id)
+        if (current.date, current.amount, current.type, current.currency.code) != (
+            tx.date,
+            tx.amount,
+            tx.type,
+            tx.currency.code,
+        ):
+            raise FireflyServiceError("Transaction changed; run matching preview again")
+        tag_done = (
+            TxTag.blik_done if isinstance(evidence, BankRecord) else TxTag.allegro_done
+        )
+        if current.has_tag(tag_done) and not tx.has_tag(tag_done):
+            raise FireflyServiceError(
+                "Transaction already processed; run matching preview again"
+            )
+        payload = evidence.build_tx_update(current)
+        await self.update_transaction(current, payload=payload)
+
+    async def _get_current_transaction(self, tx_id: int) -> Transaction:
+        try:
+            return tx_from_ff_tx(await self.firefly_client.get_transaction(tx_id))
+        except FireflyAPIError:
+            raise FireflyServiceError(
+                "Cannot verify current transaction; run matching preview again"
+            ) from None

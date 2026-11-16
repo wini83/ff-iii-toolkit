@@ -72,10 +72,13 @@ class FakeAllegroSvc:
             job_manager=SimpleNamespace(get=lambda _job_id: lookup_job)
         )
 
-    async def start_apply_job(self, *, secret_id, decisions):
+    async def start_apply_job(self, *, user_id, secret_id, decisions):
         if self._start_error:
             raise self._start_error
         return self._job
+
+    def get_apply_job(self, *, user_id, job_id):
+        return self.state_store.job_manager.get(job_id)
 
     def get_allegro_secrets(self, *, user_id):
         return self._secrets
@@ -90,7 +93,7 @@ class FakeAllegroSvc:
             raise self._matches_error
         return self._matches
 
-    async def start_auto_apply_single_matches(self, *, secret_id, limit):
+    async def start_auto_apply_single_matches(self, *, user_id, secret_id, limit):
         if self._auto_error:
             raise self._auto_error
         return self._auto_job
@@ -101,11 +104,11 @@ class FakeAllegroSvc:
     async def refresh_metrics_state(self):
         return self._refresh_metrics_state
 
-    def clear_cached_secret(self, *, secret_id):
+    async def clear_cached_secret(self, *, user_id, secret_id):
         self._cleared_secret = True
         return True
 
-    def clear_cached_page(self, *, secret_id, page):
+    async def clear_cached_page(self, *, user_id, secret_id, page):
         self._cleared_page = True
         self._cleared_page_payload = page
         return True

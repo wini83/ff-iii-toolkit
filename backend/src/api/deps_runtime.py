@@ -15,7 +15,6 @@ from services.allegro_application_service import AllegroApplicationService
 from services.allegro_service import AllegroService
 from services.allegro_state_store import AllegroStateStore
 from services.blik_application_service import BlikApplicationService
-from services.blik_state_store import get_blik_state_store
 from services.firefly_enrichment_service import FireflyEnrichmentService
 from services.snapshot.metrics import (
     SnapshotAllegroMetricsService,
@@ -43,7 +42,7 @@ async def get_blik_application_runtime(
         service = BlikApplicationService(
             enrichment_service=get_firefly_enrichment_service(),
             metrics_provider=metrics_provider,
-            state_store=get_blik_state_store(),
+            state_store=request.app.state.blik_runtime_state,
         )
         request.app.state.blik_application_runtime = service
     return service
@@ -59,6 +58,7 @@ async def get_tx_application_runtime(
     if service is None:
         service = TxApplicationService(
             tx_service=get_firefly_tx_service(),
+            matching_backend=request.app.state.matching_backend,
             metrics_provider=metrics_provider,
         )
         request.app.state.tx_application_runtime = service

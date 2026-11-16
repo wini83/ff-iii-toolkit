@@ -10,6 +10,7 @@ from services.domain.metrics import TXStatisticsMetrics
 from services.exceptions import ExternalServiceFailed
 from services.firefly_base_service import FireflyServiceError
 from services.firefly_tx_service import FireflyTxService
+from services.matching_cache.backend import MatchBackend, MemoryMatchBackend
 from services.tx_stats.manager import TxMetricsManager
 from services.tx_stats.models import MetricsState
 from services.tx_stats.runner import MetricsProvider
@@ -28,8 +29,12 @@ class TxApplicationService:
         self,
         *,
         tx_service: FireflyTxService,
+        matching_backend: MatchBackend | None = None,
         metrics_provider: MetricsProvider[TXStatisticsMetrics],
     ) -> None:
+        self.matching_backend = (
+            matching_backend if matching_backend is not None else MemoryMatchBackend()
+        )
         self.tx_service = tx_service
         self.tx_metrics_manager = TxMetricsManager(provider=metrics_provider)
 
@@ -65,18 +70,24 @@ class TxApplicationService:
     # --------------------------------------------------
 
     async def apply_category(self, *, tx_id: int, category_id: int) -> None:
+        await self.matching_backend.invalidate_all()
         try:
             await self.tx_service.apply_category_by_id(
                 tx_id=tx_id, category_id=category_id
             )
         except FireflyServiceError as e:
             raise ExternalServiceFailed(str(e)) from e
+        finally:
+            await self.matching_backend.invalidate_all()
 
     async def apply_tag(self, *, tx_id: int, tag: TxTag) -> None:
+        await self.matching_backend.invalidate_all()
         try:
             await self.tx_service.add_tag_by_id(tx_id=tx_id, tag=tag.value)
         except FireflyServiceError as e:
             raise ExternalServiceFailed(str(e)) from e
+        finally:
+            await self.matching_backend.invalidate_all()
 
     # --------------------------------------------------
     # METRICS

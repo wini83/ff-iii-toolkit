@@ -19,12 +19,19 @@ from api.routers.users import router as users_router
 from api.routers.velobank_import import router as velobank_import_router
 from middleware import register_middlewares
 from services.allegro_state_store import AllegroStateStore
+from services.blik_state_store import BlikStateStore
 from services.db.engine import (
     create_engine_from_url,
     create_session_factory,
 )
 from services.db.init import DatabaseBootstrap
 from services.infrastructure.redis import redis_connection
+from services.matching_cache.backend import (
+    MatchCacheUnavailable,
+    MemoryMatchBackend,
+    RedisMatchBackend,
+)
+from services.matching_cache.stores import AllegroMatchStore, BlikMatchStore
 from services.snapshot.redis_store import RedisSnapshotStore, SnapshotStoreUnavailable
 from services.snapshot.store import InMemorySnapshotStore, SnapshotStore
 from services.velobank_import.redis_store import RedisVeloBankPreviewStore
@@ -79,6 +86,12 @@ def create_app(
             content={"detail": "Transaction snapshot cache unavailable"},
         )
 
+    @app.exception_handler(MatchCacheUnavailable)
+    async def matching_unavailable(request: Request, exc: MatchCacheUnavailable):
+        return JSONResponse(
+            status_code=503, content={"detail": "Matching cache unavailable"}
+        )
+
     @app.exception_handler(PreviewStoreUnavailable)
     async def preview_unavailable(request: Request, exc: PreviewStoreUnavailable):
         return JSONResponse(
@@ -114,7 +127,15 @@ def create_app(
                 )
             else:
                 app.state.snapshot_store = InMemorySnapshotStore()
-            app.state.allegro_runtime_state = AllegroStateStore()
+            app.state.matching_backend = (
+                RedisMatchBackend(redis) if redis is not None else MemoryMatchBackend()
+            )
+            app.state.allegro_runtime_state = AllegroStateStore(
+                match_store=AllegroMatchStore(app.state.matching_backend)
+            )
+            app.state.blik_runtime_state = BlikStateStore(
+                match_store=BlikMatchStore(app.state.matching_backend)
+            )
             app.state.transaction_snapshot_service = None
             app.state.blik_application_runtime = None
             app.state.tx_application_runtime = None

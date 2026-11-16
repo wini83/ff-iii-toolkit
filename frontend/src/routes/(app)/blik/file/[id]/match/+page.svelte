@@ -6,6 +6,7 @@
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
   import { blik } from '#lib/api/blik.js';
+  import { isMatchingCacheMiss } from '#lib/api/errors.js';
   import type { components } from '#lib/api/schema.js';
 
   type MatchData = components['schemas']['FileMatchResponse'];
@@ -283,6 +284,10 @@
       return;
     }
 
+    await refreshMatches();
+  }
+
+  async function refreshMatches() {
     if (!fileId) {
       error = 'Missing file id in route.';
       loading = false;
@@ -300,6 +305,7 @@
       rows = data.content ?? [];
       selectedMatches = new Map();
       appliedMatches = new Set();
+      return true;
     } catch (err: unknown) {
       console.error(err);
       error = extractErrorMessage(err, 'Failed to load matching data');
@@ -307,6 +313,7 @@
       rows = [];
       selectedMatches = new Map();
       appliedMatches = new Set();
+      return false;
     } finally {
       loading = false;
     }
@@ -332,6 +339,8 @@
     resetApplyProgress(decisions.length);
     await tick();
 
+    let shouldRefresh = false;
+    let cacheMiss = false;
     applying = true;
     try {
       const startJob = await blik.applyMatches(fileId, decisions);
@@ -369,6 +378,11 @@
         }
       }
 
+      if (isBusy(finalJob.status)) {
+        emitToast('info', 'Apply is still running. Refresh later to verify the result.');
+        return;
+      }
+      shouldRefresh = true;
       if (finalJob.status === 'failed') {
         throw new Error('Apply job failed.');
       }
@@ -391,10 +405,23 @@
         applyProgressLabel = 'Apply finished with no changes.';
       }
     } catch (err: unknown) {
-      console.error(err);
-      applyProgressError = extractErrorMessage(err, 'Failed to apply selected matches');
-      applyProgressLabel = 'Apply job failed.';
+      if (isMatchingCacheMiss(err)) {
+        shouldRefresh = true;
+        cacheMiss = true;
+        applyProgressLabel = 'Matching results expired or changed.';
+        applyProgressError = 'Review the refreshed results and select matches again.';
+      } else {
+        console.error(err);
+        applyProgressError = extractErrorMessage(err, 'Failed to apply selected matches');
+        applyProgressLabel = 'Apply job failed.';
+      }
     } finally {
+      if (shouldRefresh && !applyPollingCanceled) {
+        const refreshed = await refreshMatches();
+        if (cacheMiss && refreshed) {
+          emitToast('info', 'Matching results refreshed. Review and select matches again.');
+        }
+      }
       applying = false;
     }
   }
@@ -644,7 +671,9 @@
                                 type="checkbox"
                                 class="checkbox checkbox-primary checkbox-sm"
                                 checked={selectedMatches.get(row.tx.id) === candidateMatchId}
-                                disabled={!canSelectCandidate(row, candidate)}
+                                disabled={applying ||
+                                  loading ||
+                                  !canSelectCandidate(row, candidate)}
                                 on:change={() => toggleCandidate(row.tx.id, candidate)}
                               />
                               <div>

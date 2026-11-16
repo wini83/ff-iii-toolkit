@@ -66,10 +66,11 @@ async def refresh_statistics_current(
 )
 async def upload_csv(
     file: UploadFile = File(...),
+    user_id: UUID = Depends(require_active_user),
     svc: BlikApplicationService = Depends(get_blik_application_runtime),
 ):
     content = await file.read()
-    return await svc.upload_csv(file_bytes=content)
+    return await svc.upload_csv(user_id=user_id, file_bytes=content)
 
 
 @router.get(
@@ -78,10 +79,11 @@ async def upload_csv(
 )
 async def preview_csv(
     encoded_id: str,
+    user_id: UUID = Depends(require_active_user),
     svc: BlikApplicationService = Depends(get_blik_application_runtime),
 ):
     try:
-        return await svc.preview_csv(encoded_id=encoded_id)
+        return await svc.preview_csv(user_id=user_id, encoded_id=encoded_id)
     except InvalidFileId as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFound:
@@ -94,14 +96,17 @@ async def preview_csv(
 )
 async def preview_matches(
     encoded_id: str,
+    user_id: UUID = Depends(require_active_user),
     svc: BlikApplicationService = Depends(get_blik_application_runtime),
 ):
     try:
-        return await svc.preview_matches(encoded_id=encoded_id)
+        return await svc.preview_matches(user_id=user_id, encoded_id=encoded_id)
     except InvalidFileId as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFound as e:
         raise HTTPException(status_code=404, detail="File not found") from e
+    except MatchesNotComputed as e:
+        raise HTTPException(400, "No match data found; run preview again") from e
     except ExternalServiceFailed as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -113,14 +118,18 @@ async def preview_matches(
 async def start_apply_job(
     encoded_id: str,
     payload: ApplyDecisionsPayload,
+    user_id: UUID = Depends(require_active_user),
     svc: BlikApplicationService = Depends(get_blik_application_runtime),
 ):
     try:
         job = await svc.start_apply_job(
+            user_id=user_id,
             encoded_id=encoded_id,
             decisions=map_payload_to_decisions(payload),
         )
         return map_job_to_response(job)
+    except FileNotFound as e:
+        raise HTTPException(404, "File not found") from e
     except InvalidFileId as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except MatchesNotComputed as e:
@@ -140,14 +149,18 @@ async def start_apply_job(
 async def auto_apply_single_matches(
     encoded_id: str,
     limit: int | None = Query(default=None, ge=1, le=500),
+    user_id: UUID = Depends(require_active_user),
     svc: BlikApplicationService = Depends(get_blik_application_runtime),
 ):
     try:
         job = await svc.start_auto_apply_single_matches(
+            user_id=user_id,
             encoded_id=encoded_id,
             limit=limit,
         )
         return map_job_to_response(job)
+    except FileNotFound as e:
+        raise HTTPException(404, "File not found") from e
     except InvalidFileId as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except MatchesNotComputed as e:
@@ -166,6 +179,7 @@ async def auto_apply_single_matches(
 )
 async def get_apply_job(
     job_id: str,
+    user_id: UUID = Depends(require_active_user),
     svc: BlikApplicationService = Depends(get_blik_application_runtime),
 ):
     try:
@@ -173,7 +187,7 @@ async def get_apply_job(
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid job_id") from e
 
-    job = svc.get_apply_job(job_id=parsed_job_id)
+    job = svc.get_apply_job(user_id=user_id, job_id=parsed_job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return map_job_to_response(job)

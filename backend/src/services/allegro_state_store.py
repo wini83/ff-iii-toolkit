@@ -12,6 +12,8 @@ from services.domain.allegro import (
 )
 from services.domain.job_base import JobStatus
 from services.domain.match_result import MatchResult
+from services.matching_cache.backend import Ticket
+from services.matching_cache.stores import AllegroMatchStore
 
 
 class AllegroApplyJobManager:
@@ -35,62 +37,69 @@ class AllegroApplyJobManager:
 
 @dataclass
 class AllegroStateStore:
-    page_matches_cache: dict[
-        str, dict[AllegroPageRequest, AllegroPageMatchCacheEntry]
-    ] = field(default_factory=dict)
+    match_store: AllegroMatchStore = field(default_factory=AllegroMatchStore)
     job_manager: AllegroApplyJobManager = field(default_factory=AllegroApplyJobManager)
     metrics_manager: AllegroMetricsManager | None = None
 
-    def put_page_matches(
+    async def put_page_matches(
         self,
         *,
+        owner: UUID,
         secret_id: UUID,
         entry: AllegroPageMatchCacheEntry,
-    ) -> None:
-        secret_key = str(secret_id)
-        if secret_key not in self.page_matches_cache:
-            self.page_matches_cache[secret_key] = {}
-        self.page_matches_cache[secret_key][entry.page] = entry
+        revision: str = "revision",
+        ticket: Ticket | None = None,
+    ) -> bool:
+        return await self.match_store.put(
+            owner=owner,
+            secret_id=secret_id,
+            revision=revision,
+            entry=entry,
+            ticket=ticket,
+        )
 
-    def get_page_matches(
-        self, *, secret_id: UUID, page: AllegroPageRequest
+    async def get_page_matches(
+        self,
+        *,
+        owner: UUID,
+        secret_id: UUID,
+        page: AllegroPageRequest,
+        revision: str = "revision",
     ) -> list[MatchResult] | None:
-        page_cache = self.page_matches_cache.get(str(secret_id), {})
-        entry = page_cache.get(page)
-        if entry is None:
-            return None
-        return entry.matches
+        return await self.match_store.get(
+            owner=owner, secret_id=secret_id, revision=revision, page=page
+        )
 
-    def get_all_matches(self, *, secret_id: UUID) -> list[MatchResult]:
-        page_cache = self.page_matches_cache.get(str(secret_id), {})
-        matches: list[MatchResult] = []
-        for entry in page_cache.values():
-            matches.extend(entry.matches)
-        return matches
+    async def get_all_matches(
+        self,
+        *,
+        owner: UUID,
+        secret_id: UUID,
+        revision: str = "revision",
+        consume: bool = False,
+    ) -> list[MatchResult]:
+        return await self.match_store.get_all(
+            owner=owner, secret_id=secret_id, revision=revision, consume=consume
+        )
 
-    def invalidate_page(self, *, secret_id: UUID, page: AllegroPageRequest) -> bool:
-        secret_key = str(secret_id)
-        page_cache = self.page_matches_cache.get(secret_key)
-        if page_cache is None or page not in page_cache:
-            return False
-        del page_cache[page]
-        if not page_cache:
-            del self.page_matches_cache[secret_key]
-        return True
+    async def invalidate_page(
+        self,
+        *,
+        owner: UUID,
+        secret_id: UUID,
+        page: AllegroPageRequest,
+        revision: str = "revision",
+    ) -> bool:
+        return await self.match_store.invalidate(
+            owner=owner, secret_id=secret_id, revision=revision, page=page
+        )
 
-    def invalidate_secret(self, *, secret_id: UUID) -> bool:
-        secret_key = str(secret_id)
-        if secret_key not in self.page_matches_cache:
-            return False
-        del self.page_matches_cache[secret_key]
-        return True
+    async def invalidate_secret(
+        self, *, owner: UUID, secret_id: UUID, revision: str = "revision"
+    ) -> bool:
+        return await self.match_store.invalidate(
+            owner=owner, secret_id=secret_id, revision=revision
+        )
 
-    def invalidate_all(self) -> None:
-        self.page_matches_cache.clear()
-
-
-_state_store = AllegroStateStore()
-
-
-def get_allegro_state_store() -> AllegroStateStore:
-    return _state_store
+    async def invalidate_all(self) -> None:
+        await self.match_store.invalidate_all()

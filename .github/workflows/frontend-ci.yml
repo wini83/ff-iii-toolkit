@@ -40,3 +40,14 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:matching
+      - name: Report matching browser diagnostics
+        if: failure()
+        run: |
+          for context in test-results/*/error-context.md; do
+            if [ -f "$context" ]; then
+              cat "$context"
+              break
+            fi
+          done

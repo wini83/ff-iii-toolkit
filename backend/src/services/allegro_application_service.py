@@ -1,4 +1,4 @@
-from asyncio import create_task
+from asyncio import CancelledError, create_task
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
@@ -32,6 +32,7 @@ from services.exceptions import (
 )
 from services.firefly_base_service import FireflyServiceError
 from services.firefly_enrichment_service import FireflyEnrichmentService
+from services.matching_cache.backend import MatchCacheUnavailable, Ticket
 from services.tx_stats.models import MetricsState
 from services.tx_stats.runner import MetricsProvider
 from services.user_secrets_service import UserSecretsService
@@ -111,16 +112,22 @@ class AllegroApplicationService:
         except FireflyServiceError as e:
             raise ExternalServiceFailed(str(e)) from e
 
-    def _cache_page(
+    async def _cache_page(
         self,
         *,
+        user_id: UUID,
+        revision: str,
+        ticket: Ticket,
         secret_id: UUID,
         page: AllegroPageRequest,
         payments: list[AllegroOrderPayment],
         matches: list[MatchResult],
     ) -> None:
         login = payments[0].allegro_login if payments else "unknown"
-        self.state_store.put_page_matches(
+        stored = await self.state_store.put_page_matches(
+            owner=user_id,
+            revision=revision,
+            ticket=ticket,
             secret_id=secret_id,
             entry=AllegroPageMatchCacheEntry(
                 page=page,
@@ -129,6 +136,8 @@ class AllegroApplicationService:
                 matches=matches,
             ),
         )
+        if not stored:
+            raise MatchesNotComputed("Matching inputs changed; preview again")
 
     async def preview_matches(
         self,
@@ -139,6 +148,10 @@ class AllegroApplicationService:
         page: AllegroPageRequest | None = None,
     ) -> AllegroMatchPreview:
         page_request = page or AllegroPageRequest()
+        revision = self._matching_revision(user_id=user_id, secret_id=secret_id)
+        ticket = await self.state_store.match_store.begin(
+            owner=user_id, secret_id=secret_id, revision=revision
+        )
         payments = self.fetch_allegro_data(
             user_id=user_id,
             secret_id=secret_id,
@@ -147,7 +160,12 @@ class AllegroApplicationService:
         )
 
         matches, unmatched_payments = await self._match_page(payments=payments.payments)
-        self._cache_page(
+        if self._matching_revision(user_id=user_id, secret_id=secret_id) != revision:
+            raise MatchesNotComputed("Secret changed; preview again")
+        await self._cache_page(
+            user_id=user_id,
+            revision=revision,
+            ticket=ticket,
             secret_id=secret_id,
             page=page_request,
             payments=payments.payments,
@@ -174,10 +192,14 @@ class AllegroApplicationService:
     async def start_apply_job(
         self,
         *,
+        user_id: UUID,
         secret_id: UUID,
         decisions: list[MatchDecision],
     ) -> AllegroApplyJob:
-        matches = self.state_store.get_all_matches(secret_id=secret_id)
+        revision = self._matching_revision(user_id=user_id, secret_id=secret_id)
+        matches = await self.state_store.get_all_matches(
+            owner=user_id, secret_id=secret_id, revision=revision, consume=True
+        )
         if not matches:
             raise MatchesNotComputed()
 
@@ -211,42 +233,67 @@ class AllegroApplicationService:
         matches: list[MatchResult],
     ):
         job.status = JobStatus.RUNNING
+        final_status = JobStatus.DONE
 
         index = {int(cast(Transaction, m.tx).id): m for m in matches}
 
-        for decision in decisions:
-            tx_id = decision.transaction_id
-            try:
-                match_result = index.get(tx_id)
-                if not match_result:
-                    raise TransactionNotFound(f"Transaction id {tx_id} not found")
-                result_matches = self._index_matches(match_result)
-                payment = result_matches.get(decision.payment_id)
-                if not payment:
-                    raise InvalidMatchSelection(
-                        f"Payment id {decision.payment_id} not found for transaction id {tx_id}"  # shortID
+        try:
+            for decision in decisions:
+                tx_id = decision.transaction_id
+                try:
+                    match_result = index.get(tx_id)
+                    if not match_result:
+                        raise TransactionNotFound(f"Transaction id {tx_id} not found")
+                    result_matches = self._index_matches(match_result)
+                    payment = result_matches.get(decision.payment_id)
+                    if not payment:
+                        raise InvalidMatchSelection(
+                            f"Payment id {decision.payment_id} not found for transaction id {tx_id}"  # shortID
+                        )
+                    tx = cast(Transaction, match_result.tx)
+                    await self.enrichment_service.apply_match(tx=tx, evidence=payment)
+                    job.applied += 1
+                    job.results.append(
+                        ApplyOutcome(transaction_id=tx_id, status="success")
                     )
-                tx = cast(Transaction, match_result.tx)
-                await self.enrichment_service.apply_match(tx=tx, evidence=payment)
-                job.applied += 1
-                job.results.append(ApplyOutcome(transaction_id=tx_id, status="success"))
 
-            except Exception as e:
-                job.failed += 1
+                except Exception as e:
+                    job.failed += 1
+                    job.results.append(
+                        ApplyOutcome(
+                            transaction_id=tx_id, status="failed", reason=str(e)
+                        )
+                    )
+
+        except CancelledError:
+            final_status = JobStatus.FAILED
+            raise
+        finally:
+            try:
+                await self.state_store.match_store.backend.invalidate_all()
+            except MatchCacheUnavailable:
+                final_status = JobStatus.FAILED
                 job.results.append(
-                    ApplyOutcome(transaction_id=tx_id, status="failed", reason=str(e))
+                    ApplyOutcome(
+                        transaction_id=-1,
+                        status="failed",
+                        reason="Matching cache unavailable; preview again",
+                    )
                 )
-
-        job.status = JobStatus.DONE
-        job.finished_at = datetime.now(UTC)
+            job.finished_at = datetime.now(UTC)
+            job.status = final_status
 
     async def start_auto_apply_single_matches(
         self,
         *,
+        user_id: UUID,
         secret_id: UUID,
         limit: int | None = None,
     ) -> AllegroApplyJob:
-        matches = self.state_store.get_all_matches(secret_id=secret_id)
+        revision = self._matching_revision(user_id=user_id, secret_id=secret_id)
+        matches = await self.state_store.get_all_matches(
+            owner=user_id, secret_id=secret_id, revision=revision
+        )
         if not matches:
             raise MatchesNotComputed()
         single = [m for m in matches if len(m.matches) == 1]
@@ -263,15 +310,42 @@ class AllegroApplicationService:
         ]
 
         return await self.start_apply_job(
+            user_id=user_id,
             secret_id=secret_id,
             decisions=decisions,
         )
 
-    def clear_cached_page(self, *, secret_id: UUID, page: AllegroPageRequest) -> bool:
-        return self.state_store.invalidate_page(secret_id=secret_id, page=page)
+    def get_apply_job(self, *, user_id: UUID, job_id: UUID) -> AllegroApplyJob | None:
+        job = self.state_store.job_manager.get(job_id)
+        if job is None:
+            return None
+        try:
+            self._matching_revision(user_id=user_id, secret_id=job.secret_id)
+        except InvalidSecretId:
+            return None
+        return job
 
-    def clear_cached_secret(self, *, secret_id: UUID) -> bool:
-        return self.state_store.invalidate_secret(secret_id=secret_id)
+    def _matching_revision(self, *, user_id: UUID, secret_id: UUID) -> str:
+        try:
+            return self.secrets_service.matching_revision(
+                secret_id=secret_id, user_id=user_id
+            )
+        except SecretNotAccessible:
+            raise InvalidSecretId("Secret not found") from None
+
+    async def clear_cached_page(
+        self, *, user_id: UUID, secret_id: UUID, page: AllegroPageRequest
+    ) -> bool:
+        revision = self._matching_revision(user_id=user_id, secret_id=secret_id)
+        return await self.state_store.invalidate_page(
+            owner=user_id, secret_id=secret_id, revision=revision, page=page
+        )
+
+    async def clear_cached_secret(self, *, user_id: UUID, secret_id: UUID) -> bool:
+        revision = self._matching_revision(user_id=user_id, secret_id=secret_id)
+        return await self.state_store.invalidate_secret(
+            owner=user_id, secret_id=secret_id, revision=revision
+        )
 
     # --------------------------------------------------
     # METRICS V2

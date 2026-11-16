@@ -1,9 +1,11 @@
+import hashlib
 import logging
 import os
 import re
 import tempfile
-from asyncio import create_task
+from asyncio import CancelledError, create_task
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import cast
 from uuid import UUID
 
@@ -36,6 +38,7 @@ from services.exceptions import (
 )
 from services.firefly_base_service import FireflyServiceError
 from services.firefly_enrichment_service import FireflyEnrichmentService
+from services.matching_cache.backend import MatchCacheUnavailable
 from services.tx_stats.models import MetricsState
 from services.tx_stats.runner import MetricsProvider
 from settings import settings
@@ -53,7 +56,7 @@ class BlikApplicationService:
     Responsibilities:
     - manage CSV lifecycle
     - run enrichment preview / apply
-    - keep in-memory state (matches, statistics)
+    - keep owner-scoped matching cache and process-local jobs/statistics
     - expose data in API DTO shape (router stays thin)
     """
 
@@ -73,8 +76,10 @@ class BlikApplicationService:
     # CSV lifecycle
     # --------------------------------------------------
 
-    async def upload_csv(self, *, file_bytes: bytes) -> UploadResponse:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+    async def upload_csv(self, *, user_id: UUID, file_bytes: bytes) -> UploadResponse:
+        with tempfile.NamedTemporaryFile(
+            delete=False, prefix=f"blik-{user_id.hex}-", suffix=".csv"
+        ) as tmp:
             tmp.write(file_bytes)
             tmp_path = tmp.name
 
@@ -88,9 +93,12 @@ class BlikApplicationService:
             message="File uploaded successfully", count=len(records), id=encoded
         )
 
-    async def preview_csv(self, *, encoded_id: str) -> FilePreviewResponse:
+    async def preview_csv(
+        self, *, user_id: UUID, encoded_id: str
+    ) -> FilePreviewResponse:
         decoded = decode_base64url(encoded_id)
         self._validate_file_id(decoded)
+        self._assert_file_owner(decoded, user_id)
 
         path = self._resolve_csv_path(decoded)
         records_domain = BankCSVReader(path).parse()
@@ -108,11 +116,18 @@ class BlikApplicationService:
     # MATCHING
     # --------------------------------------------------
 
-    async def preview_matches(self, *, encoded_id: str) -> FileMatchResponse:
+    async def preview_matches(
+        self, *, user_id: UUID, encoded_id: str
+    ) -> FileMatchResponse:
         decoded = decode_base64url(encoded_id)
         self._validate_file_id(decoded)
+        self._assert_file_owner(decoded, user_id)
 
         path = self._resolve_csv_path(decoded)
+        revision = self._file_revision(path)
+        ticket = await self.state_store.match_store.begin(
+            owner=user_id, file_id=encoded_id, revision=revision
+        )
         csv_records = BankCSVReader(path).parse()
         try:
             matches = await self.enrichment_service.match(
@@ -122,7 +137,16 @@ class BlikApplicationService:
             )
         except FireflyServiceError as e:
             raise ExternalServiceFailed(str(e)) from e
-        self.state_store.put_matches(file_id=encoded_id, matches=matches)
+        if self._file_revision(path) != revision:
+            raise MatchesNotComputed("File changed; preview again")
+        if not await self.state_store.put_matches(
+            owner=user_id,
+            file_id=encoded_id,
+            revision=revision,
+            matches=matches,
+            ticket=ticket,
+        ):
+            raise MatchesNotComputed("Matching inputs changed; preview again")
 
         not_matched = len([r for r in matches if not r.matches])
         with_one_match = len([r for r in matches if len(r.matches) == 1])
@@ -148,10 +172,20 @@ class BlikApplicationService:
     async def start_apply_job(
         self,
         *,
+        user_id: UUID,
         encoded_id: str,
         decisions: list[MatchDecision],
     ) -> BlikApplyJob:
-        matches = self.state_store.get_matches(file_id=encoded_id)
+        decoded = decode_base64url(encoded_id)
+        self._validate_file_id(decoded)
+        self._assert_file_owner(decoded, user_id)
+        path = self._resolve_csv_path(decoded)
+        matches = await self.state_store.get_matches(
+            owner=user_id,
+            file_id=encoded_id,
+            revision=self._file_revision(path),
+            consume=True,
+        )
         if not matches:
             raise MatchesNotComputed("No match data found")
 
@@ -172,10 +206,17 @@ class BlikApplicationService:
     async def start_auto_apply_single_matches(
         self,
         *,
+        user_id: UUID,
         encoded_id: str,
         limit: int | None = None,
     ) -> BlikApplyJob:
-        matches = self.state_store.get_matches(file_id=encoded_id)
+        decoded = decode_base64url(encoded_id)
+        self._validate_file_id(decoded)
+        self._assert_file_owner(decoded, user_id)
+        path = self._resolve_csv_path(decoded)
+        matches = await self.state_store.get_matches(
+            owner=user_id, file_id=encoded_id, revision=self._file_revision(path)
+        )
         if not matches:
             raise MatchesNotComputed("No match data found")
 
@@ -194,10 +235,18 @@ class BlikApplicationService:
             for match in single_matches
         ]
 
-        return await self.start_apply_job(encoded_id=encoded_id, decisions=decisions)
+        return await self.start_apply_job(
+            user_id=user_id, encoded_id=encoded_id, decisions=decisions
+        )
 
-    def get_apply_job(self, *, job_id: UUID) -> BlikApplyJob | None:
-        return self.state_store.job_manager.get(job_id)
+    def get_apply_job(self, *, user_id: UUID, job_id: UUID) -> BlikApplyJob | None:
+        job = self.state_store.job_manager.get(job_id)
+        if job is None:
+            return None
+        decoded = decode_base64url(job.file_id)
+        if not decoded.startswith(f"blik-{user_id.hex}-"):
+            return None
+        return job
 
     # --------------------------------------------------
     # METRICS V2
@@ -217,6 +266,7 @@ class BlikApplicationService:
         matches: list[MatchResult],
     ) -> None:
         job.status = JobStatus.RUNNING
+        final_status = JobStatus.DONE
 
         try:
             outcomes = await self._apply_decisions(decisions=decisions, matches=matches)
@@ -226,9 +276,11 @@ class BlikApplicationService:
                 else:
                     job.failed += 1
                 job.results.append(outcome)
-            job.status = JobStatus.DONE
+        except CancelledError:
+            final_status = JobStatus.FAILED
+            raise
         except Exception as e:
-            job.status = JobStatus.FAILED
+            final_status = JobStatus.FAILED
             job.results.append(
                 ApplyOutcome(
                     transaction_id=-1,
@@ -238,7 +290,20 @@ class BlikApplicationService:
                 )
             )
         finally:
+            try:
+                await self.state_store.match_store.backend.invalidate_all()
+            except MatchCacheUnavailable:
+                final_status = JobStatus.FAILED
+                job.results.append(
+                    ApplyOutcome(
+                        transaction_id=-1,
+                        selected_match_id=None,
+                        status="failed",
+                        reason="Matching cache unavailable; preview again",
+                    )
+                )
             job.finished_at = datetime.now(UTC)
+            job.status = final_status
 
     # --------------------------------------------------
     # INTERNAL HELPERS
@@ -344,6 +409,18 @@ class BlikApplicationService:
                 f"Match id {selected_match_id} not found for transaction id {transaction_id}"
             )
         return evidence
+
+    @staticmethod
+    def _assert_file_owner(decoded: str, user_id: UUID) -> None:
+        if not decoded.startswith(f"blik-{user_id.hex}-"):
+            raise FileNotFound("File not found")
+
+    @staticmethod
+    def _file_revision(path: str) -> str:
+        try:
+            return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        except OSError:
+            raise FileNotFound("File not found") from None
 
     @staticmethod
     def _validate_file_id(decoded: str) -> None:
