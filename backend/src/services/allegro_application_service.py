@@ -233,6 +233,7 @@ class AllegroApplicationService:
         matches: list[MatchResult],
     ):
         job.status = JobStatus.RUNNING
+        final_status = JobStatus.DONE
 
         index = {int(cast(Transaction, m.tx).id): m for m in matches}
 
@@ -264,15 +265,14 @@ class AllegroApplicationService:
                         )
                     )
 
-            job.status = JobStatus.DONE
         except CancelledError:
-            job.status = JobStatus.FAILED
+            final_status = JobStatus.FAILED
             raise
         finally:
             try:
                 await self.state_store.match_store.backend.invalidate_all()
             except MatchCacheUnavailable:
-                job.status = JobStatus.FAILED
+                final_status = JobStatus.FAILED
                 job.results.append(
                     ApplyOutcome(
                         transaction_id=-1,
@@ -281,6 +281,7 @@ class AllegroApplicationService:
                     )
                 )
             job.finished_at = datetime.now(UTC)
+            job.status = final_status
 
     async def start_auto_apply_single_matches(
         self,

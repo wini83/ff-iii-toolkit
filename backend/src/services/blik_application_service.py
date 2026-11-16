@@ -266,6 +266,7 @@ class BlikApplicationService:
         matches: list[MatchResult],
     ) -> None:
         job.status = JobStatus.RUNNING
+        final_status = JobStatus.DONE
 
         try:
             outcomes = await self._apply_decisions(decisions=decisions, matches=matches)
@@ -275,12 +276,11 @@ class BlikApplicationService:
                 else:
                     job.failed += 1
                 job.results.append(outcome)
-            job.status = JobStatus.DONE
         except CancelledError:
-            job.status = JobStatus.FAILED
+            final_status = JobStatus.FAILED
             raise
         except Exception as e:
-            job.status = JobStatus.FAILED
+            final_status = JobStatus.FAILED
             job.results.append(
                 ApplyOutcome(
                     transaction_id=-1,
@@ -293,7 +293,7 @@ class BlikApplicationService:
             try:
                 await self.state_store.match_store.backend.invalidate_all()
             except MatchCacheUnavailable:
-                job.status = JobStatus.FAILED
+                final_status = JobStatus.FAILED
                 job.results.append(
                     ApplyOutcome(
                         transaction_id=-1,
@@ -303,6 +303,7 @@ class BlikApplicationService:
                     )
                 )
             job.finished_at = datetime.now(UTC)
+            job.status = final_status
 
     # --------------------------------------------------
     # INTERNAL HELPERS

@@ -355,3 +355,47 @@ def test_application_restart_reuses_redis_matching_results(monkeypatch):
                     )
                 finally:
                     client.portal.call(b.invalidate, store.scope(**kwargs))
+
+
+@pytest.mark.parametrize("feature", ["blik", "allegro"])
+@pytest.mark.parametrize("cache_failure", [False, True])
+def test_apply_finishes_only_after_cache_invalidation(feature, cache_failure):
+    from services.domain.job_base import JobStatus
+    from services.matching_cache.backend import MatchCacheUnavailable
+
+    async def check():
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def invalidate():
+            entered.set()
+            await release.wait()
+            if cache_failure:
+                raise MatchCacheUnavailable("synthetic failure")
+
+        service_type = (
+            BlikApplicationService if feature == "blik" else AllegroApplicationService
+        )
+        service = object.__new__(service_type)
+        service.state_store = SimpleNamespace(
+            match_store=SimpleNamespace(
+                backend=SimpleNamespace(invalidate_all=invalidate)
+            )
+        )
+        if feature == "blik":
+            service._apply_decisions = AsyncMock(return_value=[])
+        job = SimpleNamespace(
+            status=JobStatus.PENDING, applied=0, failed=0, results=[], finished_at=None
+        )
+        task = asyncio.create_task(
+            service._run_apply_job(job=job, decisions=[], matches=[])
+        )
+        await entered.wait()
+        assert job.status == JobStatus.RUNNING
+        assert job.finished_at is None
+        release.set()
+        await task
+        assert job.status == (JobStatus.FAILED if cache_failure else JobStatus.DONE)
+        assert job.finished_at is not None
+
+    asyncio.run(check())
