@@ -153,6 +153,12 @@ and verifies reuse without another Firefly fetch. To run them locally, start the
 dev Redis and run `TEST_REDIS_URL=redis://127.0.0.1:6379/0 uv run pytest` from
 `backend/`.
 
+The VeloBank memory-exhaustion regression test additionally uses
+`TEST_REDIS_OOM_URL`, pointing to a separate disposable Redis instance (CI uses
+port 6380). This test temporarily changes server-wide `maxmemory` and eviction
+policy settings and restores them afterward. Never point it at a production,
+shared, or normal development Redis instance.
+
 
 ### Coordinated snapshot refresh (#109)
 

@@ -208,74 +208,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/tools/citi/upload': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Upload Citi Text */
-    post: operations['upload_citi_text_api_tools_citi_upload_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/tools/citi/parse-text': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Parse Citi Text */
-    post: operations['parse_citi_text_api_tools_citi_parse_text_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/tools/citi/files/{file_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Citi File */
-    get: operations['get_citi_file_api_tools_citi_files__file_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/tools/citi/files/{file_id}/export-csv': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Export Citi Csv */
-    post: operations['export_citi_csv_api_tools_citi_files__file_id__export_csv_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/tools/velobank/accounts': {
     parameters: {
       query?: never;
@@ -1202,11 +1134,6 @@ export interface components {
        */
       client_secret?: string | null;
     };
-    /** Body_upload_citi_text_api_tools_citi_upload_post */
-    Body_upload_citi_text_api_tools_citi_upload_post: {
-      /** File */
-      file: string;
-    };
     /** Body_upload_csv_api_blik_files_post */
     Body_upload_csv_api_blik_files_post: {
       /** File */
@@ -1244,73 +1171,6 @@ export interface components {
     CategorySuggestionsResponse: {
       /** Suggestions */
       suggestions: components['schemas']['CategorySuggestionDto'][];
-    };
-    /** CitiImportParseResponse */
-    CitiImportParseResponse: {
-      /** File Id */
-      file_id: string;
-      /** Record Count */
-      record_count: number;
-      /** Preview */
-      preview: components['schemas']['CitiImportRecord'][];
-      /** Warnings */
-      warnings?: string[];
-    };
-    /** CitiImportRecord */
-    CitiImportRecord: {
-      /**
-       * Date
-       * Format: date
-       */
-      date: string;
-      /** Amount */
-      amount: number;
-      /** Details */
-      details: string;
-      /** Recipient */
-      recipient: string;
-      /** Operation Amount */
-      operation_amount: number;
-      /**
-       * Sender
-       * @default
-       */
-      sender: string;
-      /**
-       * Operation Currency
-       * @default PLN
-       */
-      operation_currency: string;
-      /**
-       * Account Currency
-       * @default PLN
-       */
-      account_currency: string;
-      /**
-       * Sender Account
-       * @default
-       */
-      sender_account: string;
-      /**
-       * Recipient Account
-       * @default
-       */
-      recipient_account: string;
-    };
-    /** CitiImportTextRequest */
-    CitiImportTextRequest: {
-      /** Text */
-      text: string;
-      /**
-       * Include Positive
-       * @default false
-       */
-      include_positive: boolean;
-      /**
-       * Chunk Size
-       * @default 60
-       */
-      chunk_size: number;
     };
     /** CreateSecretPayload */
     CreateSecretPayload: {
@@ -1639,20 +1499,34 @@ export interface components {
         [key: string]: number;
       };
       /** Single Part Amount */
-      single_part_amount: { [key: string]: string };
+      single_part_amount: {
+        [key: string]: string;
+      };
       /** Uncategorized Amount */
-      uncategorized_amount: { [key: string]: string };
+      uncategorized_amount: {
+        [key: string]: string;
+      };
       /** Blik Not Ok Amount */
-      blik_not_ok_amount: { [key: string]: string };
+      blik_not_ok_amount: {
+        [key: string]: string;
+      };
       /** Action Req Amount */
-      action_req_amount: { [key: string]: string };
+      action_req_amount: {
+        [key: string]: string;
+      };
       /** Allegro Not Ok Amount */
-      allegro_not_ok_amount: { [key: string]: string };
+      allegro_not_ok_amount: {
+        [key: string]: string;
+      };
       /** Categorizable Amount */
-      categorizable_amount: { [key: string]: string };
+      categorizable_amount: {
+        [key: string]: string;
+      };
       /** Categorizable Amount By Month */
       categorizable_amount_by_month: {
-        [key: string]: { [key: string]: string };
+        [key: string]: {
+          [key: string]: string;
+        };
       };
       /**
        * Time Stamp
@@ -2395,145 +2269,6 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['api__models__blik_files__ApplyJobResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  upload_citi_text_api_tools_citi_upload_post: {
-    parameters: {
-      query?: {
-        include_positive?: boolean;
-        chunk_size?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: {
-        access_token?: string | null;
-      };
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': components['schemas']['Body_upload_citi_text_api_tools_citi_upload_post'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CitiImportParseResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  parse_citi_text_api_tools_citi_parse_text_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: {
-        access_token?: string | null;
-      };
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CitiImportTextRequest'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CitiImportParseResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_citi_file_api_tools_citi_files__file_id__get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        file_id: string;
-      };
-      cookie?: {
-        access_token?: string | null;
-      };
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CitiImportParseResponse'];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  export_citi_csv_api_tools_citi_files__file_id__export_csv_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        file_id: string;
-      };
-      cookie?: {
-        access_token?: string | null;
-      };
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': unknown;
         };
       };
       /** @description Validation Error */

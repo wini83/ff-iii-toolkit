@@ -21,7 +21,7 @@ from services.guards import require_active_user
 from services.velobank_import.accounts import fetch_asset_accounts
 from services.velobank_import.parser import VeloBankParseError, parse_pdf
 from services.velobank_import.service import export_payload, preview_data
-from services.velobank_import.session import PreviewNotFound, VeloBankPreviewStore
+from services.velobank_import.session import PreviewNotFound, PreviewStore
 from settings import settings
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -43,9 +43,9 @@ def saved_mappings(db: Session, user: UUID) -> dict[str, str]:
     return dict(profile.accounts_json) if profile else {}
 
 
-def owned_preview(store: VeloBankPreviewStore, file_id: UUID, user: UUID):
+async def owned_preview(store: PreviewStore, file_id: UUID, user: UUID):
     try:
-        return store.get(file_id, user)
+        return await store.get(file_id, user)
     except PreviewNotFound as exc:
         raise HTTPException(
             404, "Preview expired or unavailable. Upload the PDF again."
@@ -93,7 +93,7 @@ async def upload_pdf(
     file: UploadFile = File(...),
     user: UUID = Depends(require_active_user),
     db: Session = Depends(get_db),
-    store: VeloBankPreviewStore = Depends(get_velobank_preview_store),
+    store: PreviewStore = Depends(get_velobank_preview_store),
 ):
     try:
         if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -114,7 +114,7 @@ async def upload_pdf(
                 400,
                 "History exceeds the 5000-operation limit. Export a shorter period.",
             )
-        entry = store.create(user, statement)
+        entry = await store.create(user, statement)
         return preview_data(entry, saved_mappings(db, user))
     finally:
         # Starlette may spool uploads to a temporary file; close removes it.
@@ -122,37 +122,39 @@ async def upload_pdf(
 
 
 @router.get("/files/{file_id}", response_model=VeloBankPreviewResponse)
-def get_preview(
+async def get_preview(
     file_id: UUID,
     user: UUID = Depends(require_active_user),
     db: Session = Depends(get_db),
-    store: VeloBankPreviewStore = Depends(get_velobank_preview_store),
+    store: PreviewStore = Depends(get_velobank_preview_store),
 ):
-    return preview_data(owned_preview(store, file_id, user), saved_mappings(db, user))
+    return preview_data(
+        await owned_preview(store, file_id, user), saved_mappings(db, user)
+    )
 
 
 @router.post("/files/{file_id}/preview", response_model=VeloBankPreviewResponse)
-def configure_preview(
+async def configure_preview(
     file_id: UUID,
     payload: VeloBankMappings,
     user: UUID = Depends(require_active_user),
-    store: VeloBankPreviewStore = Depends(get_velobank_preview_store),
+    store: PreviewStore = Depends(get_velobank_preview_store),
 ):
-    return preview_data(owned_preview(store, file_id, user), payload.accounts)
+    return preview_data(await owned_preview(store, file_id, user), payload.accounts)
 
 
 @router.post("/files/{file_id}/export-csv")
-def export_csv(
+async def export_csv(
     file_id: UUID,
     payload: VeloBankMappings,
     chunk_size: int | None = Query(default=None, ge=1, le=1000),
     user: UUID = Depends(require_active_user),
-    store: VeloBankPreviewStore = Depends(get_velobank_preview_store),
+    store: PreviewStore = Depends(get_velobank_preview_store),
 ):
-    entry = owned_preview(store, file_id, user)
+    entry = await owned_preview(store, file_id, user)
     try:
-        content, filename, media_type = export_payload(
-            entry, payload.accounts, chunk_size
+        content, filename, media_type = await run_in_threadpool(
+            export_payload, entry, payload.accounts, chunk_size
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -167,10 +169,14 @@ def export_csv(
 
 
 @router.delete("/files/{file_id}", status_code=204)
-def discard_preview(
+async def discard_preview(
     file_id: UUID,
     user: UUID = Depends(require_active_user),
-    store: VeloBankPreviewStore = Depends(get_velobank_preview_store),
+    store: PreviewStore = Depends(get_velobank_preview_store),
 ):
-    owned_preview(store, file_id, user)
-    store.delete(file_id, user)
+    try:
+        await store.delete(file_id, user)
+    except PreviewNotFound as exc:
+        raise HTTPException(
+            404, "Preview expired or unavailable. Upload the PDF again."
+        ) from exc

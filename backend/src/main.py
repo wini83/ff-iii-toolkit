@@ -7,11 +7,9 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from api.deps_runtime import get_velobank_preview_store
 from api.routers.allegro import router as allegro_router
 from api.routers.auth import router as auth_router
 from api.routers.blik_files import router as blik_router
-from api.routers.citi_import import router as citi_import_router
 from api.routers.me import router as me_router
 from api.routers.system import router as system_router
 from api.routers.transactions import router as transactions_router
@@ -29,6 +27,12 @@ from services.db.init import DatabaseBootstrap
 from services.infrastructure.redis import redis_connection
 from services.snapshot.redis_store import RedisSnapshotStore, SnapshotStoreUnavailable
 from services.snapshot.store import InMemorySnapshotStore, SnapshotStore
+from services.velobank_import.redis_store import RedisVeloBankPreviewStore
+from services.velobank_import.session import (
+    PreviewStoreUnavailable,
+    PreviewTooLarge,
+    VeloBankPreviewStore,
+)
 from settings import settings
 from utils.logger import setup_logging
 
@@ -75,18 +79,31 @@ def create_app(
             content={"detail": "Transaction snapshot cache unavailable"},
         )
 
+    @app.exception_handler(PreviewStoreUnavailable)
+    async def preview_unavailable(request: Request, exc: PreviewStoreUnavailable):
+        return JSONResponse(
+            status_code=503, content={"detail": "Preview storage unavailable"}
+        )
+
+    @app.exception_handler(PreviewTooLarge)
+    async def preview_too_large(request: Request, exc: PreviewTooLarge):
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Preview exceeds the storage size limit"},
+        )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if bootstrap:
             bootstrap.run()
 
-        async def purge_previews():
-            while True:
-                await asyncio.sleep(60)
-                get_velobank_preview_store().purge_expired()
-
         async with redis_connection(settings.REDIS_URL) as redis:
             app.state.redis = redis
+            app.state.velobank_preview_store = (
+                RedisVeloBankPreviewStore(redis)
+                if redis is not None
+                else VeloBankPreviewStore()
+            )
             if snapshot_store is not None:
                 app.state.snapshot_store = snapshot_store
             elif redis is not None:
@@ -101,13 +118,28 @@ def create_app(
             app.state.transaction_snapshot_service = None
             app.state.blik_application_runtime = None
             app.state.tx_application_runtime = None
-            cleanup = asyncio.create_task(purge_previews())
+            # Redis expires data itself. Keep the periodic cleanup only for
+            # local development, so idle in-memory previews also get discarded.
+            preview_store = app.state.velobank_preview_store
+
+            async def purge_memory_previews():
+                while True:
+                    await asyncio.sleep(60)
+                    preview_store.purge_expired()
+
+            cleanup = (
+                asyncio.create_task(purge_memory_previews())
+                if isinstance(preview_store, VeloBankPreviewStore)
+                else None
+            )
             try:
                 yield
             finally:
-                cleanup.cancel()
-                with suppress(asyncio.CancelledError):
-                    await cleanup
+                if cleanup is not None:
+                    cleanup.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await cleanup
+                app.state.velobank_preview_store = None
                 tx_runtime = app.state.tx_application_runtime
                 blik_runtime = app.state.blik_application_runtime
                 managers = [
@@ -133,7 +165,6 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(blik_router)
-    app.include_router(citi_import_router)
     app.include_router(velobank_import_router)
     app.include_router(transactions_router)
     app.include_router(tx_router)
