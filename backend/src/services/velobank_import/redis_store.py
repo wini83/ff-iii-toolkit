@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 # One index of at most 100 owner:id members avoids persistent per-user indexes.
 # Scores are deadlines, also giving oldest-first eviction for a fixed TTL.
 # Every key shares a hash tag. This script requires no SCAN, KEYS or background job.
-CREATE = """
+# Explicit script flags (no allow-oom) make Redis reject OOM before any writes.
+# Legacy EVAL mode can bypass OOM checks after the initial index cleanup.
+CREATE = """#!lua
 local index, prefix = KEYS[1], ARGV[1]
 local clock = redis.call('TIME')
 local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
@@ -56,6 +58,7 @@ redis.call('EXPIRE', index, ttl)
 return 1
 """
 
+# Keep deletion available during OOM: neither command allocates preview data.
 DELETE = """
 local removed = redis.call('DEL', KEYS[2])
 redis.call('ZREM', KEYS[1], ARGV[1])

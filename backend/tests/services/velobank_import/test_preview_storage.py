@@ -166,10 +166,10 @@ def test_oversized_write_does_not_touch_redis_or_evict_memory_previews():
 
 
 @asynccontextmanager
-async def real_store(*, ttl=1800):
-    url = os.getenv("TEST_REDIS_URL")
+async def real_store(*, ttl=1800, url_env="TEST_REDIS_URL"):
+    url = os.getenv(url_env)
     if not url:
-        pytest.skip("Set TEST_REDIS_URL to exercise Redis Lua and TTL")
+        pytest.skip(f"Set {url_env} to exercise Redis Lua and TTL")
     async with redis_connection(SecretStr(url)) as redis:
         store = RedisVeloBankPreviewStore(
             redis, namespace=f"toolkit:{{test-preview-{uuid4().hex}}}", ttl_seconds=ttl
@@ -179,6 +179,54 @@ async def real_store(*, ttl=1800):
         finally:
             keys = [key async for key in redis.scan_iter(match=store.prefix + "*")]
             await redis.delete(store.index, *keys)
+
+
+def test_real_redis_oom_rejects_create_without_evicting_existing_previews():
+    async def check():
+        # This test changes server-wide memory settings, so it must use a
+        # dedicated disposable Redis instance, never the normal test server.
+        async with real_store(url_env="TEST_REDIS_OOM_URL") as (redis, store):
+            owner = uuid4()
+            previews = [await store.create(owner, statement()) for _ in range(5)]
+            members = await redis.zrange(store.index, 0, -1, withscores=True)
+            keys = [store._key(preview.id, owner) for preview in previews]
+            payloads = await redis.mget(keys)
+            memory = (await redis.config_get("maxmemory"))["maxmemory"]
+            policy = (await redis.config_get("maxmemory-policy"))["maxmemory-policy"]
+            probe_key = store.prefix + "oom-probe"
+            try:
+                await redis.config_set("maxmemory-policy", "noeviction")
+                await redis.config_set("maxmemory", 1)
+                # Confirm this is a real OOM condition, rather than a mocked
+                # error. The legacy Lua script would still accept the create.
+                with pytest.raises(OutOfMemoryError):
+                    await redis.set(probe_key, "must not be stored")
+                with pytest.raises(PreviewStoreUnavailable):
+                    await store.create(owner, statement("x" * 1_000_000))
+                assert (
+                    await redis.zrange(store.index, 0, -1, withscores=True) == members
+                )
+                assert await redis.mget(keys) == payloads
+                assert set(await redis.zrange(store.index, 0, -1)) == {
+                    f"{owner}:{preview.id}" for preview in previews
+                }
+                assert (
+                    len(
+                        [key async for key in redis.scan_iter(match=store.prefix + "*")]
+                    )
+                    == 5
+                )
+                # Deleting a preview must remain possible during OOM.
+                await store.delete(previews[0].id, owner)
+                assert not await redis.exists(keys[0])
+            finally:
+                await redis.config_set("maxmemory", memory)
+                await redis.config_set("maxmemory-policy", policy)
+                await redis.delete(probe_key)
+            recovered = await store.create(owner, statement())
+            assert await store.get(recovered.id, owner) == recovered
+
+    asyncio.run(check())
 
 
 def test_real_redis_shares_payloads_enforces_owner_and_deletes_indexes():
