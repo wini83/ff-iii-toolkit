@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help deps-refresh deps-update dev-b dev-f backend-test backend-lint frontend-check frontend-lint frontend-build release-next commit compose-up compose-down
+.PHONY: help deps-refresh deps-update dev-b dev-f backend-test backend-lint frontend-check frontend-lint frontend-build release-next commit compose-up compose-down redis-up redis-down
 
 help:
 	@printf '%s\n' \
@@ -17,7 +17,9 @@ help:
 		'  make release-next   Show the next version from Conventional Commits.' \
 		'  make commit         Create a Conventional Commit interactively.' \
 		'  make compose-up     Build and start the Compose stack.' \
-		'  make compose-down   Stop the Compose stack.'
+		'  make compose-down   Stop the Compose stack.' \
+		'  make redis-up       Start Redis for local development.' \
+		'  make redis-down     Stop Redis for local development.'
 
 deps-refresh:
 	cd backend && uv sync --frozen --dev
@@ -59,3 +61,9 @@ compose-up:
 
 compose-down:
 	docker compose down
+
+redis-up:
+	docker compose -f compose.redis-dev.yaml up -d --wait
+
+redis-down:
+	docker compose -f compose.redis-dev.yaml down
