@@ -28,6 +28,7 @@
       ? DEFAULT_APP_TITLE
       : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
   let theme: 'wireframe' | 'black' = 'wireframe';
+  let themeReady = false;
   let vaultStatus: VaultStatus | null = null;
   let vaultLoading = false;
   let vaultUnlocking = false;
@@ -252,6 +253,7 @@
   onMount(() => {
     // app.html resolves the saved/system preference before the first paint.
     theme = document.documentElement.dataset.theme === 'black' ? 'black' : 'wireframe';
+    themeReady = true;
     void loadCurrentUser();
     void refreshVaultStatus();
 
@@ -423,6 +425,7 @@
           <button
             class="btn btn-ghost btn-sm rounded-sm px-3"
             on:click={toggleTheme}
+            disabled={!themeReady}
             aria-label={`Switch to ${theme === 'wireframe' ? 'dark' : 'light'} theme`}
             title={theme === 'wireframe' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
