@@ -8,7 +8,8 @@ export default defineConfig({
     'themes.spec.ts',
     'shell.spec.ts',
     'screening.spec.ts',
-    'overview.spec.ts'
+    'overview.spec.ts',
+    'statistics.spec.ts'
   ],
   workers: 1,
   use: {
