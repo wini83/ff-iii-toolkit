@@ -19,6 +19,7 @@ for (const [stored, expected] of [
       .addCookies([{ name: 'access_token', value: token, url: 'http://127.0.0.1:4173' }]);
     await page.route('**/api/**', (route) => {
       const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/auth/refresh')) return route.fulfill({ json: { access_token: token } });
       return route.fulfill({
         json: path.endsWith('/me')
           ? { id: 'tester', username: 'tester', is_active: true, is_superuser: false }
@@ -82,6 +83,7 @@ for (const theme of ['wireframe', 'black'] as const) {
       };
       await page.route('**/api/**', (route) => {
         const path = new URL(route.request().url()).pathname;
+        if (path.endsWith('/auth/refresh')) return route.fulfill({ json: { access_token: token } });
         if (route.request().method() === 'POST') {
           return route.fulfill({ status: 400, json: { detail: 'Example validation error' } });
         }
