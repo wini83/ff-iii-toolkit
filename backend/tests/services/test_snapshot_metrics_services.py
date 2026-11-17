@@ -87,10 +87,8 @@ def test_snapshot_blik_metrics_aggregates_counts_and_months():
     assert stats.single_part_transactions == 5
     assert stats.uncategorized_transactions == 4
     assert stats.filtered_by_description_exact == 1
-    assert stats.filtered_by_description_partial == 2
     assert stats.not_processed_transactions == 1
     assert stats.not_processed_by_month == {"2024-01": 1}
-    assert stats.inclomplete_procesed_by_month == {"2024-01": 1, "2024-02": 1}
     assert stats.time_stamp == fetched_at
 
 

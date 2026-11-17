@@ -25,10 +25,8 @@ def test_blik_statistics_metrics_fields():
         single_part_transactions=18,
         uncategorized_transactions=7,
         filtered_by_description_exact=2,
-        filtered_by_description_partial=3,
         not_processed_transactions=2,
         not_processed_by_month={"2024-01": 1},
-        inclomplete_procesed_by_month={"2024-02": 1},
         time_stamp=now,
     )
 
@@ -36,8 +34,6 @@ def test_blik_statistics_metrics_fields():
     assert metrics.single_part_transactions == 18
     assert metrics.uncategorized_transactions == 7
     assert metrics.filtered_by_description_exact == 2
-    assert metrics.filtered_by_description_partial == 3
     assert metrics.not_processed_transactions == 2
     assert metrics.not_processed_by_month == {"2024-01": 1}
-    assert metrics.inclomplete_procesed_by_month == {"2024-02": 1}
     assert metrics.time_stamp is now
