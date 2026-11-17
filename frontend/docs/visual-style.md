@@ -45,6 +45,29 @@ then capture synthetic user tables, status badges and focused/error dialog
 states in both themes at 1440 px and 390 px. Frontend CI uploads `test-results`
 as `frontend-browser-checks`. No production data or secrets are used.
 
-This foundation does not redesign screen layouts. Compact navigation (#138),
-screening (#139), the landing page (#140), statistics (#141) and remaining
+This foundation does not redesign individual screens. Screening (#139), the landing page (#140), statistics (#141) and remaining
 workflow-specific decoration (#142) are separate stages.
+
+## Application shell
+
+The sidebar is 232 px wide with neutral 16 px icons, collapsible sections and a
+left accent plus `aria-current` on the active route. The BLIK preview and matching
+entries retain their shared destination; only File Preview is marked current.
+Allegro account detail routes keep Accounts current. A 56 px header shows the
+route title and the existing Vault, theme and account controls. Titles truncate
+with their full text available on hover; user initials are rendered locally.
+
+The sidebar menu and main content scroll independently within the viewport.
+Version and the signed-in username sit in a fixed sidebar footer. No tokens,
+connection URLs or Vault passphrases are included. Unavailable version metadata
+does not prevent navigation. The mobile drawer closes on navigation, backdrop
+click or Escape, contains keyboard focus while open and returns focus to its
+trigger when closed. Vault controls fit narrow viewports and scroll vertically.
+
+`tests/shell.spec.ts` covers both themes at desktop/mobile widths, short screens,
+active routes, keyboard focus, collapsed sections, regular-user navigation and
+Vault lock/unlock/refresh controls. It captures page, focused-navigation and
+short-screen screenshots in `test-results` for the existing CI artifact upload.
+
+See the [desktop and mobile captures for #138](screenshots/issue-138/README.md)
+for both themes.
