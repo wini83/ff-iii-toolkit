@@ -225,8 +225,11 @@ for (const theme of ['wireframe', 'black']) {
 
 for (const theme of ['wireframe', 'black']) {
   test(`vault, import errors and account states in ${theme}`, async ({ page }, testInfo) => {
+    test.setTimeout(60000);
     const state = await mockWorkflows(page, theme);
     state.unlocked = false;
+    await page.goto('/allegro/accounts');
+    await expect(page.getByRole('heading', { name: 'Vault is locked', exact: true })).toBeVisible();
     await page.goto('/settings/secrets');
     await expect(page.getByRole('heading', { name: 'Unlock vault', exact: true })).toBeVisible();
     await page.locator('main').getByPlaceholder('Enter vault passphrase').fill('synthetic-only');
@@ -281,16 +284,21 @@ for (const theme of ['wireframe', 'black']) {
     });
     state.fail = '/blik_files';
     await page.goto('/blik/upload');
+    await expect(page.getByRole('button', { name: /Switch to .* theme/ })).toBeEnabled();
     await page.locator('input[type=file]').setInputFiles({
       name: 'synthetic.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from('synthetic')
     });
+    await expect(page.getByText('synthetic.csv', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Wyślij plik', exact: true }).click();
     await expect(page.getByText('Synthetic service unavailable', { exact: true })).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath('upload-error.png'),
       animations: 'disabled'
     });
+    state.fail = '';
+    await page.getByRole('button', { name: 'Wyślij plik', exact: true }).click();
+    await expect(page.getByText('Synthetic purchase', { exact: true })).toBeVisible();
   });
 }
