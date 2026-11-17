@@ -17,17 +17,20 @@ for (const [stored, expected] of [
     await page
       .context()
       .addCookies([{ name: 'access_token', value: token, url: 'http://127.0.0.1:4173' }]);
-    await page.route('**/api/**', (route) => {
-      const path = new URL(route.request().url()).pathname;
-      if (path.endsWith('/auth/refresh')) return route.fulfill({ json: { access_token: token } });
-      return route.fulfill({
-        json: path.endsWith('/me')
-          ? { id: 'tester', username: 'tester', is_active: true, is_superuser: false }
-          : path.endsWith('/vault/status')
-            ? { configured: true, unlocked: false, expires_at: null }
-            : {}
-      });
-    });
+    await page.route(
+      (url) => url.pathname.startsWith('/api/'),
+      (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.endsWith('/auth/refresh')) return route.fulfill({ json: { access_token: token } });
+        return route.fulfill({
+          json: path.endsWith('/me')
+            ? { id: 'tester', username: 'tester', is_active: true, is_superuser: false }
+            : path.endsWith('/vault/status')
+              ? { configured: true, unlocked: false, expires_at: null }
+              : {}
+        });
+      }
+    );
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('data-theme', expected);
     expect(await page.evaluate(() => localStorage.getItem('ff-toolkit-theme'))).toBe(expected);
@@ -81,22 +84,26 @@ for (const theme of ['wireframe', 'black'] as const) {
         is_active: true,
         is_superuser: true
       };
-      await page.route('**/api/**', (route) => {
-        const path = new URL(route.request().url()).pathname;
-        if (path.endsWith('/auth/refresh')) return route.fulfill({ json: { access_token: token } });
-        if (route.request().method() === 'POST') {
-          return route.fulfill({ status: 400, json: { detail: 'Example validation error' } });
+      await page.route(
+        (url) => url.pathname.startsWith('/api/'),
+        (route) => {
+          const path = new URL(route.request().url()).pathname;
+          if (path.endsWith('/auth/refresh'))
+            return route.fulfill({ json: { access_token: token } });
+          if (route.request().method() === 'POST') {
+            return route.fulfill({ status: 400, json: { detail: 'Example validation error' } });
+          }
+          return route.fulfill({
+            json: path.endsWith('/me')
+              ? user
+              : path.endsWith('/users')
+                ? [user]
+                : path.endsWith('/vault/status')
+                  ? { configured: true, unlocked: false, expires_at: null }
+                  : {}
+          });
         }
-        return route.fulfill({
-          json: path.endsWith('/me')
-            ? user
-            : path.endsWith('/users')
-              ? [user]
-              : path.endsWith('/vault/status')
-                ? { configured: true, unlocked: false, expires_at: null }
-                : {}
-        });
-      });
+      );
       await page.goto('/users');
       await expect(
         page.getByText('demo.operator', { exact: true }).filter({ visible: true })
