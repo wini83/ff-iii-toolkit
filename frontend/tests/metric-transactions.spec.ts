@@ -25,7 +25,7 @@ for (const provider of ['allegro', 'blik'] as const) {
           });
         if (path.endsWith('/vault/status'))
           return route.fulfill({ json: { configured: true, unlocked: true, expires_at: null } });
-        if (path.endsWith('/statistics'))
+        if (path.endsWith('/statistics') || path.endsWith('/statistics_v2'))
           return route.fulfill({
             json: {
               status: 'done',
