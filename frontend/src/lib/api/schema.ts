@@ -571,6 +571,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/{provider}/statistics/transactions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Metric Transactions */
+    get: operations['metric_transactions_api__provider__statistics_transactions_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/users': {
     parameters: {
       query?: never;
@@ -1287,6 +1304,24 @@ export interface components {
       is_active: boolean;
       /** Is Superuser */
       is_superuser: boolean;
+    };
+    /** MetricTransactionsResponse */
+    MetricTransactionsResponse: {
+      /** Items */
+      items: components['schemas']['SimplifiedTx'][];
+      /** Total */
+      total: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+      /**
+       * Snapshot Timestamp
+       * Format: date-time
+       */
+      snapshot_timestamp: string;
+      /** Firefly Url */
+      firefly_url: string | null;
     };
     /** ScreeningMonthResponse */
     ScreeningMonthResponse: {
@@ -3062,6 +3097,45 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['AllegroMetricsStatusResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  metric_transactions_api__provider__statistics_transactions_get: {
+    parameters: {
+      query: {
+        snapshot_timestamp: string;
+        month?: string | null;
+        limit?: number;
+        offset?: number;
+        sort?: 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc';
+      };
+      header?: never;
+      path: {
+        provider: 'allegro' | 'blik';
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MetricTransactionsResponse'];
         };
       };
       /** @description Validation Error */

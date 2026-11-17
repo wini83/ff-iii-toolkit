@@ -9,6 +9,11 @@ from services.domain.metrics import (
 from services.domain.transaction import TxTag
 from services.firefly_base_service import filter_by_description, filter_out_categorized
 from services.snapshot.models import TransactionSnapshot
+from services.snapshot.selection import (
+    allegro_candidates,
+    unprocessed_allegro,
+    unprocessed_blik,
+)
 from services.snapshot.service import TransactionSnapshotService
 from services.tx_stats.helpers import (
     group_tx_amounts_by_month,
@@ -47,16 +52,12 @@ class SnapshotAllegroMetricsService(SnapshotMetricsService[AllegroMetrics]):
         self.filter_desc_allegro = filter_desc_allegro
 
     async def _build_metrics(self, snapshot: TransactionSnapshot) -> AllegroMetrics:
-        filtered_by_desc_partial = filter_by_description(
-            snapshot.transactions,
-            self.filter_desc_allegro,
-            exact_match=False,
+        filtered_by_desc_partial = allegro_candidates(
+            snapshot.transactions, self.filter_desc_allegro
         )
-        not_processed = [
-            tx
-            for tx in filtered_by_desc_partial
-            if not tx.tags or TxTag.allegro_done not in tx.tags
-        ]
+        not_processed = unprocessed_allegro(
+            snapshot.transactions, self.filter_desc_allegro
+        )
         not_processed_by_month = await group_tx_by_month(not_processed)
 
         return AllegroMetrics(
@@ -82,16 +83,7 @@ class SnapshotBlikMetricsService(SnapshotMetricsService[BlikStatisticsMetrics]):
         self, snapshot: TransactionSnapshot
     ) -> BlikStatisticsMetrics:
         uncategorized = filter_out_categorized(snapshot.transactions)
-        filtered_by_desc_exact = filter_by_description(
-            uncategorized,
-            self.filter_desc_blik,
-            exact_match=True,
-        )
-        not_processed = [
-            tx
-            for tx in filtered_by_desc_exact
-            if not tx.tags or TxTag.blik_done not in tx.tags
-        ]
+        not_processed = unprocessed_blik(snapshot.transactions, self.filter_desc_blik)
         not_processed_by_month = await group_tx_by_month(not_processed)
 
         return BlikStatisticsMetrics(
