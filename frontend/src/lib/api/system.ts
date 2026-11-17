@@ -53,4 +53,21 @@ export async function getFireflyStatus(): Promise<components['schemas']['Firefly
   return data;
 }
 
-export const system = { getHealth, getVersion, getStatus, getFireflyStatus };
+export async function getTransactionSnapshotStatus(): Promise<
+  components['schemas']['TransactionSnapshotStatusResponse']
+> {
+  const client = await api();
+  const { data, error, response } = await client.GET('/api/system/transaction-snapshot', {});
+  if (!response.ok || error || !data) {
+    throw new Error('Transaction snapshot status check failed');
+  }
+  return data;
+}
+
+export const system = {
+  getHealth,
+  getVersion,
+  getStatus,
+  getFireflyStatus,
+  getTransactionSnapshotStatus
+};

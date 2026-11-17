@@ -7,7 +7,8 @@ export default defineConfig({
     'metric-transactions.spec.ts',
     'themes.spec.ts',
     'shell.spec.ts',
-    'screening.spec.ts'
+    'screening.spec.ts',
+    'overview.spec.ts'
   ],
   workers: 1,
   use: {
