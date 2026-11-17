@@ -45,8 +45,8 @@ then capture synthetic user tables, status badges and focused/error dialog
 states in both themes at 1440 px and 390 px. Frontend CI uploads `test-results`
 as `frontend-browser-checks`. No production data or secrets are used.
 
-This foundation does not redesign individual screens. Screening (#139), the landing page (#140), statistics (#141) and remaining
-workflow-specific decoration (#142) are separate stages.
+The landing page (#140), statistics (#141) and remaining workflow-specific
+decoration (#142) are separate stages.
 
 ## Application shell
 
@@ -71,3 +71,22 @@ short-screen screenshots in `test-results` for the existing CI artifact upload.
 
 See the [desktop and mobile captures for #138](screenshots/issue-138/README.md)
 for both themes.
+
+## Transaction screening
+
+The screening view uses a compact period toolbar and separates queue position
+from remaining/completed counts. Transaction description, amount/currency and
+date precede the category controls. Suggestions use divided rows with wrapped
+names and reasons; source/destination names stay visible while account IDs,
+IBANs and notes expand on demand. A selected category's full name is also shown
+below the native selector, including on mobile.
+
+A successful category assignment or Action Required tag removes one entry and
+advances using the existing queue order. Rule Potential stays on the current
+entry and appears in its tags. Failed updates keep the selection and queue,
+with an inline retry message. Controls are disabled during a write; suggestions
+refresh once for the next transaction without blocking manual categorization.
+Month changes reset counters and reject stale responses from previous loads.
+
+See the [before/after gallery](screenshots/issue-139/README.md). Screening tests
+run with the existing Playwright suite in both themes.
