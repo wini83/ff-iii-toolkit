@@ -103,7 +103,7 @@ The full local Compose stack configures Redis automatically. When running FastAP
 on your host (including VS Code debugging), start only the development Redis:
 
 ```sh
-docker compose -f compose.redis-dev.yaml up -d --wait
+make redis-up
 ```
 
 Set `REDIS_URL=redis://127.0.0.1:6379/0` in `backend/.env`, then start FastAPI as
@@ -112,7 +112,7 @@ use it on the VPS. It uses the separate Compose project
 `ff-iii-toolkit-redis-dev`, so starting or stopping it does not manage the full
 stack's Redis. Do not override its project name with `-p` or `COMPOSE_PROJECT_NAME`
 when using these commands. Redis contains disposable data and has no persistence.
-Stop it with `docker compose -f compose.redis-dev.yaml down`.
+Stop it with `make redis-down`.
 
 Run the real Redis connection test against that instance:
 
