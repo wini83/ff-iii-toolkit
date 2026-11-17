@@ -6,7 +6,8 @@ export default defineConfig({
     'matching-apply.spec.ts',
     'metric-transactions.spec.ts',
     'themes.spec.ts',
-    'shell.spec.ts'
+    'shell.spec.ts',
+    'screening.spec.ts'
   ],
   workers: 1,
   use: {
