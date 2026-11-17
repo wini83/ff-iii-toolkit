@@ -45,8 +45,8 @@ then capture synthetic user tables, status badges and focused/error dialog
 states in both themes at 1440 px and 390 px. Frontend CI uploads `test-results`
 as `frontend-browser-checks`. No production data or secrets are used.
 
-The landing page (#140), statistics (#141) and remaining workflow-specific
-decoration (#142) are separate stages.
+Statistics (#141) and remaining workflow-specific decoration (#142) are separate
+stages.
 
 ## Application shell
 
@@ -90,3 +90,26 @@ Month changes reset counters and reject stale responses from previous loads.
 
 See the [before/after gallery](screenshots/issue-139/README.md). Screening tests
 run with the existing Playwright suite in both themes.
+
+## Task overview
+
+The landing page has one compact list of four workflows, with no hero, duplicate
+navigation or placeholder features. Eligible categorization, unprocessed BLIK and
+unprocessed Allegro counts come from their existing statistics APIs. Definitions
+stay separate; no combined pending total is calculated. VeloBank is a file-based
+import with no pending counter.
+
+Counts appear only for completed statistics jobs with a valid nonnegative integer.
+Zero means no work in that snapshot; missing/invalid counts, failed requests/jobs,
+and pending/running jobs have separate labels. Each source shows its own snapshot
+time and links to statistics. Categorization uses the oldest positive month from
+its month breakdown when available, otherwise its normal entry point.
+
+Firefly connection and transaction snapshot freshness are checked independently.
+Freshness is labelled as of the last check; metrics retain their own timestamps.
+Refreshing the overview rereads existing GET endpoints. Pending jobs are polled at
+2-second intervals for up to 30 seconds; navigation away cancels scheduled polls.
+The existing statistics screens retain their explicit generation/refresh actions.
+
+See the [before/after gallery](screenshots/issue-140/README.md). Overview tests run
+with the existing Playwright suite and use synthetic data.
