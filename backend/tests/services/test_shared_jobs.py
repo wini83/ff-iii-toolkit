@@ -600,3 +600,36 @@ def test_heartbeat_failure_cancels_execution_and_persists_interruption():
         assert not runtime.tasks
 
     asyncio.run(check())
+
+
+def test_redis_completion_preserves_subsecond_server_time():
+    async def check():
+        async with stores("redis") as (store, reader_store):
+            original_eval = store.redis.eval
+
+            async def frozen_server_time(script, *args):
+                # Freeze Redis TIME for deterministic same-second completion.
+                # Real Lua still computes the deadline and final timestamp.
+                script = script.replace(
+                    "redis.call('TIME')", "({'1800000000', '875123'})"
+                )
+                return await original_eval(script, *args)
+
+            store.redis.eval = frozen_server_time
+            owner = uuid4()
+            writer = BlikApplyJobManager(JobRuntime(store))
+            job = await writer.create(owner=owner, total=0, file_id="synthetic")
+            job.started_at = datetime.fromtimestamp(1800000000.75, UTC)
+            job.status = JobStatus.DONE
+            await writer.save(job)
+            reader = BlikApplyJobManager(JobRuntime(reader_store))
+            recovered = await reader.get(job.id, owner=owner)
+            assert recovered.finished_at == datetime.fromtimestamp(
+                1800000000.875123, UTC
+            )
+            assert recovered.finished_at >= recovered.started_at
+            assert (
+                recovered.finished_at - recovered.started_at
+            ).total_seconds() == 0.125123
+
+    asyncio.run(check())

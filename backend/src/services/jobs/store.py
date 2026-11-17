@@ -160,13 +160,16 @@ class MemoryJobStore:
 # All keys use the same hash tag. Redis time avoids worker clock skew. Every
 # mutation checks the current execution token and lease before accepting state.
 COMMON = """
-local now = tonumber(redis.call('TIME')[1])
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
+-- cjson numbers lose precision at epoch magnitudes; retain every microsecond.
+local finished = string.format('%s.%06d', clock[1], tonumber(clock[2]))
 local function load(key)
     local raw = redis.call('GET', key)
     if not raw then return nil end
     local r = cjson.decode(raw)
     if (r.status == 'pending' or r.status == 'running') and r.deadline <= now then
-        r.status = 'failed'; r.error = ARGV[1]; r.finished = now
+        r.status = 'failed'; r.error = ARGV[1]; r.finished = finished
         redis.call('SET', key, cjson.encode(r), 'EX', ARGV[2])
     end
     return r
@@ -218,7 +221,7 @@ if not old or old.token ~= ARGV[3] or (old.status ~= 'pending' and old.status ~=
 local r
 if ARGV[4] == '' then r = old else r = cjson.decode(ARGV[4]) end
 r.deadline = now + tonumber(ARGV[5])
-if r.status == 'done' or r.status == 'failed' then r.finished = now end
+if r.status == 'done' or r.status == 'failed' then r.finished = finished end
 redis.call('SET', KEYS[1], cjson.encode(r), 'EX', ARGV[2])
 -- Keep the current pointer alive during long computations without changing it.
 if redis.call('GET', KEYS[2]) == r.id then redis.call('EXPIRE', KEYS[2], ARGV[2]) end
