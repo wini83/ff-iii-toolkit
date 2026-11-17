@@ -109,17 +109,29 @@ for (const theme of ['wireframe', 'black'] as const) {
         page.getByText('demo.operator', { exact: true }).filter({ visible: true })
       ).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
-      await page.screenshot({ path: testInfo.outputPath('table.png'), fullPage: true });
+      await page.screenshot({
+        path: testInfo.outputPath('table.png'),
+        fullPage: true,
+        animations: 'disabled'
+      });
       await page.getByRole('button', { name: 'Create user', exact: true }).first().click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
       const input = dialog.getByPlaceholder('e.g. john.doe');
       await input.fill('example.operator.with.a.long.name');
       await input.focus();
-      await page.screenshot({ path: testInfo.outputPath('form-focus.png'), fullPage: true });
+      await page.screenshot({
+        path: testInfo.outputPath('form-focus.png'),
+        fullPage: true,
+        animations: 'disabled'
+      });
       await dialog.getByRole('button', { name: 'Create user', exact: true }).click();
       await expect(dialog.getByRole('alert')).toBeVisible();
-      await page.screenshot({ path: testInfo.outputPath('form-error.png'), fullPage: true });
+      await page.screenshot({
+        path: testInfo.outputPath('form-error.png'),
+        fullPage: true,
+        animations: 'disabled'
+      });
     });
   }
 }
