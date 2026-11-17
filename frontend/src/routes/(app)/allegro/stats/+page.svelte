@@ -1,4 +1,13 @@
 <script lang="ts">
+  import MetricTransactions from '#lib/components/MetricTransactions.svelte';
+  let showTransactions = false;
+  let selectedMonth: string | null = null;
+
+  function showMonth(month: string | null) {
+    selectedMonth = month;
+    showTransactions = true;
+  }
+
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
   import { onMount, onDestroy, tick } from 'svelte';
@@ -178,7 +187,10 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
+          plugins: { legend: { display: false } },
+          onClick: (_event, elements) => {
+            if (elements.length) showMonth(notProcessed.labels[elements[0].index]);
+          }
         }
       });
     }
@@ -485,3 +497,19 @@
     </section>
   {/if}
 </div>
+
+{#if data && !loading && !isBusy(statusData?.status)}
+  <button class="btn btn-outline mt-4" on:click={() => showMonth(null)}
+    >Show unprocessed transactions</button
+  >
+  {#if showTransactions}
+    {#key data.time_stamp}
+      <MetricTransactions
+        provider="allegro"
+        timestamp={data.time_stamp}
+        bind:month={selectedMonth}
+        reloadStatistics={() => loadStats(false)}
+      />
+    {/key}
+  {/if}
+{/if}
