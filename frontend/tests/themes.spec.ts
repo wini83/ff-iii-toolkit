@@ -109,6 +109,11 @@ for (const theme of ['wireframe', 'black'] as const) {
         page.getByText('demo.operator', { exact: true }).filter({ visible: true })
       ).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      if (viewport.width === 1440) {
+        const cell = page.locator('table.table tbody td').first();
+        await expect(cell).toHaveCSS('padding-top', '8px');
+        await expect(cell).toHaveCSS('padding-right', '12px');
+      }
       await page.screenshot({
         path: testInfo.outputPath('table.png'),
         fullPage: true,
@@ -117,6 +122,13 @@ for (const theme of ['wireframe', 'black'] as const) {
       await page.getByRole('button', { name: 'Create user', exact: true }).first().click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
+      const modal = dialog.locator('.modal-box');
+      await expect(modal).toHaveCSS('box-shadow', 'none');
+      // Explicit Tailwind utilities must still override our defaults.
+      await modal.evaluate((element) => element.classList.add('shadow-xl'));
+      await expect(modal).not.toHaveCSS('box-shadow', 'none');
+      await modal.evaluate((element) => element.classList.remove('shadow-xl'));
+      await expect(modal).toHaveCSS('box-shadow', 'none');
       const input = dialog.getByPlaceholder('e.g. john.doe');
       await input.fill('example.operator.with.a.long.name');
       await input.focus();

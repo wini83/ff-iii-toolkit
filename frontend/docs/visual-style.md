@@ -21,7 +21,8 @@ status colors. Dark surfaces are graphite rather than pure black.
 - Retain visible keyboard focus and standard disabled/loading states. Wrap long
   content, and use a scrolling wrapper around wide tables rather than the page.
 - New dialogs, dropdowns and cards receive thin borders and no component shadow.
-  Explicit Tailwind utility classes take precedence: remove old `shadow-*` and
+  Defaults live in `utilities.toolkit`, after DaisyUI’s sublayer. Explicit Tailwind
+  utility classes take precedence: remove old `shadow-*` and
   `rounded-*` decoration as each screen is migrated, rather than overriding every
   descendant globally. Do not change chart geometry or semantic colors globally.
 
@@ -39,7 +40,8 @@ Without JavaScript the document defaults to wireframe.
 Run `npm run check`, `npm run lint`, `npm run build`, then
 `npm run test:matching` after installing Playwright Chromium. Theme tests cover
 legacy/current preferences, switching, reloads, public routes and blocked storage.
-They also capture synthetic user tables, status badges and focused/error dialog
+They assert computed table padding, modal shadows and explicit utility precedence,
+then capture synthetic user tables, status badges and focused/error dialog
 states in both themes at 1440 px and 390 px. Frontend CI uploads `test-results`
 as `frontend-browser-checks`. No production data or secrets are used.
 

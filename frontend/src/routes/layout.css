@@ -78,33 +78,28 @@
   }
 }
 
+/* DaisyUI lives in utilities.daisyui. Our defaults follow it in a sibling
+   sublayer; explicit Tailwind utilities remain unlayered here and win. */
+@layer utilities {
+  @layer toolkit {
+    .card,
+    .modal-box,
+    .dropdown-content {
+      border: var(--border) solid var(--color-base-300);
+      box-shadow: none;
+    }
+    .btn {
+      box-shadow: none;
+      text-shadow: none;
+    }
+    /* Keep DaisyUI's explicit table sizes. */
+    .table:where(:not(.table-xs, .table-sm, .table-md, .table-lg, .table-xl)) :where(th, td) {
+      padding: 0.5rem 0.75rem;
+    }
+  }
+}
+
 @layer components {
-  .card,
-  .modal-box,
-  .dropdown-content {
-    border: var(--border) solid var(--color-base-300);
-    border-radius: var(--radius-box);
-    box-shadow: none;
-  }
-  .btn {
-    border-radius: var(--radius-field);
-    box-shadow: none;
-    text-shadow: none;
-  }
-  .input,
-  .select,
-  .textarea {
-    border-radius: var(--radius-field);
-  }
-  .badge {
-    border-radius: var(--radius-selector);
-  }
-  .table {
-    font-size: 0.875rem;
-  }
-  .table :where(th, td) {
-    padding: 0.5rem 0.75rem;
-  }
   .toolkit-data {
     @apply font-mono tabular-nums;
     overflow-wrap: anywhere;
