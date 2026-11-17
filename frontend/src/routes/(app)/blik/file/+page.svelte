@@ -22,7 +22,7 @@
 />
 
 <div class="card bg-base-100 mt-2 w-full min-w-0 p-4">
-  <div class="inline-block text-xl font-semibold">File Preview</div>
+  <h2 class="text-lg font-semibold">File Preview</h2>
 
   <div class="divider mt-2"></div>
 

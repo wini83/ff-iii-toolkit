@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from '$app/paths';
   import type { Path } from '$app/types';
 
   type StepItem = {
@@ -20,7 +21,10 @@
         {#if step.href === '#'}
           <span>{step.label}</span>
         {:else}
-          <a href={step.href} data-sveltekit-reload={step.href.startsWith('/blik/')}>
+          <a
+            href={resolve(step.href)}
+            data-sveltekit-reload={step.href.startsWith('blik/') || step.href.startsWith('/blik/')}
+          >
             {step.label}
           </a>
         {/if}

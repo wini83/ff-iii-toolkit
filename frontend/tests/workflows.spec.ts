@@ -189,10 +189,12 @@ for (const theme of ['wireframe', 'black']) {
         ).toHaveCount(0);
         const content = page.locator('#main-content');
         const surface = (await content.count()) ? content : page.locator('body');
-        expect(
-          await surface.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
-          route
-        ).toBe(true);
+        expect
+          .soft(
+            await surface.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+            route
+          )
+          .toBe(true);
         await page.screenshot({
           path: testInfo.outputPath(`${route.replace(/[^a-z0-9]+/gi, '-')}.png`),
           fullPage: true,
@@ -205,6 +207,9 @@ for (const theme of ['wireframe', 'black']) {
       await page.getByRole('button', { name: 'Go', exact: true }).click();
       await expect(page.getByText('Synthetic purchase', { exact: true })).toBeVisible();
       await expect(page.locator('.steps')).toBeVisible();
+      await expect(
+        page.locator('.steps').getByRole('link', { name: 'Upload', exact: true })
+      ).toHaveAttribute('href', '/blik/upload');
       await expect(
         page.getByRole('button', { name: 'Match Transactions (1)', exact: true }).first()
       ).toBeVisible();
@@ -224,8 +229,8 @@ for (const theme of ['wireframe', 'black']) {
     state.unlocked = false;
     await page.goto('/settings/secrets');
     await expect(page.getByRole('heading', { name: 'Unlock vault', exact: true })).toBeVisible();
-    await page.getByPlaceholder('Enter vault passphrase').fill('synthetic-only');
-    await expect(page.getByPlaceholder('Enter vault passphrase')).toHaveAttribute(
+    await page.locator('main').getByPlaceholder('Enter vault passphrase').fill('synthetic-only');
+    await expect(page.locator('main').getByPlaceholder('Enter vault passphrase')).toHaveAttribute(
       'type',
       'password'
     );
