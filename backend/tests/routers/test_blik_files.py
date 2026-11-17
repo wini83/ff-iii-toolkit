@@ -119,7 +119,7 @@ class FakeBlikApplicationService:
         self.auto_apply_limit = limit
         return self.apply_job_response
 
-    def get_apply_job(self, *, user_id, job_id):
+    async def get_apply_job(self, *, user_id, job_id):
         self.job_lookup_id = job_id
         return self.apply_job_response
 

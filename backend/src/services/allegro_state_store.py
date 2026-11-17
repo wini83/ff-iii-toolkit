@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from services.allegro_stats.manager import AllegroMetricsManager
 from services.domain.allegro import (
@@ -10,29 +9,16 @@ from services.domain.allegro import (
     AllegroPageMatchCacheEntry,
     AllegroPageRequest,
 )
-from services.domain.job_base import JobStatus
 from services.domain.match_result import MatchResult
+from services.jobs.apply import ApplyJobManager
+from services.jobs.runtime import JobRuntime
 from services.matching_cache.backend import Ticket
 from services.matching_cache.stores import AllegroMatchStore
 
 
-class AllegroApplyJobManager:
-    def __init__(self) -> None:
-        self._jobs: dict[UUID, AllegroApplyJob] = {}
-
-    def create(self, *, secret_id: UUID, total: int) -> AllegroApplyJob:
-        job = AllegroApplyJob(
-            id=uuid4(),
-            secret_id=secret_id,
-            total=total,
-            status=JobStatus.PENDING,
-            started_at=datetime.now(UTC),
-        )
-        self._jobs[job.id] = job
-        return job
-
-    def get(self, job_id: UUID) -> AllegroApplyJob | None:
-        return self._jobs.get(job_id)
+class AllegroApplyJobManager(ApplyJobManager[AllegroApplyJob]):
+    def __init__(self, runtime: JobRuntime | None = None):
+        super().__init__(AllegroApplyJob, "allegro-apply", runtime)
 
 
 @dataclass

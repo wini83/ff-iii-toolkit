@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 type Feature = 'blik' | 'allegro';
 type Decision = { transaction_id: number; selected_match_id?: string };
+const interruptionReason =
+  'Execution interrupted; verify results and run a new preview before retrying; transaction 2 may have been updated';
 
 async function matchingScreen(
   page: Page,
@@ -11,6 +13,7 @@ async function matchingScreen(
     failedJob?: boolean;
     refreshFails?: boolean;
     polling?: boolean;
+    interruptedJob?: boolean;
   } = {}
 ) {
   const pageErrors: string[] = [];
@@ -120,6 +123,12 @@ async function matchingScreen(
             reason: options.failedJob ? 'Synthetic failure' : null
           }))
         };
+        if (options.interruptedJob) {
+          job.results = [
+            { transaction_id: 1, status: 'failed', reason: 'Synthetic failure' },
+            { transaction_id: -1, status: 'failed', reason: interruptionReason }
+          ];
+        }
         return route.fulfill({
           json: options.polling
             ? { ...job, status: 'pending', results: [], applied: 0, failed: 0 }
@@ -228,5 +237,32 @@ for (const feature of ['blik', 'allegro'] as const) {
     await expect(choices).toHaveCount(0);
     await expect(apply).toBeDisabled();
     expect(state.jobs).toBe(1);
+  });
+}
+
+for (const polling of [false, true]) {
+  test(`allegro: preserves interruption details after refresh (polling=${polling})`, async ({
+    page
+  }) => {
+    const { state, choices, apply } = await matchingScreen(page, 'allegro', {
+      failedJob: true,
+      interruptedJob: true,
+      polling
+    });
+    await choices.nth(0).check();
+    await choices.nth(1).check();
+    await apply.click();
+    await expect.poll(() => state.previews).toBe(2);
+    const warning = page.getByRole('alert').filter({ hasText: interruptionReason });
+    await expect(warning).toBeVisible();
+    await expect(warning).toContainText('Synthetic failure');
+    await expect(warning).toContainText('transaction 2 may have been updated');
+    await expect(choices).toHaveCount(2);
+    await expect(apply).toBeDisabled();
+    expect(state.requests).toBe(1);
+    expect(state.jobs).toBe(1);
+    expect(state.history).toEqual(
+      polling ? ['preview', 'apply', 'poll', 'preview'] : ['preview', 'apply', 'preview']
+    );
   });
 }

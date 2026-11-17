@@ -3,7 +3,8 @@ import logging
 import os
 import re
 import tempfile
-from asyncio import CancelledError, create_task
+from asyncio import CancelledError
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -38,6 +39,7 @@ from services.exceptions import (
 )
 from services.firefly_base_service import FireflyServiceError
 from services.firefly_enrichment_service import FireflyEnrichmentService
+from services.jobs.store import INTERRUPTED, JobLeaseLost, JobStoreUnavailable
 from services.matching_cache.backend import MatchCacheUnavailable
 from services.tx_stats.models import MetricsState
 from services.tx_stats.runner import MetricsProvider
@@ -70,7 +72,9 @@ class BlikApplicationService:
         self.enrichment_service = enrichment_service
         self.metrics_provider = metrics_provider
         self.state_store = state_store
-        self.blik_metrics_manager = BlikMetricsManager(provider=metrics_provider)
+        self.blik_metrics_manager = BlikMetricsManager(
+            provider=metrics_provider, runtime=state_store.job_manager.runtime
+        )
 
     # --------------------------------------------------
     # CSV lifecycle
@@ -180,25 +184,24 @@ class BlikApplicationService:
         self._validate_file_id(decoded)
         self._assert_file_owner(decoded, user_id)
         path = self._resolve_csv_path(decoded)
-        matches = await self.state_store.get_matches(
-            owner=user_id,
-            file_id=encoded_id,
-            revision=self._file_revision(path),
-            consume=True,
+        job = await self.state_store.job_manager.create(
+            owner=user_id, file_id=encoded_id, total=len(decisions)
         )
-        if not matches:
-            raise MatchesNotComputed("No match data found")
-
-        job = self.state_store.job_manager.create(
-            file_id=encoded_id, total=len(decisions)
-        )
-
-        create_task(
-            self._run_apply_job(
-                job=job,
-                decisions=decisions,
-                matches=matches,
+        try:
+            matches = await self.state_store.get_matches(
+                owner=user_id,
+                file_id=encoded_id,
+                revision=self._file_revision(path),
+                consume=True,
             )
+            if not matches:
+                raise MatchesNotComputed("No match data found")
+        except BaseException:
+            await self.state_store.job_manager.abort_start(job)
+            raise
+        self.state_store.job_manager.runtime.spawn(
+            self.state_store.job_manager.execution(job),
+            self._run_apply_job(job=job, decisions=decisions, matches=matches),
         )
 
         return job
@@ -239,14 +242,10 @@ class BlikApplicationService:
             user_id=user_id, encoded_id=encoded_id, decisions=decisions
         )
 
-    def get_apply_job(self, *, user_id: UUID, job_id: UUID) -> BlikApplyJob | None:
-        job = self.state_store.job_manager.get(job_id)
-        if job is None:
-            return None
-        decoded = decode_base64url(job.file_id)
-        if not decoded.startswith(f"blik-{user_id.hex}-"):
-            return None
-        return job
+    async def get_apply_job(
+        self, *, user_id: UUID, job_id: UUID
+    ) -> BlikApplyJob | None:
+        return await self.state_store.job_manager.get(job_id, owner=user_id)
 
     # --------------------------------------------------
     # METRICS V2
@@ -269,14 +268,27 @@ class BlikApplicationService:
         final_status = JobStatus.DONE
 
         try:
-            outcomes = await self._apply_decisions(decisions=decisions, matches=matches)
-            for outcome in outcomes:
-                if outcome.status == "success":
-                    job.applied += 1
-                else:
-                    job.failed += 1
-                job.results.append(outcome)
+            await self.state_store.job_manager.save(job)
+            for decision in decisions:
+                await self.state_store.job_manager.save(
+                    job, in_flight=decision.transaction_id
+                )
+                outcomes = await self._apply_decisions(
+                    decisions=[decision], matches=matches
+                )
+                for outcome in outcomes:
+                    if outcome.status == "success":
+                        job.applied += 1
+                    else:
+                        job.failed += 1
+                    job.results.append(outcome)
+                await self.state_store.job_manager.save(job)
         except CancelledError:
+            self.state_store.job_manager.execution(job).error = INTERRUPTED
+            final_status = JobStatus.FAILED
+            raise
+        except (JobLeaseLost, JobStoreUnavailable):
+            self.state_store.job_manager.execution(job).error = INTERRUPTED
             final_status = JobStatus.FAILED
             raise
         except Exception as e:
@@ -304,6 +316,10 @@ class BlikApplicationService:
                 )
             job.finished_at = datetime.now(UTC)
             job.status = final_status
+            with suppress(JobLeaseLost, JobStoreUnavailable):
+                record = self.state_store.job_manager.execution(job)
+                await self.state_store.job_manager.save(job, in_flight=record.in_flight)
+            self.state_store.job_manager.executions.pop(str(job.id), None)
 
     # --------------------------------------------------
     # INTERNAL HELPERS

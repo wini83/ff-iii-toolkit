@@ -59,6 +59,7 @@ async def get_tx_application_runtime(
         service = TxApplicationService(
             tx_service=get_firefly_tx_service(),
             matching_backend=request.app.state.matching_backend,
+            job_runtime=request.app.state.job_runtime,
             metrics_provider=metrics_provider,
         )
         request.app.state.tx_application_runtime = service

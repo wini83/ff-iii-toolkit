@@ -23,6 +23,7 @@
   let loading = true;
   let applying = false;
   let networkError: string | null = null;
+  let applyError: string | null = null;
   let matchResponse: AllegroMatchResponse | null = null;
   let rows: AllegroMatchResult[] = [];
   let selectedCandidates: Set<string> = new Set();
@@ -277,6 +278,7 @@
     const selectedByTx = mapSelectedByTx();
     let processed = 0;
     applyPollingCanceled = false;
+    applyError = null;
 
     let shouldRefresh = false;
     let cacheMiss = false;
@@ -306,7 +308,15 @@
       }
       shouldRefresh = true;
       if (finalJob.status === 'failed') {
-        throw new Error('Apply job failed.');
+        const reasons = Array.from(
+          new Set(
+            finalJob.results
+              .filter((result) => result.status === 'failed')
+              .map((result) => getNonEmptyString(result.reason))
+              .filter((reason): reason is string => reason !== null)
+          )
+        );
+        throw new Error(reasons.join(' ') || 'Apply job failed.');
       }
 
       const marked = appliedCandidates.size;
@@ -338,7 +348,8 @@
         shouldRefresh = true;
         cacheMiss = true;
       } else {
-        emitToast('error', extractErrorMessage(error, 'Failed to apply selected matches'));
+        applyError = extractErrorMessage(error, 'Failed to apply selected matches');
+        emitToast('error', applyError);
       }
     } finally {
       if (shouldRefresh && !applyPollingCanceled) {
@@ -483,6 +494,13 @@
       </div>
     </div>
   </section>
+
+  {#if applyError}
+    <div class="alert alert-error" role="alert">
+      <Icon src={icons.ExclamationTriangle} class="h-5 w-5 shrink-0" />
+      <span>{applyError}</span>
+    </div>
+  {/if}
 
   <section class="card bg-base-100 shadow-xl">
     <div class="card-body gap-5">

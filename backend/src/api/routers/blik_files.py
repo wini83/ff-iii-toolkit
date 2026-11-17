@@ -187,7 +187,7 @@ async def get_apply_job(
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid job_id") from e
 
-    job = svc.get_apply_job(user_id=user_id, job_id=parsed_job_id)
+    job = await svc.get_apply_job(user_id=user_id, job_id=parsed_job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return map_job_to_response(job)

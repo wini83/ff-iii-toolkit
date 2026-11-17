@@ -6,12 +6,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import services.blik_application_service as app_module
 from api.mappers.blik import build_blik_match_id
 from services.blik_application_service import BlikApplicationService
 from services.blik_state_store import BlikStateStore
 from services.domain.bank_record import BankRecord
-from services.domain.blik import BlikApplyJob, MatchDecision
+from services.domain.blik import MatchDecision
 from services.domain.job_base import JobStatus
 from services.domain.match_result import MatchResult
 from services.domain.transaction import Currency, Transaction, TxType
@@ -322,12 +321,12 @@ async def test_start_apply_job_creates_job_and_schedules_task(monkeypatch):
 
     captured = {}
 
-    def fake_create_task(coro):
+    def fake_spawn(record, coro):
         captured["scheduled"] = True
         coro.close()
         return object()
 
-    monkeypatch.setattr(app_module, "create_task", fake_create_task)
+    monkeypatch.setattr(store.job_manager.runtime, "spawn", fake_spawn)
 
     job = await service.start_apply_job(
         user_id=OWNER,
@@ -397,11 +396,10 @@ async def test_run_apply_job_counts_success_and_failures():
         MatchResult(tx=tx1, matches=[evidence1]),
         MatchResult(tx=tx2, matches=[evidence2]),
     ]
-    job = BlikApplyJob(
-        id=uuid4(),
+    job = await service.state_store.job_manager.create(
+        owner=OWNER,
         file_id=_encoded("file123"),
         total=3,
-        status=JobStatus.PENDING,
     )
     decisions = [
         MatchDecision(
@@ -507,11 +505,10 @@ async def test_start_auto_apply_single_matches_builds_decisions_for_single_match
         metrics_provider=MagicMock(),
         state_store=store,
     )
-    job = BlikApplyJob(
-        id=uuid4(),
+    job = await service.state_store.job_manager.create(
+        owner=OWNER,
         file_id=encoded_id,
         total=len(expected_ids),
-        status=JobStatus.PENDING,
     )
     service.start_apply_job = AsyncMock(return_value=job)
 

@@ -1,33 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from services.domain.blik import BlikApplyJob
-from services.domain.job_base import JobStatus
 from services.domain.match_result import MatchResult
+from services.jobs.apply import ApplyJobManager
+from services.jobs.runtime import JobRuntime
 from services.matching_cache.backend import Ticket
 from services.matching_cache.stores import BlikMatchStore
 
 
-class BlikApplyJobManager:
-    def __init__(self) -> None:
-        self._jobs: dict[UUID, BlikApplyJob] = {}
-
-    def create(self, *, file_id: str, total: int) -> BlikApplyJob:
-        job = BlikApplyJob(
-            id=uuid4(),
-            file_id=file_id,
-            total=total,
-            status=JobStatus.PENDING,
-            started_at=datetime.now(UTC),
-        )
-        self._jobs[job.id] = job
-        return job
-
-    def get(self, job_id: UUID) -> BlikApplyJob | None:
-        return self._jobs.get(job_id)
+class BlikApplyJobManager(ApplyJobManager[BlikApplyJob]):
+    def __init__(self, runtime: JobRuntime | None = None):
+        super().__init__(BlikApplyJob, "blik-apply", runtime)
 
 
 @dataclass

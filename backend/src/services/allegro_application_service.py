@@ -1,4 +1,5 @@
-from asyncio import CancelledError, create_task
+from asyncio import CancelledError
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
@@ -32,6 +33,7 @@ from services.exceptions import (
 )
 from services.firefly_base_service import FireflyServiceError
 from services.firefly_enrichment_service import FireflyEnrichmentService
+from services.jobs.store import INTERRUPTED, JobLeaseLost, JobStoreUnavailable
 from services.matching_cache.backend import MatchCacheUnavailable, Ticket
 from services.tx_stats.models import MetricsState
 from services.tx_stats.runner import MetricsProvider
@@ -56,7 +58,8 @@ class AllegroApplicationService:
         self.filter_desc_allegro = filter_desc_allegro
         if self.state_store.metrics_manager is None:
             self.state_store.metrics_manager = AllegroMetricsManager(
-                provider=self.metrics_provider
+                provider=self.metrics_provider,
+                runtime=self.state_store.job_manager.runtime,
             )
 
     def get_allegro_secrets(self, user_id: UUID) -> list[UserSecretReadModel]:
@@ -197,23 +200,21 @@ class AllegroApplicationService:
         decisions: list[MatchDecision],
     ) -> AllegroApplyJob:
         revision = self._matching_revision(user_id=user_id, secret_id=secret_id)
-        matches = await self.state_store.get_all_matches(
-            owner=user_id, secret_id=secret_id, revision=revision, consume=True
+        job = await self.state_store.job_manager.create(
+            owner=user_id, secret_id=secret_id, total=len(decisions)
         )
-        if not matches:
-            raise MatchesNotComputed()
-
-        job = self.state_store.job_manager.create(
-            secret_id=secret_id,
-            total=len(decisions),
-        )
-
-        create_task(
-            self._run_apply_job(
-                job=job,
-                decisions=decisions,
-                matches=matches,
+        try:
+            matches = await self.state_store.get_all_matches(
+                owner=user_id, secret_id=secret_id, revision=revision, consume=True
             )
+            if not matches:
+                raise MatchesNotComputed()
+        except BaseException:
+            await self.state_store.job_manager.abort_start(job)
+            raise
+        self.state_store.job_manager.runtime.spawn(
+            self.state_store.job_manager.execution(job),
+            self._run_apply_job(job=job, decisions=decisions, matches=matches),
         )
 
         return job
@@ -238,8 +239,10 @@ class AllegroApplicationService:
         index = {int(cast(Transaction, m.tx).id): m for m in matches}
 
         try:
+            await self.state_store.job_manager.save(job)
             for decision in decisions:
                 tx_id = decision.transaction_id
+                await self.state_store.job_manager.save(job, in_flight=tx_id)
                 try:
                     match_result = index.get(tx_id)
                     if not match_result:
@@ -265,7 +268,14 @@ class AllegroApplicationService:
                         )
                     )
 
+                await self.state_store.job_manager.save(job)
+
         except CancelledError:
+            self.state_store.job_manager.execution(job).error = INTERRUPTED
+            final_status = JobStatus.FAILED
+            raise
+        except (JobLeaseLost, JobStoreUnavailable):
+            self.state_store.job_manager.execution(job).error = INTERRUPTED
             final_status = JobStatus.FAILED
             raise
         finally:
@@ -282,6 +292,10 @@ class AllegroApplicationService:
                 )
             job.finished_at = datetime.now(UTC)
             job.status = final_status
+            with suppress(JobLeaseLost, JobStoreUnavailable):
+                record = self.state_store.job_manager.execution(job)
+                await self.state_store.job_manager.save(job, in_flight=record.in_flight)
+            self.state_store.job_manager.executions.pop(str(job.id), None)
 
     async def start_auto_apply_single_matches(
         self,
@@ -315,15 +329,10 @@ class AllegroApplicationService:
             decisions=decisions,
         )
 
-    def get_apply_job(self, *, user_id: UUID, job_id: UUID) -> AllegroApplyJob | None:
-        job = self.state_store.job_manager.get(job_id)
-        if job is None:
-            return None
-        try:
-            self._matching_revision(user_id=user_id, secret_id=job.secret_id)
-        except InvalidSecretId:
-            return None
-        return job
+    async def get_apply_job(
+        self, *, user_id: UUID, job_id: UUID
+    ) -> AllegroApplyJob | None:
+        return await self.state_store.job_manager.get(job_id, owner=user_id)
 
     def _matching_revision(self, *, user_id: UUID, secret_id: UUID) -> str:
         try:
@@ -354,7 +363,8 @@ class AllegroApplicationService:
     def _ensure_metrics_manager(self) -> AllegroMetricsManager:
         if self.state_store.metrics_manager is None:
             self.state_store.metrics_manager = AllegroMetricsManager(
-                provider=self.metrics_provider
+                provider=self.metrics_provider,
+                runtime=self.state_store.job_manager.runtime,
             )
         return self.state_store.metrics_manager
 
