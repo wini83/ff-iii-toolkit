@@ -21,7 +21,7 @@
   </button>
 
   <ul
-    class="menu dropdown-content bg-base-100 rounded-box border-base-200 z-20 mt-2 w-56 border p-2 shadow-xl"
+    class="menu dropdown-content bg-base-100 rounded-box border-base-200 z-20 mt-2 w-56 border p-2"
   >
     <li>
       <button {disabled} on:click={() => onInvite(user)}>

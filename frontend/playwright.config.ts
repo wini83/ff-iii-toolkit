@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: ['matching-apply.spec.ts', 'metric-transactions.spec.ts'],
+  testMatch: ['matching-apply.spec.ts', 'metric-transactions.spec.ts', 'themes.spec.ts'],
   workers: 1,
   use: {
     baseURL: 'http://127.0.0.1:4173',

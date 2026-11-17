@@ -51,3 +51,11 @@ jobs:
               break
             fi
           done
+
+      - name: Upload browser checks and theme screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-browser-checks
+          path: frontend/test-results/
+          retention-days: 7
