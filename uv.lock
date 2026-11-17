@@ -197,7 +197,7 @@ wheels = [
 
 [[package]]
 name = "ff-iii-toolkit"
-version = "3.4.2"
+version = "3.4.3"
 source = { virtual = "." }
 
 [package.dev-dependencies]

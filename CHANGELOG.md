@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.4.3 (2026-11-17)
+
+### Refactor
+
+- **blik**: remove legacy incomplete processing metrics (#133)
+
 ## v3.4.2 (2026-11-17)
 
 ### Refactor
