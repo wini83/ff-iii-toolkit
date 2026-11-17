@@ -6,6 +6,16 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.5.0 (2026-11-17)
+
+### Feat
+
+- **statistics**: inspect unprocessed Allegro and BLIK transactions (#134)
+
+### Refactor
+
+- **blik**: remove legacy incomplete processing metrics (#133)
+
 ## v3.4.2 (2026-11-17)
 
 ### Refactor
