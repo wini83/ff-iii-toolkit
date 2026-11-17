@@ -87,34 +87,20 @@ class SnapshotBlikMetricsService(SnapshotMetricsService[BlikStatisticsMetrics]):
             self.filter_desc_blik,
             exact_match=True,
         )
-        filtered_by_desc_partial = filter_by_description(
-            uncategorized,
-            self.filter_desc_blik,
-            exact_match=False,
-        )
-
         not_processed = [
             tx
             for tx in filtered_by_desc_exact
             if not tx.tags or TxTag.blik_done not in tx.tags
         ]
-        incomplete_processed = [
-            tx
-            for tx in filtered_by_desc_partial
-            if not tx.tags or TxTag.blik_done not in tx.tags
-        ]
         not_processed_by_month = await group_tx_by_month(not_processed)
-        incomplete_processed_by_month = await group_tx_by_month(incomplete_processed)
 
         return BlikStatisticsMetrics(
             total_transactions=snapshot.metrics.total_transactions,
             single_part_transactions=len(snapshot.transactions),
             uncategorized_transactions=len(uncategorized),
             filtered_by_description_exact=len(not_processed),
-            filtered_by_description_partial=len(incomplete_processed),
             not_processed_transactions=len(not_processed),
             not_processed_by_month=not_processed_by_month,
-            inclomplete_procesed_by_month=incomplete_processed_by_month,
             time_stamp=snapshot.fetched_at,
             fetching_duration_ms=snapshot.metrics.fetching_duration_ms,
         )

@@ -45,23 +45,14 @@
   let refreshLoading = false;
   let networkError: string | null = null;
 
-  let processedRatio = 0;
-
   let notProcessed = {
     labels: [] as string[],
     values: [] as number[]
   };
 
-  let incomplete = {
-    labels: [] as string[],
-    values: [] as number[]
-  };
-
   let notProcessedCanvas: HTMLCanvasElement | null = null;
-  let incompleteCanvas: HTMLCanvasElement | null = null;
 
   let notProcessedChart: Chart | null = null;
-  let incompleteChart: Chart | null = null;
 
   function toChartData(obj: Record<string, number>) {
     return {
@@ -202,7 +193,6 @@
 
   async function syncCharts(result: BlikMetricsResultResponse | null) {
     notProcessedChart?.destroy();
-    incompleteChart?.destroy();
 
     if (!result) return;
 
@@ -228,27 +218,6 @@
         }
       });
     }
-
-    if (incompleteCanvas && incomplete.labels.length) {
-      incompleteChart = new Chart(incompleteCanvas, {
-        type: 'bar',
-        data: {
-          labels: incomplete.labels,
-          datasets: [
-            {
-              label: 'Incomplete',
-              data: incomplete.values,
-              backgroundColor: '#3b82f6'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-    }
   }
 
   function updateUiFromStatus(status: BlikMetricsStatusResponse | null) {
@@ -256,19 +225,11 @@
     data = result;
 
     if (!result) {
-      processedRatio = 0;
       notProcessed = { labels: [], values: [] };
-      incomplete = { labels: [], values: [] };
       return;
     }
 
-    const totalTransactions = getTotalTransactions(result);
-    processedRatio = totalTransactions
-      ? Math.round((result.single_part_transactions / totalTransactions) * 100)
-      : 0;
-
     notProcessed = toChartData(result.not_processed_by_month);
-    incomplete = toChartData(result.inclomplete_procesed_by_month);
   }
 
   onMount(() => {
@@ -277,7 +238,6 @@
 
   onDestroy(() => {
     notProcessedChart?.destroy();
-    incompleteChart?.destroy();
   });
 
   async function loadStats(force = false) {
@@ -417,17 +377,6 @@
         <div class="stat-desc text-warning">by description: {d.filtered_by_description_exact}</div>
       </div>
     </div>
-
-    <div class="stats bg-base-100 rounded-box shadow">
-      <div class="stat">
-        <div class="stat-figure">
-          <Icon src={icons.CircleStack} class="inline-block h-8 w-8 stroke-current" />
-        </div>
-        <div class="stat-title">Incomplete processed</div>
-        <div class="stat-value">{d.filtered_by_description_partial}</div>
-        <div class="stat-desc">Processed ratio: {processedRatio}%</div>
-      </div>
-    </div>
   </div>
 {/if}
 
@@ -447,25 +396,6 @@
         class:opacity-100={!loading && !isBusy(statusData?.status)}
         class="transition-opacity duration-300"
         bind:this={notProcessedCanvas}
-      ></canvas>
-    </div>
-  </div>
-
-  <div class="card bg-base-100 mt-2 w-full p-6 shadow-xl">
-    <h2 class="text-xl font-semibold">Incomplete processed by month</h2>
-
-    <div class="divider mt-2 mb-2"></div>
-
-    <div class="relative h-64">
-      {#if loading || isBusy(statusData?.status)}
-        <div class="skeleton absolute inset-0 z-10"></div>
-      {/if}
-
-      <canvas
-        class:opacity-0={loading || isBusy(statusData?.status)}
-        class:opacity-100={!loading && !isBusy(statusData?.status)}
-        class="transition-opacity duration-300"
-        bind:this={incompleteCanvas}
       ></canvas>
     </div>
   </div>

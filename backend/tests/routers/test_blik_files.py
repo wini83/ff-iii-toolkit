@@ -131,10 +131,8 @@ def _metrics_state() -> MetricsState[BlikStatisticsMetrics]:
         single_part_transactions=5,
         uncategorized_transactions=2,
         filtered_by_description_exact=1,
-        filtered_by_description_partial=1,
         not_processed_transactions=2,
         not_processed_by_month={"2024-01": 1},
-        inclomplete_procesed_by_month={"2024-01": 1},
         time_stamp=datetime(2024, 1, 1, tzinfo=UTC),
     )
     return MetricsState(

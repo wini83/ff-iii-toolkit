@@ -1081,16 +1081,10 @@ export interface components {
       uncategorized_transactions: number;
       /** Filtered By Description Exact */
       filtered_by_description_exact: number;
-      /** Filtered By Description Partial */
-      filtered_by_description_partial: number;
       /** Not Processed Transactions */
       not_processed_transactions: number;
       /** Not Processed By Month */
       not_processed_by_month: {
-        [key: string]: number;
-      };
-      /** Inclomplete Procesed By Month */
-      inclomplete_procesed_by_month: {
         [key: string]: number;
       };
       /**
