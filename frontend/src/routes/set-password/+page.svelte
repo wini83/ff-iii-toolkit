@@ -76,64 +76,24 @@
   <title>Set Password — Firefly Toolkit</title>
 </svelte:head>
 
-<div
-  class="from-base-200 via-base-200 to-primary/10 flex min-h-screen items-center justify-center bg-gradient-to-br px-4 py-10"
->
-  <div
-    class="bg-base-100 grid w-full max-w-6xl overflow-hidden rounded-[2rem] shadow-2xl lg:grid-cols-[1.05fr_0.95fr]"
-  >
-    <section
-      class="from-primary/95 to-secondary/85 text-primary-content relative hidden overflow-hidden bg-gradient-to-br p-10 lg:flex lg:flex-col lg:justify-between"
+<div class="bg-base-200 text-base-content flex min-h-screen items-center justify-center px-4 py-8">
+  <div class="card bg-base-100 w-full max-w-lg overflow-hidden">
+    <header
+      class="border-base-300 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4"
     >
-      <div class="absolute inset-0 opacity-20">
-        <div class="absolute top-0 left-0 h-60 w-60 rounded-full bg-white/30 blur-3xl"></div>
-        <div class="absolute right-0 bottom-0 h-72 w-72 rounded-full bg-black/20 blur-3xl"></div>
-      </div>
+      <a href={resolve('login')} class="inline-flex items-center gap-2 font-semibold"
+        ><img src="/logo_b.png" alt="" class="h-6 w-6 object-contain" />Firefly Toolkit</a
+      >
+      <span class="text-base-content/70 text-xs">Account activation</span>
+    </header>
 
-      <div class="relative z-10">
-        <div
-          class="inline-flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 text-sm backdrop-blur"
-        >
-          <Icon src={icons.ShieldCheck} class="h-5 w-5" />
-          Secure onboarding
-        </div>
-
-        <h1 class="mt-8 text-4xl leading-tight font-semibold">
-          Set your password and finish account activation.
-        </h1>
-
-        <p class="text-primary-content/80 mt-4 max-w-md text-sm/6">
-          This invite grants one secure password setup flow. Once completed, you can sign in
-          normally.
-        </p>
-      </div>
-
-      <div class="relative z-10 grid gap-4">
-        <div class="rounded-3xl bg-white/10 p-5 backdrop-blur">
-          <div class="text-primary-content/70 text-xs tracking-[0.2em] uppercase">
-            What happens next
-          </div>
-          <div class="mt-3 space-y-3 text-sm">
-            <div class="flex items-center gap-3">
-              <Icon src={icons.Key} class="h-5 w-5" />
-              Your password is saved for the invited account.
-            </div>
-            <div class="flex items-center gap-3">
-              <Icon src={icons.ArrowRightEndOnRectangle} class="h-5 w-5" />
-              You will be redirected to the login screen.
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="px-6 py-8 sm:px-10 sm:py-12">
-      <div class="mx-auto max-w-md">
-        <div class="mb-8">
-          <div class="bg-primary/12 text-primary inline-flex rounded-2xl p-3">
+    <section class="p-5 sm:p-6">
+      <div class="mx-auto w-full">
+        <div class="mb-4">
+          <div class="bg-base-200 text-primary inline-flex rounded-sm p-3">
             <Icon src={icons.Key} class="h-6 w-6" />
           </div>
-          <h2 class="mt-4 text-3xl font-semibold tracking-tight">Set password</h2>
+          <h2 class="mt-2 text-xl font-semibold tracking-tight">Set password</h2>
           <p class="text-base-content/70 mt-2 text-sm">
             Choose a strong password to complete your invite-based onboarding.
           </p>
@@ -153,7 +113,7 @@
             Go to login
           </a>
         {:else if tokenMissing}
-          <div class="alert alert-error">
+          <div class="alert alert-error" role="alert">
             <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
             <div>
               <div class="font-semibold">Missing invite token</div>
@@ -163,7 +123,7 @@
 
           <a href={resolve('login')} class="btn btn-outline mt-6 w-full">Go to login</a>
         {:else}
-          <form class="space-y-5" on:submit|preventDefault={submitForm}>
+          <form class="space-y-4" on:submit|preventDefault={submitForm}>
             <label class="form-control">
               <div class="label">
                 <span class="label-text font-medium">New password</span>
@@ -190,12 +150,12 @@
               />
             </label>
 
-            <div class="bg-base-200/60 rounded-2xl px-4 py-3 text-sm">
+            <div class="bg-base-200/60 rounded-sm px-4 py-3 text-sm">
               Minimum length: <span class="font-semibold">8 characters</span>
             </div>
 
             {#if formError}
-              <div class="alert alert-error">
+              <div class="alert alert-error" role="alert">
                 <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
                 <span>{formError}</span>
               </div>

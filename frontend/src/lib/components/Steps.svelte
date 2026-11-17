@@ -11,9 +11,12 @@
 </script>
 
 <div class="card bg-base-100 mt-2 w-full p-4">
-  <ul class="steps hidden w-1/2 flex-none md:flex">
+  <ul class="steps w-full text-xs sm:text-sm">
     {#each steps as step, i (`${step.href}-${i}`)}
-      <li class="step {i <= activeIndex ? 'step-primary' : ''}">
+      <li
+        aria-current={i === activeIndex ? 'step' : undefined}
+        class="step {i <= activeIndex ? 'step-primary' : ''}"
+      >
         {#if step.href === '#'}
           <span>{step.label}</span>
         {:else}
