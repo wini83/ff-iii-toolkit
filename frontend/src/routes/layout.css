@@ -1,4 +1,110 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
-@plugin 'daisyui';
+@plugin 'daisyui' {
+  themes:
+    wireframe --default,
+    black --prefersdark;
+}
+
+/* Keep the upstream themes, with the same restrained geometry and action accent. */
+@plugin 'daisyui/theme' {
+  name: 'wireframe';
+  default: true;
+  color-scheme: light;
+  --color-primary: #805000;
+  --color-primary-content: #ffffff;
+  --color-secondary: #484848;
+  --color-secondary-content: #ffffff;
+  --color-accent: #484848;
+  --color-accent-content: #ffffff;
+  --color-info: #185b8f;
+  --color-info-content: #ffffff;
+  --color-success: #24633d;
+  --color-success-content: #ffffff;
+  --color-warning: #805000;
+  --color-warning-content: #ffffff;
+  --color-error: #a52a32;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.125rem;
+  --radius-field: 0.125rem;
+  --radius-box: 0.25rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'black';
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #151515;
+  --color-base-200: #1c1c1c;
+  --color-base-300: #404040;
+  --color-base-content: #e5e5e5;
+  --color-primary: #d5a54e;
+  --color-primary-content: #151515;
+  --color-secondary: #b5b5b5;
+  --color-secondary-content: #151515;
+  --color-accent: #b5b5b5;
+  --color-accent-content: #151515;
+  --color-info: #83b9e5;
+  --color-info-content: #151515;
+  --color-success: #8abe9c;
+  --color-success-content: #151515;
+  --color-warning: #d5a54e;
+  --color-warning-content: #151515;
+  --color-error: #ed9399;
+  --color-error-content: #151515;
+  --radius-selector: 0.125rem;
+  --radius-field: 0.125rem;
+  --radius-box: 0.25rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@layer base {
+  body {
+    @apply bg-base-200 text-base-content;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+}
+
+/* DaisyUI lives in utilities.daisyui. Our defaults follow it in a sibling
+   sublayer; explicit Tailwind utilities remain unlayered here and win. */
+@layer utilities {
+  @layer toolkit {
+    .card,
+    .modal-box,
+    .dropdown-content {
+      border: var(--border) solid var(--color-base-300);
+      box-shadow: none;
+    }
+    .btn {
+      box-shadow: none;
+      text-shadow: none;
+    }
+    /* Keep DaisyUI's explicit table sizes. */
+    .table:where(:not(.table-xs, .table-sm, .table-md, .table-lg, .table-xl)) :where(th, td) {
+      padding: 0.5rem 0.75rem;
+    }
+  }
+}
+
+@layer components {
+  .toolkit-data {
+    @apply font-mono tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .toolkit-icon {
+    @apply text-base-content inline-flex rounded-sm p-2;
+  }
+}

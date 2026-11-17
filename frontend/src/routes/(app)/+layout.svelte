@@ -27,7 +27,8 @@
     dynamicTitle === DEFAULT_APP_TITLE
       ? DEFAULT_APP_TITLE
       : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
-  let theme: 'light' | 'dark' = 'light';
+  let theme: 'wireframe' | 'black' = 'wireframe';
+  let themeReady = false;
   let vaultStatus: VaultStatus | null = null;
   let vaultLoading = false;
   let vaultUnlocking = false;
@@ -72,14 +73,18 @@
         : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
   });
 
-  function applyTheme(nextTheme: 'light' | 'dark') {
+  function applyTheme(nextTheme: 'wireframe' | 'black') {
     theme = nextTheme;
     document.documentElement.setAttribute('data-theme', nextTheme);
-    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // Keep the switch usable even when browser storage is unavailable.
+    }
   }
 
   function toggleTheme() {
-    applyTheme(theme === 'light' ? 'dark' : 'light');
+    applyTheme(theme === 'wireframe' ? 'black' : 'wireframe');
   }
 
   function emitToast(type: Toast['type'], msg: string) {
@@ -246,15 +251,9 @@
   }
 
   onMount(() => {
-    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    const preferredTheme =
-      storedTheme === 'light' || storedTheme === 'dark'
-        ? storedTheme
-        : window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light';
-
-    applyTheme(preferredTheme);
+    // app.html resolves the saved/system preference before the first paint.
+    theme = document.documentElement.dataset.theme === 'black' ? 'black' : 'wireframe';
+    themeReady = true;
     void loadCurrentUser();
     void refreshVaultStatus();
 
@@ -288,17 +287,13 @@
   <title>{headTitle}</title>
 </svelte:head>
 
-<div
-  class="drawer from-base-200 via-base-200 to-primary/10 text-base-content lg:drawer-open min-h-screen overflow-x-hidden bg-gradient-to-br"
->
+<div class="drawer bg-base-200 text-base-content lg:drawer-open min-h-screen overflow-x-hidden">
   <input id="app-drawer" type="checkbox" class="drawer-toggle" bind:checked={drawerOpen} />
 
   <!-- CONTENT -->
   <div class="drawer-content flex flex-col overflow-x-hidden">
     <!-- NAVBAR -->
-    <div
-      class="from-base-100/95 via-base-100/90 to-primary/8 border-base-300/70 sticky top-0 z-10 border-b bg-gradient-to-r shadow-[0_10px_30px_-20px_rgba(15,23,42,0.28)] backdrop-blur"
-    >
+    <div class="bg-base-100 border-base-300 sticky top-0 z-10 border-b">
       <div class="navbar min-h-0 px-4 py-3 sm:px-6">
         <div class="flex flex-1 items-center gap-3">
           <div class="flex-none lg:hidden">
@@ -307,7 +302,7 @@
             </label>
           </div>
 
-          <div class="bg-primary/12 text-primary hidden rounded-2xl p-2.5 sm:inline-flex">
+          <div class="text-base-content hidden rounded-sm p-2.5 sm:inline-flex">
             <Icon src={icons.Squares2x2} class="h-5 w-5" />
           </div>
 
@@ -323,7 +318,7 @@
           <div class="dropdown dropdown-end">
             <button
               tabindex="0"
-              class="btn btn-ghost btn-sm rounded-2xl px-3"
+              class="btn btn-ghost btn-sm rounded-sm px-3"
               aria-label="Vault status"
               title={getVaultStatusMeta(vaultStatus).label}
             >
@@ -335,7 +330,7 @@
             </button>
 
             <div
-              class="dropdown-content bg-base-100 rounded-box border-base-200 z-20 mt-3 w-80 border p-4 shadow-xl"
+              class="dropdown-content bg-base-100 rounded-box border-base-200 z-20 mt-3 w-80 border p-4"
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -428,12 +423,13 @@
           </div>
 
           <button
-            class="btn btn-ghost btn-sm rounded-2xl px-3"
+            class="btn btn-ghost btn-sm rounded-sm px-3"
             on:click={toggleTheme}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            disabled={!themeReady}
+            aria-label={`Switch to ${theme === 'wireframe' ? 'dark' : 'light'} theme`}
+            title={theme === 'wireframe' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
-            <Icon src={theme === 'light' ? icons.Moon : icons.Sun} class="h-5 w-5" />
+            <Icon src={theme === 'wireframe' ? icons.Moon : icons.Sun} class="h-5 w-5" />
           </button>
 
           <div class="dropdown dropdown-end">
@@ -441,9 +437,9 @@
               class="tooltip tooltip-bottom"
               data-tip={meUser ? `Signed in as ${meUser.username}` : undefined}
             >
-              <button tabindex="0" class="btn btn-ghost rounded-2xl px-2 sm:px-3">
+              <button tabindex="0" class="btn btn-ghost rounded-sm px-2 sm:px-3">
                 <div class="avatar">
-                  <div class="bg-base-200 w-9 rounded-xl">
+                  <div class="bg-base-200 w-9 rounded-sm">
                     <img
                       src={`https://api.dicebear.com/9.x/initials/svg?seed=${meUser?.username}`}
                       alt="avatar"
@@ -457,7 +453,7 @@
               </button>
             </div>
             <ul
-              class="menu menu-sm dropdown-content bg-base-100 rounded-box border-base-200 mt-3 w-56 border p-2 shadow-xl"
+              class="menu menu-sm dropdown-content bg-base-100 rounded-box border-base-200 mt-3 w-56 border p-2"
             >
               <li>
                 <a href={resolve('profile')}><Icon src={icons.User} class="h-5 w-5" /> Profile</a>
@@ -493,7 +489,7 @@
 <div class="toast toast-top toast-end pointer-events-none z-50">
   {#each toasts as t (t.id)}
     <div
-      class={'alert pointer-events-auto shadow-lg ' +
+      class={'alert pointer-events-auto  ' +
         (t.type === 'success'
           ? 'alert-success'
           : t.type === 'error'
