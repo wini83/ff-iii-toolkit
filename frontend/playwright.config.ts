@@ -5,6 +5,7 @@ export default defineConfig({
   testMatch: [
     'matching-apply.spec.ts',
     'metric-transactions.spec.ts',
+    'duplicates.spec.ts',
     'themes.spec.ts',
     'shell.spec.ts',
     'screening.spec.ts',

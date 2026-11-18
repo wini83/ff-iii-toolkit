@@ -414,6 +414,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/tx/duplicates/options': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Duplicate Options */
+    get: operations['duplicate_options_api_tx_duplicates_options_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/tx/duplicates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Duplicate Results */
+    get: operations['duplicate_results_api_tx_duplicates_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/allegro/secrets': {
     parameters: {
       query?: never;
@@ -1192,6 +1226,60 @@ export interface components {
       external_username?: string | null;
       /** Secret */
       secret: string;
+    };
+    /** DuplicateOptions */
+    DuplicateOptions: {
+      /** Accounts */
+      accounts: components['schemas']['SimplifiedAccountRef'][];
+      /** Date From */
+      date_from: string | null;
+      /** Date To */
+      date_to: string | null;
+      /**
+       * Snapshot Timestamp
+       * Format: date-time
+       */
+      snapshot_timestamp: string;
+      /** Skipped Multipart */
+      skipped_multipart: number;
+    };
+    /** DuplicatePairResponse */
+    DuplicatePairResponse: {
+      /** Id */
+      id: string;
+      first: components['schemas']['SimplifiedTx'];
+      second: components['schemas']['SimplifiedTx'];
+      /** Amount */
+      amount: string;
+      /** Currency Code */
+      currency_code: string;
+      /**
+       * Direction
+       * @enum {string}
+       */
+      direction: 'incoming' | 'outgoing';
+      /** Date Difference Days */
+      date_difference_days: number;
+    };
+    /** DuplicateResults */
+    DuplicateResults: {
+      /** Items */
+      items: components['schemas']['DuplicatePairResponse'][];
+      /** Total */
+      total: number;
+      /** Offset */
+      offset: number;
+      /** Limit */
+      limit: number;
+      /**
+       * Snapshot Timestamp
+       * Format: date-time
+       */
+      snapshot_timestamp: string;
+      /** Firefly Url */
+      firefly_url: string | null;
+      /** Skipped Multipart */
+      skipped_multipart: number;
     };
     /** FileMatchResponse */
     FileMatchResponse: {
@@ -2785,6 +2873,76 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['TxMetricsStatusResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  duplicate_options_api_tx_duplicates_options_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DuplicateOptions'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  duplicate_results_api_tx_duplicates_get: {
+    parameters: {
+      query: {
+        account_id: number;
+        date_from: string;
+        date_to: string;
+        snapshot_timestamp: string;
+        tolerance_days?: number;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DuplicateResults'];
         };
       };
       /** @description Validation Error */

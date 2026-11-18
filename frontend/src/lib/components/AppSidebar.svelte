@@ -39,7 +39,12 @@
           href: resolve('tx/categorize'),
           icon: icons.DocumentMagnifyingGlass
         },
-        { label: 'Stats', href: resolve('tx/stats'), icon: icons.ChartBar }
+        { label: 'Stats', href: resolve('tx/stats'), icon: icons.ChartBar },
+        {
+          label: 'Potential duplicates',
+          href: resolve('tx/duplicates'),
+          icon: icons.DocumentMagnifyingGlass
+        }
       ]
     },
     {
