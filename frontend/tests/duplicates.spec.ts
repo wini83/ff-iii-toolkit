@@ -160,8 +160,8 @@ test('mobile results remain inside viewport and work in both themes', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/tx/duplicates');
   await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
-  await page.getByLabel('Date from').fill('2026-11-01');
-  await page.getByLabel('Date to').fill('2026-11-18');
+  await page.getByLabel('Date from', { exact: true }).fill('2026-11-01');
+  await page.getByLabel('Date to', { exact: true }).fill('2026-11-18');
   await page.getByRole('button', { name: 'Find candidates' }).click();
   await expect(page.getByRole('heading', { name: 'Candidate pairs: 26' })).toBeVisible();
   for (const theme of ['wireframe', 'black']) {
