@@ -171,8 +171,12 @@ async function matchingScreen(
 }
 
 async function closeProgress(page: Page) {
-  const close = page.getByRole('button', { name: 'Close', exact: true });
-  if (await close.isVisible()) await close.click();
+  if (new URL(page.url()).pathname.startsWith('/blik/')) {
+    const close = page.getByRole('button', { name: 'Close', exact: true });
+    await expect(close).toBeVisible();
+    await close.click();
+    await expect(page.locator('dialog.modal-open')).toHaveCount(0);
+  }
 }
 
 for (const feature of ['blik', 'allegro'] as const) {
