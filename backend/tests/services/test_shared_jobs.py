@@ -215,9 +215,20 @@ def metrics(model, stamp):
             stamp if f.name == "time_stamp" else {} if get_origin(f.type) is dict else 1
         )
         for f in fields(model)
+        if f.name != "amount_metrics"
     }
     if model is TXStatisticsMetrics:
         values["single_part_amount"] = {"PLN": Decimal("12.340000001")}
+    if model in (BlikStatisticsMetrics, AllegroMetrics):
+        from services.domain.metrics import ProviderAmountMetrics
+
+        values["amount_metrics"] = ProviderAmountMetrics(
+            eligible_amount={"PLN": Decimal("12.340000001")},
+            processed_amount={"PLN": Decimal(0)},
+            not_processed_amount={"PLN": Decimal("12.340000001")},
+            processing_coverage={"PLN": Decimal(0)},
+            not_processed_amount_by_month={"2026-11": {"PLN": Decimal("12.340000001")}},
+        )
     return model(**values)
 
 

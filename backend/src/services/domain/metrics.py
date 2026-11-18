@@ -16,6 +16,15 @@ class FetchMetrics(BaseMetrics):
 
 
 @dataclass
+class ProviderAmountMetrics:
+    eligible_amount: dict[str, Decimal]
+    processed_amount: dict[str, Decimal]
+    not_processed_amount: dict[str, Decimal]
+    processing_coverage: dict[str, Decimal | None]
+    not_processed_amount_by_month: dict[str, dict[str, Decimal]]
+
+
+@dataclass
 class BlikStatisticsMetrics(BaseMetrics):
     single_part_transactions: int
     uncategorized_transactions: int
@@ -23,6 +32,7 @@ class BlikStatisticsMetrics(BaseMetrics):
     not_processed_transactions: int
     not_processed_by_month: dict[str, int]
     time_stamp: datetime
+    amount_metrics: ProviderAmountMetrics | None = None
 
 
 @dataclass
@@ -31,6 +41,7 @@ class AllegroMetrics(BaseMetrics):
     not_processed_allegro_transactions: int
     not_processed_by_month: dict[str, int]
     time_stamp: datetime
+    amount_metrics: ProviderAmountMetrics | None = None
 
 
 @dataclass

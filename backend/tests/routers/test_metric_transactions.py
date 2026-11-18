@@ -70,8 +70,19 @@ def metrics_client(client, monkeypatch):
 
 
 @pytest.mark.parametrize("provider,expected", [("allegro", [2, 1]), ("blik", [6, 5])])
-def test_details_agree_with_metrics_and_page_totals(metrics_client, provider, expected):
+@pytest.mark.parametrize("mixed_currencies", [False, True])
+def test_details_agree_with_metrics_and_page_totals(
+    metrics_client, provider, expected, mixed_currencies
+):
     client, service = metrics_client
+    if mixed_currencies:
+        selected = next(
+            tx
+            for tx in service.get_snapshot.return_value.transactions
+            if tx.id == expected[0]
+        )
+        selected.currency = Currency("EUR", "€", 2)
+        selected.amount = Decimal("-0.13")
     cls = (
         SnapshotAllegroMetricsService
         if provider == "allegro"
@@ -101,10 +112,27 @@ def test_details_agree_with_metrics_and_page_totals(metrics_client, provider, ex
             params={**params, "month": month},
         )
         assert response.json()["total"] == count
+
+    def row_amounts(rows):
+        totals = {}
+        for row in rows:
+            code = row["currency_code"]
+            totals[code] = totals.get(code, Decimal(0)) + abs(Decimal(str(row["amount"])))
+        return totals
+
+    assert metrics.amount_metrics.not_processed_amount == row_amounts(
+        [r.json()["items"][0] for r in pages]
+    )
+    for month, amounts in metrics.amount_metrics.not_processed_amount_by_month.items():
+        response = client.get(
+            f"/api/{provider}/statistics/transactions",
+            params={**params, "limit": 100, "month": month},
+        )
+        assert amounts == row_amounts(response.json()["items"])
     item = pages[0].json()["items"][0]
     assert item["source_account"]["name"] == "Bank"
     assert item["destination_account"]["name"] == "Shop"
-    assert item["currency_code"] == "PLN"
+    assert item["currency_code"] == ("EUR" if mixed_currencies else "PLN")
     assert pages[0].json()["firefly_url"] == "https://firefly.example"
 
 

@@ -1,16 +1,19 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from decimal import Decimal
 
 from services.domain.metrics import (
     AllegroMetrics,
     BlikStatisticsMetrics,
+    ProviderAmountMetrics,
     TXStatisticsMetrics,
 )
-from services.domain.transaction import TxTag
+from services.domain.transaction import Transaction, TxTag
 from services.firefly_base_service import filter_by_description, filter_out_categorized
 from services.snapshot.models import TransactionSnapshot
 from services.snapshot.selection import (
     allegro_candidates,
+    processed_blik,
     unprocessed_allegro,
     unprocessed_blik,
 )
@@ -20,6 +23,34 @@ from services.tx_stats.helpers import (
     group_tx_by_month,
     sum_tx_amounts,
 )
+
+
+def provider_amount_metrics(
+    processed: list[Transaction], not_processed: list[Transaction]
+) -> ProviderAmountMetrics:
+    """Gross bank amounts, once per transaction, separately for each currency.
+
+    Signs (including refunds) follow categorization metrics: absolute values.
+    Coverage is undefined for zero volume. No Allegro order amounts are used.
+    """
+    processed_amount = sum_tx_amounts(processed)
+    not_processed_amount = sum_tx_amounts(not_processed)
+    currencies = sorted(processed_amount.keys() | not_processed_amount.keys())
+    processed_amount = {c: processed_amount.get(c, Decimal(0)) for c in currencies}
+    not_processed_amount = {
+        c: not_processed_amount.get(c, Decimal(0)) for c in currencies
+    }
+    eligible = {c: processed_amount[c] + not_processed_amount[c] for c in currencies}
+    return ProviderAmountMetrics(
+        eligible_amount=eligible,
+        processed_amount=processed_amount,
+        not_processed_amount=not_processed_amount,
+        processing_coverage={
+            c: processed_amount[c] / eligible[c] * 100 if eligible[c] else None
+            for c in currencies
+        },
+        not_processed_amount_by_month=group_tx_amounts_by_month(not_processed),
+    )
 
 
 class SnapshotMetricsService[T](ABC):
@@ -63,6 +94,14 @@ class SnapshotAllegroMetricsService(SnapshotMetricsService[AllegroMetrics]):
         return AllegroMetrics(
             total_transactions=snapshot.metrics.total_transactions,
             fetching_duration_ms=snapshot.metrics.fetching_duration_ms,
+            amount_metrics=provider_amount_metrics(
+                [
+                    tx
+                    for tx in filtered_by_desc_partial
+                    if TxTag.allegro_done in tx.tags
+                ],
+                not_processed,
+            ),
             allegro_transactions=len(filtered_by_desc_partial),
             not_processed_allegro_transactions=len(not_processed),
             not_processed_by_month=not_processed_by_month,
@@ -89,6 +128,9 @@ class SnapshotBlikMetricsService(SnapshotMetricsService[BlikStatisticsMetrics]):
         return BlikStatisticsMetrics(
             total_transactions=snapshot.metrics.total_transactions,
             single_part_transactions=len(snapshot.transactions),
+            amount_metrics=provider_amount_metrics(
+                processed_blik(snapshot.transactions), not_processed
+            ),
             uncategorized_transactions=len(uncategorized),
             filtered_by_description_exact=len(not_processed),
             not_processed_transactions=len(not_processed),

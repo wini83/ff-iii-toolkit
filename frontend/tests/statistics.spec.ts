@@ -18,6 +18,17 @@ async function setup(page: Page, result: object | null, theme = 'wireframe') {
         });
       if (path.endsWith('/vault/status'))
         return route.fulfill({ json: { configured: true, unlocked: false, expires_at: null } });
+      if (path.endsWith('/statistics/transactions'))
+        return route.fulfill({
+          json: {
+            items: [],
+            total: 0,
+            limit: 50,
+            offset: 0,
+            snapshot_timestamp: '2026-11-17T10:00:00Z',
+            firefly_url: null
+          }
+        });
       if (path.includes('/statistics'))
         return route.fulfill({
           json: {
@@ -132,7 +143,9 @@ test('refresh removes unavailable currency and clears stale values on failure', 
 });
 
 for (const provider of ['allegro', 'blik']) {
-  test(`${provider} keeps count metrics and the drill-down action`, async ({ page }, testInfo) => {
+  test(`${provider} keeps count metrics and explains legacy amount snapshots`, async ({
+    page
+  }, testInfo) => {
     await setup(
       page,
       {
@@ -152,7 +165,11 @@ for (const provider of ['allegro', 'blik']) {
     await page.goto(`/${provider}/stats`);
     await expect(page.getByRole('button', { name: 'Show unprocessed transactions' })).toBeVisible();
     await expect(page.locator('canvas')).toHaveText('2026-11: 5');
-    await expect(page.getByRole('button', { name: 'Amount', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Amount', exact: true }).click();
+    await expect(
+      page.getByText('Amount statistics are unavailable for this snapshot.', { exact: false })
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Count', exact: true }).click();
     await page.screenshot({
       path: testInfo.outputPath(`${provider}-statistics.png`),
       fullPage: true,
@@ -170,3 +187,76 @@ test('pending statistics are polled until the toolbar becomes usable', async ({ 
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
 });
+
+const providerAmounts = {
+  eligible_amount: { PLN: '100.30', EUR: '0.00' },
+  processed_amount: { PLN: '100.10', EUR: '0.00' },
+  not_processed_amount: { PLN: '0.20', EUR: '0.00' },
+  processing_coverage: { PLN: '99.80059820538384845463609172', EUR: null },
+  not_processed_amount_by_month: {
+    '2026-10': { PLN: '0.20' },
+    '2026-11': { EUR: '0.00' }
+  }
+};
+
+for (const provider of ['allegro', 'blik']) {
+  for (const theme of ['wireframe', 'black']) {
+    test(`${provider} amount coverage and currencies in ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 900 });
+      const state = await setup(
+        page,
+        {
+          total_transactions: 30,
+          single_part_transactions: 30,
+          uncategorized_transactions: 4,
+          allegro_transactions: 20,
+          not_processed__allegro_transactions: 2,
+          not_processed_transactions: 2,
+          filtered_by_description_exact: 2,
+          not_processed_by_month: { '2026-10': 1, '2026-11': 1 },
+          amount_metrics: providerAmounts,
+          time_stamp: '2026-11-17T10:00:00Z',
+          fetch_seconds: 0.1
+        },
+        theme
+      );
+      await page.goto(`/${provider}/stats`);
+      await expect(
+        page.getByRole('button', { name: 'Show unprocessed transactions' })
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Amount', exact: true }).click();
+      await expect(
+        page.getByRole('region', { name: 'Eligible amount', exact: true })
+      ).toContainText('100,30');
+      await expect(
+        page.getByRole('region', { name: 'Processed amount', exact: true })
+      ).toContainText('100,10');
+      await expect(
+        page.getByRole('region', { name: 'Not processed amount', exact: true })
+      ).toContainText('0,20');
+      const coverage = page.getByRole('region', { name: 'Amount processing coverage' });
+      await expect(coverage).toContainText('99,8%');
+      await expect(coverage).toContainText('n/a');
+      const chart = page.locator('canvas');
+      await expect(chart).toHaveAttribute('aria-label', 'Not processed amount by month in PLN');
+      await expect(chart).toHaveText('2026-10: 0.2; 2026-11: no data');
+      await page.getByLabel('Chart currency', { exact: true }).selectOption('EUR');
+      await expect(chart).toHaveText('2026-10: no data; 2026-11: 0');
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+      ).toBe(true);
+      await page.getByRole('button', { name: 'Show unprocessed transactions' }).click();
+      await expect(page.getByRole('heading', { name: 'Unprocessed transactions' })).toBeVisible();
+      await page.getByRole('button', { name: 'Count', exact: true }).click();
+      await expect(chart).toHaveText('2026-10: 1; 2026-11: 1');
+      state.failed = true;
+      await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+      await expect(page.getByRole('region', { name: 'Eligible amount', exact: true })).toHaveCount(
+        0
+      );
+      await expect(
+        page.getByRole('alert').filter({ hasText: 'Synthetic metrics failure' })
+      ).toBeVisible();
+    });
+  }
+}

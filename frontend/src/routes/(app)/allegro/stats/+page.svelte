@@ -11,6 +11,7 @@
   import { onMount } from 'svelte';
 
   import { allegro } from '#lib/api/allegro.js';
+  import ProviderAmounts from '#lib/components/metrics/ProviderAmounts.svelte';
   import MetricCard from '#lib/components/metrics/MetricCard.svelte';
   import MetricsToolbar from '#lib/components/metrics/MetricsToolbar.svelte';
   import MonthlyChart from '#lib/components/metrics/MonthlyChart.svelte';
@@ -25,6 +26,11 @@
 
   let statusData: AllegroMetricsStatusResponse | null = null;
   let data: AllegroMetricsResultResponse | null = null;
+  let metricMode: 'count' | 'amount' = 'count';
+  let chartCurrency = '';
+  $: currencies = Object.keys(data?.amount_metrics?.eligible_amount ?? {}).sort();
+  $: if (!currencies.includes(chartCurrency))
+    chartCurrency = currencies.includes('PLN') ? 'PLN' : (currencies[0] ?? '');
   let loading = true;
   let networkError: string | null = null;
 
@@ -201,6 +207,12 @@
     timestamp={data?.time_stamp}
     fetchSeconds={data?.fetch_seconds}
     busy={loading || isBusy(statusData?.status)}
+    allowAmounts
+    mode={metricMode}
+    {currencies}
+    currency={chartCurrency}
+    onMode={(mode) => (metricMode = mode)}
+    onCurrency={(currency) => (chartCurrency = currency)}
     onRefresh={() => loadStats(true)}
   />
   {#if networkError}<div class="alert alert-error" role="alert">{networkError}</div>{/if}
@@ -213,21 +225,30 @@
       {#each [1, 2, 3, 4] as index (index)}<div class="skeleton h-28"></div>{/each}
     </div>
   {:else if data}
-    <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard label="Total transactions" count={data.total_transactions} />
-      <MetricCard label="Allegro transactions" count={data.allegro_transactions} />
-      <MetricCard
-        label="Not processed Allegro"
-        count={data.not_processed__allegro_transactions}
-        note={`Coverage: ${data.allegro_transactions > 0 ? `${Math.round(((data.allegro_transactions - data.not_processed__allegro_transactions) / data.allegro_transactions) * 100)}%` : 'n/a'}`}
+    {#if metricMode === 'amount'}
+      <ProviderAmounts
+        data={data.amount_metrics}
+        currency={chartCurrency}
+        title="Not processed amount by month"
+        onMonth={showMonth}
       />
-    </div>
-    <MonthlyChart
-      title="Not processed Allegro by month"
-      labels={notProcessed.labels}
-      values={notProcessed.values}
-      onMonth={showMonth}
-    />
+    {:else}
+      <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Total transactions" count={data.total_transactions} />
+        <MetricCard label="Allegro transactions" count={data.allegro_transactions} />
+        <MetricCard
+          label="Not processed Allegro"
+          count={data.not_processed__allegro_transactions}
+          note={`Coverage: ${data.allegro_transactions > 0 ? `${Math.round(((data.allegro_transactions - data.not_processed__allegro_transactions) / data.allegro_transactions) * 100)}%` : 'n/a'}`}
+        />
+      </div>
+      <MonthlyChart
+        title="Not processed Allegro by month"
+        labels={notProcessed.labels}
+        values={notProcessed.values}
+        onMonth={showMonth}
+      />
+    {/if}
   {:else if !networkError}
     <p class="border-base-300 rounded-sm border p-4 text-sm">
       No statistics data yet. Use Refresh to generate a snapshot.
