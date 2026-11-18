@@ -1015,6 +1015,7 @@ export interface components {
       time_stamp: string;
       /** Fetch Seconds */
       fetch_seconds: number;
+      amount_metrics?: components['schemas']['ProviderAmountMetricsResponse'] | null;
     };
     /** AllegroMetricsStatusResponse */
     AllegroMetricsStatusResponse: {
@@ -1111,6 +1112,7 @@ export interface components {
       time_stamp: string;
       /** Fetch Seconds */
       fetch_seconds: number;
+      amount_metrics?: components['schemas']['ProviderAmountMetricsResponse'] | null;
     };
     /** BlikMetricsStatusResponse */
     BlikMetricsStatusResponse: {
@@ -1322,6 +1324,31 @@ export interface components {
       snapshot_timestamp: string;
       /** Firefly Url */
       firefly_url: string | null;
+    };
+    /** ProviderAmountMetricsResponse */
+    ProviderAmountMetricsResponse: {
+      /** Eligible Amount */
+      eligible_amount: {
+        [key: string]: string;
+      };
+      /** Processed Amount */
+      processed_amount: {
+        [key: string]: string;
+      };
+      /** Not Processed Amount */
+      not_processed_amount: {
+        [key: string]: string;
+      };
+      /** Processing Coverage */
+      processing_coverage: {
+        [key: string]: string | null;
+      };
+      /** Not Processed Amount By Month */
+      not_processed_amount_by_month: {
+        [key: string]: {
+          [key: string]: string;
+        };
+      };
     };
     /** ScreeningMonthResponse */
     ScreeningMonthResponse: {

@@ -350,3 +350,30 @@ Image tags from `build.yml` metadata:
 
 ## License
 MIT. See [LICENSE](LICENSE).
+
+### Allegro and BLIK amount statistics
+
+Provider statistics expose `amount_metrics` alongside the existing counts. The UI
+switches between Count and Amount, keeping the unprocessed transaction details
+available in both modes. The monthly chart can display one currency at a time.
+
+- Amounts are **gross absolute bank transaction amounts**, matching categorization
+  statistics. Positive and negative amounts (including refunds) contribute their
+  absolute value; these metrics describe processing volume, not net cash flow.
+- Allegro eligibility uses the existing description filter. The `allegro_done`
+  tag partitions that same set into processed and unprocessed transactions.
+- BLIK unprocessed eligibility remains the existing uncategorized, exact-description
+  selection without `blik_done`. Processed BLIK transactions are identified by
+  `blik_done`, even after their description changes or a category is assigned.
+  The eligible BLIK amount is the union of these disjoint sets; categorized,
+  untagged transactions are excluded, matching the unprocessed table.
+- Each bank transaction contributes once. Matched Allegro orders/payments never
+  add amounts to the bank transaction's value.
+- Decimal arithmetic is used throughout aggregation and values serialize as decimal
+  strings. Currencies stay separate. Per currency, processed + unprocessed = eligible;
+  coverage is processed / eligible × 100, or `null` (shown as `n/a`) for zero volume.
+- Monthly unprocessed amounts and counts use the same selection as the transaction
+  table. Table amounts retain their original signs; sum their absolute values to
+  reconcile the chart. Chart currency selection does not filter the details table.
+- Older persisted metrics have `amount_metrics: null` until refreshed. The UI asks
+  for Refresh instead of displaying made-up zero amounts.

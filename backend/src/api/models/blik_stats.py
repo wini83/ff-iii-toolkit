@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from api.models.job_base import JobStatus
+from api.models.provider_metrics import ProviderAmountMetricsResponse
 
 
 class BlikMetricsResultResponse(BaseModel):
@@ -15,6 +16,7 @@ class BlikMetricsResultResponse(BaseModel):
     not_processed_by_month: dict[str, int]
     time_stamp: datetime
     fetch_seconds: float
+    amount_metrics: ProviderAmountMetricsResponse | None = None
 
 
 class BlikMetricsStatusResponse(BaseModel):
