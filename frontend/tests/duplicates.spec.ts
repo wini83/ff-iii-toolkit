@@ -7,6 +7,7 @@ async function setup(page: Page, empty = false) {
     .addCookies([{ name: 'access_token', value: token, url: 'http://127.0.0.1:4173' }]);
   const queries: URLSearchParams[] = [];
   const errors: string[] = [];
+  const refreshes: string[] = [];
   let changed = false;
   let fail = false;
   let stamp = '2026-11-18T10:00:00Z';
@@ -23,7 +24,11 @@ async function setup(page: Page, empty = false) {
         });
       if (path.endsWith('/vault/status'))
         return route.fulfill({ json: { configured: true, unlocked: true, expires_at: null } });
-      if (path.endsWith('/duplicates/options'))
+      if (path.endsWith('/duplicates/options/refresh')) {
+        refreshes.push(route.request().method());
+        stamp = '2026-11-18T12:00:00Z';
+      }
+      if (path.endsWith('/duplicates/options') || path.endsWith('/duplicates/options/refresh'))
         return route.fulfill({
           json: {
             accounts: empty
@@ -93,6 +98,7 @@ async function setup(page: Page, empty = false) {
   return {
     queries,
     errors,
+    refreshes,
     change: () => {
       changed = true;
     },
@@ -184,4 +190,21 @@ test('empty snapshot does not allow a search', async ({ page }) => {
   await expect(page.getByText('No asset accounts in the transaction snapshot.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Find candidates' })).toBeDisabled();
   expect(mock.queries).toHaveLength(0);
+});
+
+test('reload forces a refresh and searches with the replacement snapshot', async ({ page }) => {
+  const mock = await setup(page);
+  await page.goto('/tx/duplicates');
+  await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
+  await page.getByRole('button', { name: 'Find candidates' }).click();
+  await expect(page.getByRole('heading', { name: 'Candidate pairs: 26' })).toBeVisible();
+  expect(mock.refreshes).toEqual([]);
+  await page.getByRole('button', { name: 'Reload transactions', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Duplicate candidates' })).toHaveCount(0);
+  await expect(page.getByText('Snapshot: 2026-11-18T12:00:00Z.', { exact: false })).toBeVisible();
+  expect(mock.refreshes).toEqual(['POST']);
+  await page.getByRole('button', { name: 'Find candidates' }).click();
+  await expect(page.getByRole('heading', { name: 'Candidate pairs: 26' })).toBeVisible();
+  expect(mock.queries.at(-1)?.get('snapshot_timestamp')).toBe('2026-11-18T12:00:00Z');
+  expect(mock.errors).toEqual([]);
 });

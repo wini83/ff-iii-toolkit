@@ -24,6 +24,8 @@ Partially overlapping tag sets and empty vs nonempty tags qualify. Equal sets,
 including two empty sets, do not. Descriptions do not affect matching. Pairs are
 ordered by their newer date descending, then transaction IDs ascending, with
 pagination pinned to a snapshot; reload and search again if the snapshot changes.
+**Reload transactions** forces a new Firefly fetch even while the cached snapshot
+is still fresh. Opening the page uses the shared snapshot when available.
 Repeated legitimate payments remain review candidates. Links open the original
 transactions in Firefly; the toolkit does not modify them.
 

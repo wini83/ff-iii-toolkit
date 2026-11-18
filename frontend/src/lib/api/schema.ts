@@ -431,6 +431,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/tx/duplicates/options/refresh': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh Duplicate Options */
+    post: operations['refresh_duplicate_options_api_tx_duplicates_options_refresh_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/tx/duplicates': {
     parameters: {
       query?: never;
@@ -2887,6 +2904,37 @@ export interface operations {
     };
   };
   duplicate_options_api_tx_duplicates_options_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DuplicateOptions'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  refresh_duplicate_options_api_tx_duplicates_options_refresh_post: {
     parameters: {
       query?: never;
       header?: never;

@@ -1,3 +1,5 @@
+import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -10,6 +12,8 @@ from services.firefly_base_service import FireflyServiceError
 from services.guards import require_active_user
 from services.snapshot.coordination import SnapshotRefreshTimeout
 from services.snapshot.models import TransactionSnapshot
+from services.snapshot.service import TransactionSnapshotService
+from services.snapshot.store import InMemorySnapshotStore
 from tests.services.test_duplicate_detection import BANK, DAY, OTHER_BANK, tx
 
 STAMP = datetime(2026, 11, 18, tzinfo=UTC)
@@ -29,6 +33,7 @@ def duplicates_client(client):
     service = MagicMock()
     service.get_snapshot = AsyncMock(return_value=snapshot)
     service.get_cached_snapshot = AsyncMock(return_value=snapshot)
+    service.refresh_snapshot = AsyncMock(return_value=snapshot)
     client.app.dependency_overrides[require_active_user] = lambda: "user"
     client.app.dependency_overrides[get_transaction_snapshot_service] = lambda: service
     yield client, service
@@ -108,14 +113,98 @@ def test_unknown_account_has_no_candidates(duplicates_client):
 
 @pytest.mark.parametrize(
     "error,status",
-    [(FireflyServiceError("failed"), 502), (SnapshotRefreshTimeout("timeout"), 504)],
+    [
+        (FireflyServiceError("failed"), 502),
+        (SnapshotRefreshTimeout("timeout"), 504),
+        (TimeoutError("timeout"), 504),
+    ],
 )
-def test_options_fetch_failure(duplicates_client, error, status):
+@pytest.mark.parametrize("refresh", [False, True])
+def test_options_fetch_failure(duplicates_client, error, status, refresh):
     client, service = duplicates_client
-    service.get_snapshot.side_effect = error
-    assert client.get("/api/tx/duplicates/options").status_code == status
+    if refresh:
+        service.refresh_snapshot.side_effect = error
+        response = client.post("/api/tx/duplicates/options/refresh")
+    else:
+        service.get_snapshot.side_effect = error
+        response = client.get("/api/tx/duplicates/options")
+    assert response.status_code == status
 
 
 @pytest.mark.parametrize("path", ["/api/tx/duplicates/options", "/api/tx/duplicates"])
 def test_auth_required(client, path):
     assert client.get(path, params=query()).status_code == 401
+
+
+def test_refresh_requires_authentication(client):
+    assert client.post("/api/tx/duplicates/options/refresh").status_code == 401
+
+
+def test_explicit_refresh_replaces_fresh_cached_candidates(duplicates_client):
+    client, mock_service = duplicates_client
+    cached = replace(
+        mock_service.get_snapshot.return_value, fetched_at=datetime.now(UTC)
+    )
+    store = InMemorySnapshotStore()
+    asyncio.run(store.set_snapshot(cached))
+    firefly = MagicMock()
+    # A user corrected the tags in Firefly: these pairs no longer qualify.
+    firefly.fetch_transactions_with_metrics = AsyncMock(
+        return_value=(
+            [replace(tx, tags={"corrected"}) for tx in cached.transactions],
+            cached.metrics,
+        )
+    )
+    service = TransactionSnapshotService(store, firefly, max_age_seconds=300)
+    client.app.dependency_overrides[get_transaction_snapshot_service] = lambda: service
+    initial = client.get("/api/tx/duplicates/options")
+    assert initial.status_code == 200
+    old_stamp = initial.json()["snapshot_timestamp"]
+    firefly.fetch_transactions_with_metrics.assert_not_awaited()
+    assert (
+        client.get(
+            "/api/tx/duplicates", params=query(snapshot_timestamp=old_stamp)
+        ).json()["total"]
+        == 3
+    )
+
+    refreshed = client.post("/api/tx/duplicates/options/refresh")
+    assert refreshed.status_code == 200
+    new_stamp = refreshed.json()["snapshot_timestamp"]
+    assert new_stamp != old_stamp
+    firefly.fetch_transactions_with_metrics.assert_awaited_once()
+    assert (
+        client.get(
+            "/api/tx/duplicates", params=query(snapshot_timestamp=old_stamp)
+        ).status_code
+        == 409
+    )
+    assert (
+        client.get(
+            "/api/tx/duplicates", params=query(snapshot_timestamp=new_stamp)
+        ).json()["total"]
+        == 0
+    )
+
+
+@pytest.mark.parametrize("refresh", [False, True])
+def test_in_memory_fetch_timeout_returns_504(client, monkeypatch, refresh):
+    monkeypatch.setattr(
+        "services.snapshot.service.SNAPSHOT_FETCH_TIMEOUT_SECONDS", 0.001
+    )
+
+    async def never_completes():
+        await asyncio.Event().wait()
+
+    firefly = MagicMock()
+    firefly.fetch_transactions_with_metrics = never_completes
+    service = TransactionSnapshotService(InMemorySnapshotStore(), firefly)
+    client.app.dependency_overrides[require_active_user] = lambda: "user"
+    client.app.dependency_overrides[get_transaction_snapshot_service] = lambda: service
+    response = (
+        client.post("/api/tx/duplicates/options/refresh")
+        if refresh
+        else client.get("/api/tx/duplicates/options")
+    )
+    assert response.status_code == 504
+    assert response.json()["detail"] == "Transaction snapshot refresh timed out"

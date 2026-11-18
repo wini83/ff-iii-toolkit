@@ -21,6 +21,15 @@ export async function getDuplicateOptions(): Promise<DuplicateOptions> {
   return data;
 }
 
+export async function refreshDuplicateOptions(): Promise<DuplicateOptions> {
+  const { data, error, response } = await apiRequest((api, headers) =>
+    api.POST('/api/tx/duplicates/options/refresh', { headers })
+  );
+  if (!response.ok || error || !data)
+    throw normalizeApiError(error, 'Failed to refresh transactions', response.status);
+  return data;
+}
+
 export async function getDuplicateResults(
   query: DuplicateQuery,
   offset = 0

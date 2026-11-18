@@ -32,11 +32,28 @@ SnapshotService = Annotated[
 
 @router.get("/options", response_model=DuplicateOptions)
 async def duplicate_options(snapshot_service: SnapshotService) -> DuplicateOptions:
+    return await _load_options(snapshot_service, refresh=False)
+
+
+@router.post("/options/refresh", response_model=DuplicateOptions)
+async def refresh_duplicate_options(
+    snapshot_service: SnapshotService,
+) -> DuplicateOptions:
+    return await _load_options(snapshot_service, refresh=True)
+
+
+async def _load_options(
+    snapshot_service: TransactionSnapshotService, *, refresh: bool
+) -> DuplicateOptions:
     try:
-        snapshot = await snapshot_service.get_snapshot()
+        snapshot = (
+            await snapshot_service.refresh_snapshot()
+            if refresh
+            else await snapshot_service.get_snapshot()
+        )
     except FireflyServiceError as exc:
         raise HTTPException(502, "Failed to fetch Firefly transactions") from exc
-    except SnapshotRefreshTimeout as exc:
+    except (SnapshotRefreshTimeout, TimeoutError) as exc:
         raise HTTPException(504, "Transaction snapshot refresh timed out") from exc
     accounts = {}
     dates = []

@@ -4,6 +4,7 @@
   import { ApiError } from '#lib/api/errors.js';
   import {
     getDuplicateOptions,
+    refreshDuplicateOptions,
     getDuplicateResults,
     type DuplicateOptions,
     type DuplicateResults,
@@ -29,7 +30,7 @@
     requestId += 1;
   });
 
-  async function loadOptions() {
+  async function loadOptions(forceRefresh = false) {
     const id = ++requestId;
     busy = true;
     error = null;
@@ -37,7 +38,7 @@
     result = null;
     submitted = null;
     try {
-      const next = await getDuplicateOptions();
+      const next = await (forceRefresh ? refreshDuplicateOptions() : getDuplicateOptions());
       if (id !== requestId) return;
       options = next;
       if (!next.accounts.some((account) => String(account.id) === accountId)) accountId = '';
@@ -107,7 +108,7 @@
       >Compare transactions on one account with exactly the same amount and currency, different tag
       sets and nearby dates.</span
     >
-    <button slot="actions" class="btn btn-sm" disabled={busy} on:click={loadOptions}
+    <button slot="actions" class="btn btn-sm" disabled={busy} on:click={() => loadOptions(true)}
       >Reload transactions</button
     >
   </WorkflowHeader>
@@ -188,7 +189,8 @@
       <button
         class="btn btn-sm"
         disabled={busy}
-        on:click={() => (changed || !submitted ? loadOptions() : search())}
+        on:click={() =>
+          changed || !submitted ? loadOptions(!changed && options !== null) : search()}
         >{changed || !submitted ? 'Reload transactions and filters' : 'Retry search'}</button
       >
     </div>
