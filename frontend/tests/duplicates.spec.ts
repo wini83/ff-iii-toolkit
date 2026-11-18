@@ -109,10 +109,10 @@ test('search filters, pair details, pinned pagination, stale snapshot and retry'
   await page.goto('/tx/duplicates');
   await expect(page.getByRole('heading', { name: 'Potential duplicates' })).toBeVisible();
   await expect(page.getByLabel('Date tolerance (days)')).toHaveValue('2');
-  await expect(page.getByLabel('Account', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: 'Account', exact: true })).toHaveValue('');
   await expect(page.getByText('Split groups excluded: 3.', { exact: false })).toBeVisible();
   expect(mock.queries).toHaveLength(0);
-  await page.getByLabel('Account', { exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
   await page.getByRole('button', { name: 'Find candidates' }).click();
   const results = page.getByRole('region', { name: 'Duplicate candidates' });
   await expect(results.getByRole('heading', { name: 'Candidate pairs: 26' })).toBeVisible();
@@ -127,7 +127,7 @@ test('search filters, pair details, pinned pagination, stale snapshot and retry'
   expect(mock.queries[0].get('date_from')).toBe('2026-01-01');
   // Editing form controls does not change the submitted search during pagination.
   await page.getByLabel('Date tolerance (days)').fill('0');
-  await page.getByLabel('Account', { exact: true }).selectOption('2');
+  await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('2');
   await results.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(results.getByText('Bank payment 51', { exact: true })).toBeVisible();
   expect(mock.queries.at(-1)?.get('offset')).toBe('25');
@@ -148,7 +148,7 @@ test('search filters, pair details, pinned pagination, stale snapshot and retry'
   await page.getByRole('button', { name: 'Retry search' }).click();
   await expect(page.getByText('No potential duplicates for these filters.')).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('Account', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: 'Account', exact: true })).toHaveValue('');
   await expect(page.getByLabel('Date tolerance (days)')).toHaveValue('2');
   expect(mock.errors).toEqual([]);
 });
@@ -159,7 +159,7 @@ test('mobile results remain inside viewport and work in both themes', async ({
   const mock = await setup(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/tx/duplicates');
-  await page.getByLabel('Account', { exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
   await page.getByLabel('Date from').fill('2026-11-01');
   await page.getByLabel('Date to').fill('2026-11-18');
   await page.getByRole('button', { name: 'Find candidates' }).click();
