@@ -9,7 +9,8 @@ export default defineConfig({
     'shell.spec.ts',
     'screening.spec.ts',
     'overview.spec.ts',
-    'statistics.spec.ts'
+    'statistics.spec.ts',
+    'workflows.spec.ts'
   ],
   workers: 1,
   use: {

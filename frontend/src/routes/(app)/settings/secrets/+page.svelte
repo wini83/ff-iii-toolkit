@@ -396,8 +396,8 @@
   });
 </script>
 
-<div class="card bg-base-100 w-full shadow-xl">
-  <div class="card-body gap-5">
+<div class="card bg-base-100 w-full">
+  <div class="card-body gap-4 p-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="text-2xl font-semibold">User Secrets</h1>
@@ -432,7 +432,7 @@
     <div class="divider my-0"></div>
 
     {#if pageError}
-      <div class="alert alert-error">
+      <div class="alert alert-error" role="alert">
         <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
         <span>{pageError}</span>
       </div>
@@ -445,13 +445,13 @@
         <div class="skeleton h-16 w-full"></div>
       </div>
     {:else if vaultView === 'setup'}
-      <section class="bg-base-200/60 rounded-2xl p-6">
+      <section class="bg-base-200/60 rounded-sm p-4">
         <div class="flex items-start gap-4">
-          <div class="bg-primary/10 text-primary rounded-2xl p-3">
+          <div class="bg-base-200 text-primary rounded-sm p-3">
             <Icon src={icons.ShieldCheck} class="h-7 w-7" />
           </div>
 
-          <div class="flex-1 space-y-4">
+          <div class="min-w-0 flex-1 space-y-4">
             <div>
               <h2 class="text-xl font-semibold">Configure vault</h2>
               <p class="text-base-content/70 mt-1 text-sm">
@@ -471,7 +471,7 @@
             </fieldset>
 
             {#if setupError}
-              <div class="alert alert-error">
+              <div class="alert alert-error" role="alert">
                 <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
                 <span>{setupError}</span>
               </div>
@@ -491,13 +491,13 @@
         </div>
       </section>
     {:else if vaultView === 'unlock'}
-      <section class="bg-base-200/60 rounded-2xl p-6">
+      <section class="bg-base-200/60 rounded-sm p-4">
         <div class="flex items-start gap-4">
-          <div class="bg-warning/10 text-warning rounded-2xl p-3">
+          <div class="bg-base-200 text-warning rounded-sm p-3">
             <Icon src={icons.LockClosed} class="h-7 w-7" />
           </div>
 
-          <div class="flex-1 space-y-4">
+          <div class="min-w-0 flex-1 space-y-4">
             <div>
               <h2 class="text-xl font-semibold">Unlock vault</h2>
               <p class="text-base-content/70 mt-1 text-sm">
@@ -517,7 +517,7 @@
             </fieldset>
 
             {#if unlockError}
-              <div class="alert alert-error">
+              <div class="alert alert-error" role="alert">
                 <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
                 <span>{unlockError}</span>
               </div>
@@ -537,7 +537,7 @@
         </div>
       </section>
     {:else}
-      <section class="bg-base-200/60 rounded-2xl p-5">
+      <section class="bg-base-200/60 rounded-sm p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="text-xl font-semibold">Stored secrets</h2>
@@ -629,7 +629,7 @@
 
           <div class="grid grid-cols-1 gap-3 lg:hidden">
             {#each secrets as secret (secret.id)}
-              <div class="card bg-base-100 shadow">
+              <div class="card bg-base-100">
                 <div class="card-body p-4">
                   <div class="flex items-start justify-between gap-3">
                     <div>
@@ -861,7 +861,7 @@
         >Cancel</button
       >
       <button
-        class="btn btn-primary"
+        class="btn btn-error"
         disabled={deleteSubmitting || !pendingDelete}
         on:click={submitDeleteSecret}
       >

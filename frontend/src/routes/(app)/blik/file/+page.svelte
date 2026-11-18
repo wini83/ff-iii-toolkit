@@ -21,15 +21,15 @@
   ]}
 />
 
-<div class="card bg-base-100 mt-2 w-full p-6 shadow-xl">
-  <div class="inline-block text-xl font-semibold">File Preview</div>
+<div class="card bg-base-100 mt-2 w-full min-w-0 p-4">
+  <h2 class="text-lg font-semibold">File Preview</h2>
 
   <div class="divider mt-2"></div>
 
-  <fieldset class="fieldset border-base-300 rounded-box w-xs border p-4">
+  <fieldset class="fieldset border-base-300 rounded-box w-full max-w-md min-w-0 border p-4">
     <legend class="fieldset-legend">Open file</legend>
-    <div class="join">
-      <label class="input">
+    <div class="join w-full min-w-0">
+      <label class="input min-w-0 flex-1">
         <span class="label">ID:</span>
         <input type="text" bind:value={fileId} placeholder="Enter ID" />
       </label>

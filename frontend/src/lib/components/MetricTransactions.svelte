@@ -72,8 +72,8 @@
   }
 </script>
 
-<section class="card bg-base-100 mt-6 shadow-xl" aria-label="Unprocessed transactions">
-  <div class="card-body">
+<section class="card bg-base-100 mt-6" aria-label="Unprocessed transactions">
+  <div class="card-body p-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h3 class="text-xl font-semibold">
         Unprocessed transactions {month ? `— ${month}` : '— all months'}

@@ -52,26 +52,21 @@
 
 <!-- TABLE -->
 
-<div class="card bg-base-100 mt-2 w-full p-6 shadow-xl">
-  <div class="inline-block text-xl font-semibold">
-    Transactions in file {file_id}
-    <span class="badge badge-info">{size} records</span>
-    <div class="float-right inline-block">
-      <div class="float-right inline-block">
-        <div class="mr-4 inline-block">
-          <div class="input-group relative flex w-full flex-wrap items-stretch">
-            <input
-              type="search"
-              placeholder="Search"
-              class="input input-sm input-bordered w-full max-w-xs"
-              value=""
-            />
-          </div>
-        </div>
-        <button class="btn btn-sm btn-primary" on:click={goToMatch}
-          >Match Transactions ({content.length})</button
-        >
-      </div>
+<div class="card bg-base-100 mt-2 w-full min-w-0 p-4">
+  <div class="flex min-w-0 flex-wrap items-center justify-between gap-3">
+    <h2 class="min-w-0 text-lg font-semibold [overflow-wrap:anywhere]">
+      Transactions in file {file_id} <span class="badge badge-info">{size} records</span>
+    </h2>
+    <div class="flex max-w-full flex-wrap items-center gap-2">
+      <input
+        type="search"
+        placeholder="Search"
+        class="input input-sm input-bordered w-full max-w-xs"
+        value=""
+      />
+      <button class="btn btn-sm btn-primary" on:click={goToMatch}
+        >Match Transactions ({content.length})</button
+      >
     </div>
   </div>
 
@@ -83,9 +78,7 @@
       <span>{error}</span>
     </div>
   {:else if content.length === 0}
-    <div class="rounded border border-yellow-200 bg-yellow-50 p-6 text-yellow-800">
-      Brak rekordów w przesłanym pliku.
-    </div>
+    <div class="alert alert-warning">Brak rekordów w przesłanym pliku.</div>
   {:else}
     <div class="bg-base-100 h-full w-full pb-6">
       <div class="w-full overflow-x-auto">
