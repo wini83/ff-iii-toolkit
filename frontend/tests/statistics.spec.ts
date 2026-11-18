@@ -221,6 +221,9 @@ for (const provider of ['allegro', 'blik']) {
         theme
       );
       await page.goto(`/${provider}/stats`);
+      await expect(
+        page.getByRole('button', { name: 'Show unprocessed transactions' })
+      ).toBeVisible();
       await page.getByRole('button', { name: 'Amount', exact: true }).click();
       await expect(
         page.getByRole('region', { name: 'Eligible amount', exact: true })
