@@ -6,6 +6,25 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.6.0 (2026-11-19)
+
+### Feat
+
+- **tx**: add account-scoped duplicate candidate search (#151)
+- **metrics**: add Allegro and BLIK amount statistics (#150)
+- **ui**: replace workspace landing page with compact task overview (#147)
+- **ui**: streamline transaction screening work view (#146)
+- **ui**: compact application shell and navigation (#145)
+- **ui**: introduce compact wireframe and black themes (#143)
+
+### Fix
+
+- **ui**: make statistics readable across currencies and themes (#148)
+
+### Refactor
+
+- **ui**: apply compact styling to remaining workflows (#149)
+
 ## v3.5.0 (2026-11-17)
 
 ### Feat
