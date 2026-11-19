@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
@@ -8,6 +8,7 @@
   import * as icons from '@steeze-ui/heroicons';
 
   import AppSidebar from '#lib/components/AppSidebar.svelte';
+  import { getVersion } from '#lib/api/system.js';
   import { getMe } from '#lib/api/me.js';
   import { userSecrets } from '#lib/api/user_secrets.js';
   import type { components } from '#lib/api/schema.js';
@@ -21,13 +22,18 @@
   const THEME_STORAGE_KEY = 'ff-toolkit-theme';
   // prosty state dla drawer
   let drawerOpen = false;
+  let navigationButton: HTMLButtonElement;
+  let appVersion: string | null = null;
+  let vaultMenu: HTMLDivElement;
+  let vaultOpen = false;
   let meUser: MeUser | null = null;
   let dynamicTitle = resolveRouteTitle(page.url.pathname);
   let headTitle =
     dynamicTitle === DEFAULT_APP_TITLE
       ? DEFAULT_APP_TITLE
       : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
-  let theme: 'light' | 'dark' = 'light';
+  let theme: 'wireframe' | 'black' = 'wireframe';
+  let themeReady = false;
   let vaultStatus: VaultStatus | null = null;
   let vaultLoading = false;
   let vaultUnlocking = false;
@@ -72,14 +78,18 @@
         : `${dynamicTitle} — ${DEFAULT_APP_TITLE}`;
   });
 
-  function applyTheme(nextTheme: 'light' | 'dark') {
+  function applyTheme(nextTheme: 'wireframe' | 'black') {
     theme = nextTheme;
     document.documentElement.setAttribute('data-theme', nextTheme);
-    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // Keep the switch usable even when browser storage is unavailable.
+    }
   }
 
   function toggleTheme() {
-    applyTheme(theme === 'light' ? 'dark' : 'light');
+    applyTheme(theme === 'wireframe' ? 'black' : 'wireframe');
   }
 
   function emitToast(type: Toast['type'], msg: string) {
@@ -192,6 +202,7 @@
   }
 
   function openSecretsSettings() {
+    vaultOpen = false;
     void goto(resolve('settings/secrets'));
   }
 
@@ -204,8 +215,54 @@
     }
   }
 
-  function closeDrawerOnMobile() {
+  async function openDrawerOnMobile() {
+    drawerOpen = true;
+    await tick();
+    const drawer = document.querySelector('.drawer-side');
+    await Promise.allSettled(drawer?.getAnimations().map((animation) => animation.finished) ?? []);
+    if (drawerOpen) document.getElementById('close-navigation')?.focus();
+  }
+
+  async function closeDrawerOnMobile() {
+    if (!drawerOpen) return;
     drawerOpen = false;
+    await tick();
+    navigationButton?.focus();
+  }
+
+  function handleDrawerKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && vaultOpen) {
+      vaultOpen = false;
+      vaultMenu.querySelector('button')?.focus();
+    }
+    if (!drawerOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDrawerOnMobile();
+    }
+    if (event.key !== 'Tab') return;
+    const items = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '#app-navigation a, #app-navigation button, #app-navigation summary'
+      )
+    ).filter((item) => item.getClientRects().length > 0);
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  async function loadVersion() {
+    try {
+      appVersion = (await getVersion()).version;
+    } catch {
+      appVersion = null;
+    }
   }
 
   function isToastEventDetail(detail: unknown): detail is ToastEventDetail {
@@ -246,16 +303,11 @@
   }
 
   onMount(() => {
-    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    const preferredTheme =
-      storedTheme === 'light' || storedTheme === 'dark'
-        ? storedTheme
-        : window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light';
-
-    applyTheme(preferredTheme);
+    // app.html resolves the saved/system preference before the first paint.
+    theme = document.documentElement.dataset.theme === 'black' ? 'black' : 'wireframe';
+    themeReady = true;
     void loadCurrentUser();
+    void loadVersion();
     void refreshVaultStatus();
 
     const listener = (event: Event) => handleToastEvent(event);
@@ -288,42 +340,66 @@
   <title>{headTitle}</title>
 </svelte:head>
 
-<div
-  class="drawer from-base-200 via-base-200 to-primary/10 text-base-content lg:drawer-open min-h-screen overflow-x-hidden bg-gradient-to-br"
->
-  <input id="app-drawer" type="checkbox" class="drawer-toggle" bind:checked={drawerOpen} />
+<svelte:window
+  on:keydown={handleDrawerKeydown}
+  on:pointerdown={(event) => {
+    if (vaultOpen && event.target instanceof Node && !vaultMenu.contains(event.target))
+      vaultOpen = false;
+  }}
+  on:resize={() => {
+    if (window.innerWidth >= 1024 && drawerOpen) closeDrawerOnMobile();
+  }}
+/>
+
+<div class="drawer bg-base-200 text-base-content lg:drawer-open h-dvh overflow-x-hidden">
+  <input
+    id="app-drawer"
+    type="checkbox"
+    class="drawer-toggle"
+    tabindex="-1"
+    aria-hidden="true"
+    bind:checked={drawerOpen}
+  />
 
   <!-- CONTENT -->
-  <div class="drawer-content flex flex-col overflow-x-hidden">
+  <div
+    inert={drawerOpen}
+    class="drawer-content flex min-w-0 flex-col overflow-x-hidden overflow-y-auto"
+  >
     <!-- NAVBAR -->
-    <div
-      class="from-base-100/95 via-base-100/90 to-primary/8 border-base-300/70 sticky top-0 z-10 border-b bg-gradient-to-r shadow-[0_10px_30px_-20px_rgba(15,23,42,0.28)] backdrop-blur"
-    >
-      <div class="navbar min-h-0 px-4 py-3 sm:px-6">
-        <div class="flex flex-1 items-center gap-3">
-          <div class="flex-none lg:hidden">
-            <label for="app-drawer" class="btn btn-ghost drawer-button btn-sm px-2">
-              <Icon src={icons.Bars3} class="h-6 w-6" />
-            </label>
-          </div>
-
-          <div class="bg-primary/12 text-primary hidden rounded-2xl p-2.5 sm:inline-flex">
-            <Icon src={icons.Squares2x2} class="h-5 w-5" />
-          </div>
-
-          <div class="min-w-0">
-            <div class="text-base-content/55 text-[11px] font-medium tracking-[0.22em] uppercase">
-              Workspace
-            </div>
-            <h1 class="truncate text-lg font-semibold sm:text-2xl">{dynamicTitle}</h1>
-          </div>
+    <div class="bg-base-100 border-base-300 sticky top-0 z-10 border-b">
+      <div class="navbar h-14 min-h-0 gap-2 px-3 sm:px-4">
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <button
+            bind:this={navigationButton}
+            type="button"
+            class="btn btn-ghost btn-sm btn-square lg:hidden"
+            disabled={!themeReady}
+            aria-label="Open navigation"
+            aria-controls="app-navigation"
+            aria-expanded={drawerOpen}
+            on:click={openDrawerOnMobile}
+          >
+            <Icon src={icons.Bars3} class="h-5 w-5" />
+          </button>
+          <h1 class="min-w-0 truncate text-sm font-semibold sm:text-base" title={dynamicTitle}>
+            {dynamicTitle}
+          </h1>
         </div>
 
-        <div class="flex flex-none items-center gap-2">
-          <div class="dropdown dropdown-end">
+        <div class="flex shrink-0 items-center gap-0.5">
+          <div
+            bind:this={vaultMenu}
+            class="dropdown dropdown-end"
+            class:dropdown-open={vaultOpen}
+            class:dropdown-close={!vaultOpen}
+          >
             <button
-              tabindex="0"
-              class="btn btn-ghost btn-sm rounded-2xl px-3"
+              on:click={() => (vaultOpen = !vaultOpen)}
+              aria-expanded={vaultOpen}
+              aria-controls="vault-panel"
+              class="btn btn-ghost btn-sm btn-square rounded-sm"
+              disabled={!themeReady}
               aria-label="Vault status"
               title={getVaultStatusMeta(vaultStatus).label}
             >
@@ -335,7 +411,8 @@
             </button>
 
             <div
-              class="dropdown-content bg-base-100 rounded-box border-base-200 z-20 mt-3 w-80 border p-4 shadow-xl"
+              id="vault-panel"
+              class="dropdown-content bg-base-100 rounded-box border-base-200 fixed top-14 right-3 z-20 mt-2 max-h-[calc(100dvh-4.5rem)] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto border p-3 sm:absolute sm:top-auto sm:right-0"
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -428,12 +505,13 @@
           </div>
 
           <button
-            class="btn btn-ghost btn-sm rounded-2xl px-3"
+            class="btn btn-ghost btn-sm btn-square rounded-sm"
             on:click={toggleTheme}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            disabled={!themeReady}
+            aria-label={`Switch to ${theme === 'wireframe' ? 'dark' : 'light'} theme`}
+            title={theme === 'wireframe' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
-            <Icon src={theme === 'light' ? icons.Moon : icons.Sun} class="h-5 w-5" />
+            <Icon src={theme === 'wireframe' ? icons.Moon : icons.Sun} class="h-5 w-5" />
           </button>
 
           <div class="dropdown dropdown-end">
@@ -441,23 +519,22 @@
               class="tooltip tooltip-bottom"
               data-tip={meUser ? `Signed in as ${meUser.username}` : undefined}
             >
-              <button tabindex="0" class="btn btn-ghost rounded-2xl px-2 sm:px-3">
-                <div class="avatar">
-                  <div class="bg-base-200 w-9 rounded-xl">
-                    <img
-                      src={`https://api.dicebear.com/9.x/initials/svg?seed=${meUser?.username}`}
-                      alt="avatar"
-                    />
-                  </div>
-                </div>
-                <!-- <span class="hidden text-sm font-medium sm:inline">
-                {meUser?.username ?? 'Account'}
-              </span> -->
-                <Icon src={icons.ChevronDown} class="h-4 w-4 opacity-60" />
+              <button
+                tabindex="0"
+                class="btn btn-ghost btn-sm rounded-sm px-2"
+                aria-label="Account menu"
+              >
+                <span
+                  class="bg-base-200 flex h-6 w-6 items-center justify-center rounded-sm text-xs font-semibold"
+                  aria-hidden="true"
+                >
+                  {meUser?.username?.slice(0, 2).toUpperCase() ?? '…'}
+                </span>
+                <Icon src={icons.ChevronDown} class="h-3 w-3 opacity-60" />
               </button>
             </div>
             <ul
-              class="menu menu-sm dropdown-content bg-base-100 rounded-box border-base-200 mt-3 w-56 border p-2 shadow-xl"
+              class="menu menu-sm dropdown-content bg-base-100 rounded-box border-base-200 mt-3 w-56 border p-2"
             >
               <li>
                 <a href={resolve('profile')}><Icon src={icons.User} class="h-5 w-5" /> Profile</a>
@@ -479,21 +556,26 @@
     </div>
 
     <!-- PAGE CONTENT -->
-    <main class="flex-1 px-4 py-4 sm:px-6 sm:py-6">
+    <main id="main-content" class="min-w-0 flex-1 px-3 py-4 sm:px-4">
       <div class="mx-auto w-full max-w-7xl">
         <slot />
       </div>
     </main>
   </div>
 
-  <AppSidebar onCloseMobile={closeDrawerOnMobile} isSuperuser={meUser?.is_superuser ?? false} />
+  <AppSidebar
+    onCloseMobile={closeDrawerOnMobile}
+    isSuperuser={meUser?.is_superuser ?? false}
+    username={meUser?.username}
+    version={appVersion}
+  />
 </div>
 
 <!-- TOASTS -->
 <div class="toast toast-top toast-end pointer-events-none z-50">
   {#each toasts as t (t.id)}
     <div
-      class={'alert pointer-events-auto shadow-lg ' +
+      class={'alert pointer-events-auto  ' +
         (t.type === 'success'
           ? 'alert-success'
           : t.type === 'error'

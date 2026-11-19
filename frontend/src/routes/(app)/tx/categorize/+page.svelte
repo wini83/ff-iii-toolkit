@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { Icon } from '@steeze-ui/svelte-icon';
@@ -18,13 +18,16 @@
     operations['get_screening_month_api_tx_screening_get']['responses'][200]['content']['application/json'];
 
   type TxTag = components['schemas']['TxTag'];
-  type FireflyAccountRef = components['schemas']['SimplifiedAccountRef'];
   type CategorySuggestion = components['schemas']['CategorySuggestionDto'];
 
   let loading = true;
   let error: string | null = null;
   let initialized = false;
   let applyingCategory = false;
+  let applyingTag = false;
+  let updateError: string | null = null;
+  let loadRequestId = 0;
+  $: busy = applyingCategory || applyingTag;
 
   let data: ScreeningMonthResponse | null = null;
   let initialCount = 0;
@@ -63,11 +66,13 @@
   $: currentTx = data?.transactions[cursor] ?? null;
   $: currentTxId = currentTx ? toIdString(currentTx.id) : null;
   $: progressValue = data ? initialCount - data.remaining : 0;
-  $: sourceAccount = currentTx ? getAccountSummary(currentTx.source_account) : null;
-  $: destinationAccount = currentTx ? getAccountSummary(currentTx.destination_account) : null;
   $: currentCategoryName = currentTx?.category?.trim() ?? '';
   $: normalizedCurrentCategoryName = currentCategoryName.toLowerCase();
   $: displayedCategorySuggestions = categorySuggestions.slice(0, 3);
+  $: selectedCategoryName =
+    data?.categories.find(
+      (category) => String(category.id) === selectedCategories[currentTxId ?? '']
+    )?.name ?? '';
 
   function toIdString(id: string | number): string {
     return String(id);
@@ -80,7 +85,11 @@
   ) {
     const safeCode = currencyCode && currencyCode.trim() ? currencyCode.trim() : 'PLN';
     const safeSymbol = currencySymbol && currencySymbol.trim() ? currencySymbol.trim() : safeCode;
-    return `${amount} ${safeSymbol} (${safeCode})`;
+    const formatted = new Intl.NumberFormat('en-GB', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 20
+    }).format(amount);
+    return `${formatted} ${safeSymbol}${safeSymbol === safeCode ? '' : ` (${safeCode})`}`;
   }
 
   function splitNotesLines(notes: string | null | undefined) {
@@ -90,23 +99,6 @@
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
-  }
-
-  function getAccountSummary(account: FireflyAccountRef | null | undefined) {
-    if (!account) return null;
-
-    const name = account.name.trim() || `Account #${account.id}`;
-    const meta: string[] = [];
-
-    if (account.type) meta.push(account.type);
-
-    const iban = account.iban?.trim();
-    if (iban) meta.push(iban);
-
-    return {
-      name,
-      meta: meta.length > 0 ? meta.join(' · ') : null
-    };
   }
 
   function ensureCategoryState(txId: string | number) {
@@ -147,6 +139,7 @@
       return;
     }
 
+    categorySuggestions = [];
     categorySuggestionsLoading = true;
     categorySuggestionsError = null;
 
@@ -168,14 +161,14 @@
     }
   }
 
-  async function onCategoryApplied() {
-    if (!data || !data.transactions[cursor]) {
-      clearCategorySuggestions();
-      return;
-    }
-
-    ensureCategoryState(data.transactions[cursor].id);
-    await loadCategorySuggestions(data.transactions[cursor].id);
+  function removeFromQueue(txId: number | string) {
+    if (!data) return;
+    const transactions = data.transactions.filter((transaction) => transaction.id !== txId);
+    data = { ...data, transactions, remaining: transactions.length };
+    cursor = Math.min(cursor, Math.max(0, transactions.length - 1));
+    delete selectedCategories[toIdString(txId)];
+    if (transactions[cursor]) ensureCategoryState(transactions[cursor].id);
+    void loadCategorySuggestions(transactions[cursor]?.id ?? null);
   }
 
   function resolveYearMonth() {
@@ -189,66 +182,52 @@
   }
 
   async function load() {
+    const requestId = ++loadRequestId;
+    ++categorySuggestionsRequestId;
+    clearCategorySuggestions();
     loading = true;
     error = null;
+    updateError = null;
+    data = null;
+    initialCount = 0;
+    cursor = 0;
+    selectedCategories = {};
 
     try {
-      data = await getScreeningMonth(year, month);
-
-      if (data && data.transactions.length > 0) {
-        initialCount = data.transactions.length;
-        cursor = 0;
-        selectedCategories = {};
-        ensureCategoryState(data.transactions[0].id);
-        await loadCategorySuggestions(data.transactions[0].id);
-      } else {
-        clearCategorySuggestions();
+      const response = await getScreeningMonth(year, month);
+      if (requestId !== loadRequestId) return;
+      data = response;
+      initialCount = response?.transactions.length ?? 0;
+      if (response?.transactions[0]) {
+        ensureCategoryState(response.transactions[0].id);
+        void loadCategorySuggestions(response.transactions[0].id);
       }
     } catch (e) {
-      error = (e as Error).message;
+      if (requestId !== loadRequestId) return;
+      error = e instanceof Error ? e.message : 'Failed to load screening queue';
     } finally {
-      loading = false;
+      if (requestId === loadRequestId) loading = false;
     }
   }
 
   async function applyCategory(categoryId: number) {
-    if (!currentTx || !data) return;
-    if (applyingCategory) return;
-
+    if (!currentTx || !data || busy || loading) return;
+    const txId = currentTx.id;
+    const queue = data;
     applyingCategory = true;
-
+    updateError = null;
     try {
-      await assignCategory(Number(currentTx.id), categoryId);
-
-      data.transactions = data.transactions.filter((t) => t.id !== currentTx.id);
-      data.remaining -= 1;
-
-      delete selectedCategories[toIdString(currentTx.id)];
-
-      if (cursor >= data.transactions.length) {
-        cursor = Math.max(0, data.transactions.length - 1);
-      }
-
-      if (data.transactions[cursor]) {
-        ensureCategoryState(data.transactions[cursor].id);
-        await loadCategorySuggestions(data.transactions[cursor].id);
-      }
-
-      await onCategoryApplied();
-
+      await assignCategory(Number(txId), categoryId);
+      if (data !== queue) return;
+      removeFromQueue(txId);
       window.dispatchEvent(
         new CustomEvent('toast', {
           detail: { type: 'success', msg: 'Category applied' }
         })
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to apply category';
-
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: { type: 'error', msg: message }
-        })
-      );
+      if (data !== queue) return;
+      updateError = err instanceof Error ? err.message : 'Failed to apply category';
     } finally {
       applyingCategory = false;
     }
@@ -271,45 +250,42 @@
   }
 
   async function tagCurrentTx(tag: TxTag) {
-    if (!currentTx || !data) return;
-
+    if (!currentTx || !data || busy || loading) return;
+    const txId = currentTx.id;
+    const queue = data;
+    applyingTag = true;
+    updateError = null;
     try {
-      await applyTag(Number(currentTx.id), tag);
-
+      await applyTag(Number(txId), tag);
+      if (data !== queue) return;
       if (TERMINAL_TAGS.has(tag)) {
-        data.transactions = data.transactions.filter((t) => t.id !== currentTx.id);
-        data.remaining -= 1;
-
-        if (cursor >= data.transactions.length) {
-          cursor = Math.max(0, data.transactions.length - 1);
-        }
-
-        if (data.transactions[cursor]) {
-          ensureCategoryState(data.transactions[cursor].id);
-        }
+        removeFromQueue(txId);
+      } else {
+        data = {
+          ...data,
+          transactions: data.transactions.map((transaction) =>
+            transaction.id === txId
+              ? { ...transaction, tags: Array.from(new Set([...transaction.tags, tag])) }
+              : transaction
+          )
+        };
       }
-
       window.dispatchEvent(
         new CustomEvent('toast', {
-          detail: {
-            type: 'success',
-            msg: `Tag applied: ${tag.replace('_', ' ')}`
-          }
+          detail: { type: 'success', msg: `Tag applied: ${tag.replace('_', ' ')}` }
         })
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to apply tag';
-
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: { type: 'error', msg: message }
-        })
-      );
+      if (data !== queue) return;
+      updateError = err instanceof Error ? err.message : 'Failed to apply tag';
+    } finally {
+      applyingTag = false;
     }
   }
 
   function prevTx() {
-    if (cursor > 0 && data) {
+    if (cursor > 0 && data && !busy) {
+      updateError = null;
       cursor--;
       ensureCategoryState(data.transactions[cursor].id);
       void loadCategorySuggestions(data.transactions[cursor].id);
@@ -317,7 +293,8 @@
   }
 
   function nextTx() {
-    if (data && cursor < data.transactions.length - 1) {
+    if (data && cursor < data.transactions.length - 1 && !busy) {
+      updateError = null;
       cursor++;
       ensureCategoryState(data.transactions[cursor].id);
       void loadCategorySuggestions(data.transactions[cursor].id);
@@ -350,374 +327,339 @@
     initialized = true;
   });
 
-  $: if (initialized) {
-    const params = page.url.searchParams;
-    const y = Number(params.get('year'));
-    const m = Number(params.get('month'));
-
+  afterNavigate(() => {
+    if (!initialized) return;
+    const now = new Date();
+    const y = Number(page.url.searchParams.get('year')) || now.getFullYear();
+    const m = Number(page.url.searchParams.get('month')) || now.getMonth() + 1;
     if (y && m && (y !== year || m !== month)) {
-      year = y;
-      month = m;
-      load();
+      resolveYearMonth();
+      void load();
     }
-  }
+  });
 </script>
 
 <svelte:head>
   <title>Transactions Categorize — Firefly Toolkit</title>
 </svelte:head>
 
-<div class="mx-auto flex w-full max-w-7xl flex-col gap-6">
-  <section class="card bg-base-100 border-base-200 overflow-hidden border shadow-xl">
-    <div
-      class="from-primary/10 via-base-100 to-base-100 grid gap-5 bg-gradient-to-br px-6 py-6 lg:grid-cols-[1.3fr_0.7fr] lg:px-8"
-    >
-      <div class="flex items-start gap-4">
-        <div class="bg-primary/12 text-primary rounded-3xl p-4">
-          <Icon src={icons.DocumentMagnifyingGlass} class="h-8 w-8" />
-        </div>
-
-        <div class="space-y-2">
-          <div
-            class="bg-base-200/80 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium tracking-[0.24em] uppercase"
-          >
-            <span class="bg-success h-2 w-2 rounded-full"></span>
-            Screening workflow
-          </div>
-          <div>
-            <h2 class="text-3xl font-semibold tracking-tight">Transaction screening</h2>
-            <p class="text-base-content/70 mt-2 max-w-2xl text-sm sm:text-base">
-              Review one transaction at a time, assign a category and mark rows that need action or
-              rule follow-up.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="bg-base-100/80 ring-base-200 flex flex-col justify-between gap-4 rounded-3xl p-5 shadow-sm ring-1"
+<div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-3">
+  <section
+    aria-label="Screening period"
+    class="border-base-300 bg-base-100 rounded-box border px-3 py-2"
+  >
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="text-base font-semibold">Transaction screening</h2>
+      <form
+        class="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_5rem_auto_auto] items-center gap-2 sm:flex sm:w-auto sm:shrink-0 sm:flex-nowrap"
+        on:submit|preventDefault={jumpToPeriod}
       >
-        <div>
-          <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Month</div>
-          <div class="mt-2 text-lg font-semibold">{year}-{String(month).padStart(2, '0')}</div>
-          <p class="mt-2 text-sm">
-            Move through screening months and process the pending queue for the selected period.
-          </p>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm btn-square"
+          aria-label="Previous month"
+          disabled={loading || busy}
+          on:click={prevMonth}
+        >
+          <Icon src={icons.ChevronLeft} class="h-4 w-4" />
+        </button>
+        <label class="sr-only" for="screening-month">Month</label>
+        <select
+          id="screening-month"
+          class="select select-bordered select-sm w-full min-w-0 sm:w-32"
+          bind:value={draftMonth}
+          disabled={loading || busy}
+        >
+          {#each MONTH_OPTIONS as option}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </select>
+        <label class="sr-only" for="screening-year">Year</label>
+        <input
+          id="screening-year"
+          class="input input-bordered input-sm w-20"
+          type="number"
+          min="1"
+          max="9999"
+          step="1"
+          bind:value={draftYear}
+          disabled={loading || busy}
+        />
+        <button type="submit" class="btn btn-outline btn-sm" disabled={loading || busy}>Go</button>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm btn-square"
+          aria-label="Next month"
+          disabled={loading || busy}
+          on:click={nextMonth}
+        >
+          <Icon src={icons.ChevronRight} class="h-4 w-4" />
+        </button>
+      </form>
+    </div>
+    {#if !loading && !error}
+      <div
+        class="text-base-content/70 mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs"
+        role="status"
+        aria-label="Queue summary"
+      >
+        <span
+          ><strong class="text-base-content">{data?.remaining ?? 0} remaining</strong> · {progressValue}
+          completed of {initialCount} loaded</span
+        >
+        <span class="toolkit-data">{year}-{String(month).padStart(2, '0')}</span>
+      </div>
+    {/if}
+  </section>
+
+  {#if loading}
+    <section
+      class="border-base-300 bg-base-100 rounded-box space-y-3 border p-4"
+      role="status"
+      aria-label="Loading transactions"
+    >
+      <p class="text-sm">Loading transactions…</p>
+      <div class="skeleton h-6 w-48"></div>
+      <div class="skeleton h-24 w-full"></div>
+      <div class="skeleton h-9 w-full"></div>
+    </section>
+  {:else if error}
+    <div class="alert alert-error" role="alert">
+      <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
+      <span class="min-w-0 wrap-anywhere">{error}</span>
+      <button class="btn btn-outline btn-sm" on:click={load}>Retry queue</button>
+    </div>
+  {:else if !currentTx || !currentTxId || !data || data.remaining === 0}
+    <section class="border-base-300 bg-base-100 rounded-box border p-5" role="status">
+      <h3 class="flex items-center gap-2 text-base font-semibold">
+        <Icon src={icons.CheckCircle} class="text-success h-5 w-5" /> No transactions left
+      </h3>
+      <p class="text-base-content/70 mt-2 text-sm">
+        The selected month has no transactions waiting for screening.
+      </p>
+    </section>
+  {:else}
+    <nav aria-label="Transaction queue" class="flex flex-wrap items-center justify-between gap-2">
+      <span class="text-base-content/70 text-xs" aria-live="polite"
+        >Position {cursor + 1} of {data.transactions.length} in queue</span
+      >
+      <div class="flex items-center gap-2">
+        <button
+          class="btn btn-outline btn-sm"
+          disabled={busy || cursor === 0}
+          on:click={prevTx}
+          aria-label="Previous transaction"
+        >
+          <Icon src={icons.ChevronLeft} class="h-4 w-4" /> Prev
+        </button>
+        <button
+          class="btn btn-outline btn-sm"
+          disabled={busy || cursor >= data.transactions.length - 1}
+          on:click={nextTx}
+          aria-label="Next transaction"
+        >
+          Next <Icon src={icons.ChevronRight} class="h-4 w-4" />
+        </button>
+      </div>
+    </nav>
+
+    {#key currentTxId}
+      <article
+        aria-label="Current transaction"
+        class="border-base-300 bg-base-100 rounded-box min-w-0 border"
+      >
+        <div
+          class="border-base-300 grid gap-2 border-b p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4 sm:p-4"
+        >
+          <div class="min-w-0">
+            <div
+              class="text-base-content/70 mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+            >
+              <span class="toolkit-data">Transaction #{currentTx.id}</span>
+              <time class="toolkit-data" datetime={currentTx.date}>{currentTx.date}</time>
+              <span>{currentTx.type}</span>
+            </div>
+            <h3 class="text-base leading-snug font-semibold wrap-anywhere sm:text-lg">
+              {currentTx.description}
+            </h3>
+          </div>
+          <div class="min-w-0 sm:text-right">
+            <div class="toolkit-data text-xl font-semibold">
+              {formatMoney(currentTx.amount, currentTx.currency_code, currentTx.currency_symbol)}
+            </div>
+            {#if currentTx.fx_amount !== null && currentTx.fx_amount !== undefined}
+              <div class="toolkit-data text-base-content/70 mt-1 text-xs">
+                FX: {formatMoney(currentTx.fx_amount, currentTx.fx_currency, currentTx.fx_currency)}
+              </div>
+            {/if}
+          </div>
         </div>
 
-        <div class="grid gap-3">
-          <div class="grid gap-3 sm:grid-cols-[1fr_0.8fr_auto]">
-            <label class="form-control">
-              <div class="label py-1">
-                <span class="label-text text-xs font-medium tracking-[0.18em] uppercase">
-                  Month
-                </span>
-              </div>
-              <select class="select select-bordered select-sm w-full" bind:value={draftMonth}>
-                {#each MONTH_OPTIONS as option}
-                  <option value={option.value}>{option.label}</option>
+        <section aria-label="Categorization" class="border-base-300 space-y-3 border-b p-3 sm:p-4">
+          {#if updateError}
+            <div class="alert alert-error py-2 text-sm" role="alert">
+              <Icon src={icons.ExclamationTriangle} class="h-4 w-4" />
+              <span class="min-w-0 wrap-anywhere"
+                >{updateError} Your transaction and selection are unchanged. Try again.</span
+              >
+            </div>
+          {/if}
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div class="min-w-0 flex-1">
+              <label for="transaction-category" class="mb-1 block text-xs font-medium"
+                >Category</label
+              >
+              <select
+                id="transaction-category"
+                class="select select-bordered w-full min-w-0"
+                bind:value={selectedCategories[currentTxId]}
+                disabled={busy}
+              >
+                <option value="" disabled>Pick a category</option>
+                {#each data.categories as category}
+                  <option value={String(category.id)}>{category.name}</option>
                 {/each}
               </select>
-            </label>
-
-            <label class="form-control">
-              <div class="label py-1">
-                <span class="label-text text-xs font-medium tracking-[0.18em] uppercase">
-                  Year
-                </span>
-              </div>
-              <input
-                class="input input-bordered input-sm w-full"
-                type="number"
-                min="1"
-                step="1"
-                bind:value={draftYear}
-              />
-            </label>
-
-            <div class="flex items-end">
-              <button class="btn btn-primary btn-sm w-full" on:click={jumpToPeriod}>
-                Go
-                <Icon src={icons.ArrowRight} class="h-4 w-4" />
-              </button>
             </div>
-          </div>
-
-          <div class="flex justify-end gap-2">
-            <button class="btn btn-outline btn-sm" on:click={prevMonth}>
-              <Icon src={icons.ChevronDoubleLeft} class="h-4 w-4" />
-              Previous
-            </button>
-            <button class="btn btn-outline btn-sm" on:click={nextMonth}>
-              Next
-              <Icon src={icons.ChevronDoubleRight} class="h-4 w-4" />
+            <button
+              class="btn btn-primary shrink-0"
+              disabled={busy || !selectedCategories[currentTxId]}
+              on:click={applyCurrent}
+            >
+              {#if applyingCategory}<span class="loading loading-spinner loading-xs"
+                ></span>{:else}<Icon src={icons.CheckCircle} class="h-4 w-4" />{/if}
+              Apply category
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="card bg-base-100 shadow-xl">
-    <div class="card-body gap-5">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 class="text-xl font-semibold">Current transaction</h3>
-          <p class="text-base-content/70 mt-1 text-sm">
-            Step through the queue, choose a category and apply terminal tags when needed.
-          </p>
-        </div>
-
-        {#if data && data.remaining > 0}
-          <div class="text-base-content/70 text-sm">
-            {cursor + 1} / {data.transactions.length} in current queue
+          {#if selectedCategoryName}
+            <p class="text-base-content/70 text-xs wrap-anywhere">
+              Selected: {selectedCategoryName}
+            </p>
+          {/if}
+          {#if currentCategoryName}
+            <p class="text-base-content/70 text-xs wrap-anywhere">
+              Current category: {currentCategoryName}
+            </p>
+          {/if}
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              class="btn btn-ghost btn-sm"
+              disabled={busy}
+              on:click={() => tagCurrentTx('action_req')}
+            >
+              <Icon src={icons.ExclamationTriangle} class="h-4 w-4" /> Action Required
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              disabled={busy}
+              on:click={() => tagCurrentTx('rule_potential')}
+            >
+              <Icon src={icons.Sparkles} class="h-4 w-4" /> Rule Potential
+            </button>
           </div>
-        {/if}
-      </div>
+        </section>
 
-      <div class="divider my-0"></div>
-
-      {#if loading}
-        <div class="space-y-3">
-          <div class="skeleton h-6 w-48"></div>
-          <div class="skeleton h-24 w-full rounded-3xl"></div>
-          <div class="skeleton h-14 w-full rounded-2xl"></div>
-        </div>
-      {:else if error}
-        <div class="alert alert-error">
-          <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
-          <span>{error}</span>
-        </div>
-      {:else if data === null || data.remaining === 0}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
+        <section
+          aria-label="Category suggestions"
+          class="border-base-300 border-b px-3 py-3 sm:px-4"
         >
-          <div class="bg-success/12 text-success rounded-3xl p-4">
-            <Icon src={icons.CheckCircle} class="h-8 w-8" />
-          </div>
-          <h4 class="mt-5 text-xl font-semibold">No transactions left</h4>
-          <p class="text-base-content/70 mt-2 max-w-md text-sm">
-            The selected month does not have any more transactions waiting for screening.
-          </p>
-        </div>
-      {:else if currentTx && currentTxId}
-        <div class="space-y-5">
-          <progress
-            class="progress progress-primary w-full"
-            value={progressValue}
-            max={initialCount}
-          ></progress>
-
-          <article
-            class="from-base-100 to-base-200/60 rounded-[1.75rem] bg-gradient-to-br p-[1px] shadow-sm"
-          >
-            <div class="bg-base-100 rounded-[calc(1.75rem-1px)] p-5">
-              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <h4 class="text-lg font-semibold">#{currentTx.id} - {currentTx.description}</h4>
-                  </div>
-                  <div class="text-base-content/70 mt-2 text-sm">
-                    {currentTx.date} · {formatMoney(
-                      currentTx.amount,
-                      currentTx.currency_code,
-                      currentTx.currency_symbol
-                    )}
-                  </div>
-                  {#if currentTx.fx_amount !== null && currentTx.fx_amount !== undefined}
-                    <div class="text-base-content/70 mt-1 text-sm">
-                      FX: {formatMoney(
-                        currentTx.fx_amount,
-                        currentTx.fx_currency,
-                        currentTx.fx_currency
-                      )}
-                    </div>
-                  {/if}
-                </div>
-
-                {#if currentTx.tags?.length}
-                  <div class="flex flex-wrap gap-2">
-                    {#each currentTx.tags as tag}
-                      <span
-                        class={`badge badge-sm ${isPrimary(tag) ? 'badge-primary' : 'badge-outline'}`}
+          <h4 class="text-xs font-semibold">Category suggestions</h4>
+          {#if categorySuggestionsLoading}
+            <p class="text-base-content/70 mt-2 text-xs" role="status">Loading suggestions…</p>
+          {:else if categorySuggestionsError}
+            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs" role="alert">
+              <span class="text-error min-w-0 wrap-anywhere">{categorySuggestionsError}</span>
+              <button
+                class="btn btn-ghost btn-xs"
+                disabled={busy}
+                on:click={() => loadCategorySuggestions(currentTx.id)}>Retry suggestions</button
+              >
+            </div>
+          {:else if displayedCategorySuggestions.length === 0}
+            <p class="text-base-content/70 mt-2 text-xs">No category suggestions yet</p>
+          {:else}
+            <ul class="divide-base-300 mt-1 divide-y">
+              {#each displayedCategorySuggestions as suggestion}
+                <li class="flex items-start gap-3 py-2">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span class="font-medium wrap-anywhere">{suggestion.category_name}</span>
+                      <span class="toolkit-data text-base-content/70 text-xs"
+                        >{formatSuggestionConfidence(suggestion.score)}</span
                       >
-                        {tag}
-                      </span>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-
-              {#if splitNotesLines(currentTx.notes).length > 0}
-                <div class="bg-base-200/60 mt-4 rounded-2xl px-4 py-4">
-                  <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Notes</div>
-                  <div class="mt-2 space-y-1 text-sm">
-                    {#each splitNotesLines(currentTx.notes) as noteLine}
-                      <div>{noteLine}</div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-
-              {#if sourceAccount || destinationAccount}
-                <div class="bg-base-200/60 mt-4 rounded-2xl px-4 py-4">
-                  <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">
-                    Firefly accounts
-                  </div>
-                  <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div class="bg-base-100 rounded-2xl px-4 py-3">
-                      <div class="text-base-content/50 text-xs uppercase">Source</div>
-                      <div class="mt-1 text-sm font-medium">{sourceAccount?.name ?? '-'}</div>
-                      {#if sourceAccount?.meta}
-                        <div class="text-base-content/60 mt-1 text-xs">{sourceAccount.meta}</div>
-                      {/if}
+                      {#if isCurrentCategorySuggestion(suggestion)}<span
+                          class="badge badge-outline badge-sm">Current</span
+                        >{/if}
                     </div>
-                    <div class="bg-base-100 rounded-2xl px-4 py-3">
-                      <div class="text-base-content/50 text-xs uppercase">Destination</div>
-                      <div class="mt-1 text-sm font-medium">
-                        {destinationAccount?.name ?? '-'}
-                      </div>
-                      {#if destinationAccount?.meta}
-                        <div class="text-base-content/60 mt-1 text-xs">
-                          {destinationAccount.meta}
-                        </div>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
-              {/if}
-
-              <div class="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-                <label class="form-control">
-                  <div class="label">
-                    <span class="label-text font-medium">Category</span>
-                  </div>
-                  <select
-                    class="select select-bordered w-full"
-                    bind:value={selectedCategories[currentTxId]}
-                  >
-                    <option value="" disabled>Pick a category</option>
-                    {#each data.categories as c}
-                      <option value={c.id}>{c.name}</option>
-                    {/each}
-                  </select>
-                </label>
-
-                <button
-                  class="btn btn-primary w-full lg:w-auto"
-                  disabled={!selectedCategories[currentTxId]}
-                  on:click={applyCurrent}
-                >
-                  <Icon src={icons.CheckCircle} class="h-5 w-5" />
-                  Apply category
-                </button>
-              </div>
-
-              <div class="mt-4 flex flex-wrap gap-3">
-                <button class="btn btn-ghost" on:click={() => tagCurrentTx('action_req')}>
-                  <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
-                  Action Required
-                </button>
-                <button class="btn btn-ghost" on:click={() => tagCurrentTx('rule_potential')}>
-                  <Icon src={icons.Sparkles} class="h-5 w-5" />
-                  Rule Potential
-                </button>
-              </div>
-
-              <div class="bg-base-200/60 mt-5 rounded-[1.5rem] p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <div
-                      class="text-base-content/60 text-[11px] font-medium tracking-[0.22em] uppercase"
-                    >
-                      Category suggestions
-                    </div>
-                    <p class="text-base-content/60 mt-1 text-xs">
-                      Review the top matches for this transaction.
+                    <p class="text-base-content/70 mt-0.5 text-xs wrap-anywhere">
+                      {suggestion.reason}
                     </p>
                   </div>
-                </div>
+                  <button
+                    class="btn btn-outline btn-sm shrink-0"
+                    disabled={busy}
+                    aria-label={`Apply suggestion: ${suggestion.category_name}`}
+                    on:click={() => applySuggestedCategory(suggestion)}>Apply</button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
 
-                {#if categorySuggestionsLoading}
-                  <div class="mt-4 space-y-2">
-                    <div class="skeleton h-14 w-full rounded-2xl"></div>
-                    <div class="skeleton h-14 w-full rounded-2xl"></div>
-                    <div class="skeleton h-14 w-full rounded-2xl"></div>
-                  </div>
-                {:else if categorySuggestionsError}
-                  <div class="alert alert-error mt-4 py-3">
-                    <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
-                    <span>{categorySuggestionsError}</span>
-                  </div>
-                {:else if displayedCategorySuggestions.length === 0}
-                  <div class="text-base-content/60 bg-base-100 mt-4 rounded-2xl px-4 py-4 text-sm">
-                    No category suggestions yet
-                  </div>
-                {:else}
-                  <div class="mt-4 space-y-2">
-                    {#each displayedCategorySuggestions as suggestion}
-                      <div
-                        class={`flex items-start gap-3 rounded-2xl border px-4 py-3 ${
-                          isCurrentCategorySuggestion(suggestion)
-                            ? 'border-primary bg-primary/5'
-                            : 'border-base-300 bg-base-100'
-                        }`}
-                      >
-                        <div class="min-w-0 flex-1">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <div class="truncate font-medium">{suggestion.category_name}</div>
-                            <span class="badge badge-outline badge-sm">
-                              {formatSuggestionConfidence(suggestion.score)}
-                            </span>
-                            {#if isCurrentCategorySuggestion(suggestion)}
-                              <span class="badge badge-primary badge-sm">Current</span>
-                            {/if}
-                          </div>
-                          <div class="text-base-content/60 mt-1 text-xs leading-snug">
-                            {suggestion.reason}
-                          </div>
-                        </div>
-
-                        <button
-                          class="btn btn-primary btn-xs shrink-0"
-                          disabled={applyingCategory}
-                          on:click={() => applySuggestedCategory(suggestion)}
-                        >
-                          Apply
-                        </button>
+        <section aria-label="Transaction details" class="space-y-3 p-3 text-sm sm:p-4">
+          {#if currentTx.source_account || currentTx.destination_account}
+            <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+              {#each [{ label: 'Source', account: currentTx.source_account }, { label: 'Destination', account: currentTx.destination_account }] as item}
+                <details class="min-w-0">
+                  <summary class="cursor-pointer text-sm wrap-anywhere"
+                    ><span class="text-base-content/70 text-xs">{item.label}</span> · {item.account
+                      ?.name ||
+                      (item.account ? `Account #${item.account.id}` : 'Not provided')}</summary
+                  >
+                  {#if item.account}
+                    <dl class="text-base-content/70 mt-2 space-y-1 text-xs">
+                      <div>
+                        <dt class="inline">Account ID:</dt>
+                        <dd class="toolkit-data inline">{item.account.id}</dd>
                       </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
+                      <div>
+                        <dt class="inline">Type:</dt>
+                        <dd class="inline">{item.account.type}</dd>
+                      </div>
+                      <div>
+                        <dt class="inline">IBAN:</dt>
+                        <dd class="toolkit-data inline">{item.account.iban || 'Not provided'}</dd>
+                      </div>
+                    </dl>
+                  {/if}
+                </details>
+              {/each}
             </div>
-          </article>
-
-          <div
-            class="border-base-200 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div class="text-base-content/70 text-sm">
-              Remaining: {data.remaining} of {initialCount}
+          {/if}
+          {#if currentTx.tags?.length}
+            <div class="flex flex-wrap items-center gap-1.5" aria-label="Transaction tags">
+              <span class="text-base-content/70 mr-1 text-xs">Tags</span>
+              {#each currentTx.tags as tag}
+                <span
+                  class={`badge badge-sm h-auto min-h-5 max-w-full py-0.5 wrap-anywhere whitespace-normal ${isPrimary(tag) ? 'badge-primary' : 'badge-outline'}`}
+                  >{tag}</span
+                >
+              {/each}
             </div>
-
-            <div class="flex items-center gap-2">
-              <button class="btn btn-outline btn-sm" disabled={cursor === 0} on:click={prevTx}>
-                <Icon src={icons.ChevronLeft} class="h-4 w-4" />
-                Prev
-              </button>
-              <span class="text-sm">{cursor + 1} / {data.transactions.length}</span>
-              <button
-                class="btn btn-outline btn-sm"
-                disabled={cursor >= data.transactions.length - 1}
-                on:click={nextTx}
+          {/if}
+          {#if splitNotesLines(currentTx.notes).length > 0}
+            <details>
+              <summary class="cursor-pointer text-xs font-medium"
+                >Notes ({splitNotesLines(currentTx.notes).length})</summary
               >
-                Next
-                <Icon src={icons.ChevronRight} class="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      {/if}
-    </div>
-  </section>
+              <div class="text-base-content/70 mt-2 space-y-1 text-sm wrap-anywhere">
+                {#each splitNotesLines(currentTx.notes) as line}<p>{line}</p>{/each}
+              </div>
+            </details>
+          {/if}
+        </section>
+      </article>
+    {/key}
+  {/if}
 </div>

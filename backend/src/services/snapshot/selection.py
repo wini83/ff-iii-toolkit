@@ -27,3 +27,8 @@ def unprocessed_blik(
         filter_out_categorized(transactions), description, exact_match=True
     )
     return [tx for tx in candidates if TxTag.blik_done not in tx.tags]
+
+
+def processed_blik(transactions: list[Transaction]) -> list[Transaction]:
+    """The done tag survives the description rewrite and later categorization."""
+    return [tx for tx in transactions if TxTag.blik_done in tx.tags]

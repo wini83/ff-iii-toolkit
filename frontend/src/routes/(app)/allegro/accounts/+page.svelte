@@ -1,4 +1,5 @@
 <script lang="ts">
+  import WorkflowHeader from '#lib/components/WorkflowHeader.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -136,55 +137,22 @@
   <title>Allegro Accounts — Firefly Toolkit</title>
 </svelte:head>
 
-<div class="mx-auto flex w-full max-w-7xl flex-col gap-6">
-  <section class="card bg-base-100 border-base-200 overflow-hidden border shadow-xl">
-    <div
-      class="from-primary/10 via-base-100 to-base-100 grid gap-5 bg-gradient-to-br px-6 py-6 lg:grid-cols-[1.3fr_0.7fr] lg:px-8"
+<div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
+  <WorkflowHeader title="Allegro accounts">
+    <svelte:fragment slot="description"
+      >Choose a configured Allegro secret to inspect imported payments and continue the matching
+      workflow.</svelte:fragment
     >
-      <div class="flex items-start gap-4">
-        <div class="bg-warning/15 text-warning rounded-3xl p-4">
-          <Icon src={icons.BuildingStorefront} class="h-8 w-8" />
-        </div>
+    <svelte:fragment slot="actions"
+      ><button class="btn btn-primary" on:click={openSettings}>
+        <Icon src={icons.Key} class="h-5 w-5" />
+        Edit secrets
+      </button></svelte:fragment
+    >
+  </WorkflowHeader>
 
-        <div class="space-y-2">
-          <div
-            class="bg-base-200/80 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium tracking-[0.24em] uppercase"
-          >
-            <span class="bg-success h-2 w-2 rounded-full"></span>
-            Marketplace access
-          </div>
-          <div>
-            <h2 class="text-3xl font-semibold tracking-tight">Allegro accounts</h2>
-            <p class="text-base-content/70 mt-2 max-w-2xl text-sm sm:text-base">
-              Choose a configured Allegro secret to inspect imported payments and continue the
-              matching workflow.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="bg-base-100/80 ring-base-200 flex flex-col justify-between gap-4 rounded-3xl p-5 shadow-sm ring-1"
-      >
-        <div>
-          <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Quick action</div>
-          <p class="mt-2 text-sm">
-            Manage credentials in settings before reviewing payments for a selected account.
-          </p>
-        </div>
-
-        <div class="flex flex-wrap justify-end gap-3">
-          <button class="btn btn-primary" on:click={openSettings}>
-            <Icon src={icons.Key} class="h-5 w-5" />
-            Edit secrets
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="card bg-base-100 shadow-xl">
-    <div class="card-body gap-5">
+  <section class="card bg-base-100">
+    <div class="card-body gap-4 p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 class="text-xl font-semibold">Configured accounts</h3>
@@ -206,7 +174,7 @@
       <div class="divider my-0"></div>
 
       {#if networkError}
-        <div class="alert alert-error">
+        <div class="alert alert-error" role="alert">
           <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
           <span>{networkError}</span>
         </div>
@@ -216,20 +184,18 @@
         <div class="space-y-4">
           <div class="grid gap-4 md:grid-cols-3">
             {#each Array(3) as _}
-              <div class="skeleton h-24 w-full rounded-3xl"></div>
+              <div class="skeleton h-24 w-full rounded-sm"></div>
             {/each}
           </div>
           <div class="space-y-2 pt-2">
-            <div class="skeleton h-12 w-full rounded-2xl"></div>
-            <div class="skeleton h-12 w-full rounded-2xl"></div>
-            <div class="skeleton h-12 w-full rounded-2xl"></div>
+            <div class="skeleton h-12 w-full rounded-sm"></div>
+            <div class="skeleton h-12 w-full rounded-sm"></div>
+            <div class="skeleton h-12 w-full rounded-sm"></div>
           </div>
         </div>
       {:else if vaultStatus && !vaultStatus.configured}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-primary/15 text-primary rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-primary rounded-sm p-4">
             <Icon src={icons.ShieldCheck} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">Vault is not configured</h4>
@@ -242,10 +208,8 @@
           </button>
         </div>
       {:else if vaultStatus && !vaultStatus.unlocked}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-warning/15 text-warning rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-warning rounded-sm p-4">
             <Icon src={icons.LockClosed} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">Vault is locked</h4>
@@ -258,10 +222,8 @@
           </button>
         </div>
       {:else if secrets.length === 0}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-warning/15 text-warning rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-warning rounded-sm p-4">
             <Icon src={icons.Key} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">No Allegro secrets yet</h4>
@@ -290,9 +252,7 @@
                 <tr class="hover">
                   <td>
                     <div class="flex items-center gap-3">
-                      <div
-                        class="from-warning/20 to-primary/10 rounded-2xl bg-gradient-to-br px-3 py-2 text-sm font-semibold"
-                      >
+                      <div class="  rounded-sm px-3 py-2 text-sm font-semibold">
                         {getAccountLabel(secret)}
                       </div>
                     </div>
@@ -330,10 +290,8 @@
 
         <div class="grid gap-4 xl:hidden">
           {#each secrets as secret (secret.id)}
-            <article
-              class="from-base-100 to-base-200/60 rounded-[1.75rem] bg-gradient-to-br p-[1px] shadow-sm"
-            >
-              <div class="bg-base-100 rounded-[calc(1.75rem-1px)] p-5">
+            <article class="border-base-300 rounded-sm border">
+              <div class="bg-base-100 rounded-sm p-5">
                 <div class="flex items-start justify-between gap-4">
                   <div>
                     <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">
@@ -345,11 +303,11 @@
                 </div>
 
                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div class="bg-base-200/60 rounded-2xl px-4 py-3">
+                  <div class="bg-base-200/60 rounded-sm px-4 py-3">
                     <div class="text-base-content/60 text-xs uppercase">Last used</div>
                     <div class="mt-1 text-sm font-medium">{formatDate(secret.last_used_at)}</div>
                   </div>
-                  <div class="bg-base-200/60 rounded-2xl px-4 py-3">
+                  <div class="bg-base-200/60 rounded-sm px-4 py-3">
                     <div class="text-base-content/60 text-xs uppercase">Created</div>
                     <div class="mt-1 text-sm font-medium">{formatDate(secret.created_at)}</div>
                   </div>

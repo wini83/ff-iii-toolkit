@@ -72,8 +72,8 @@
   }
 </script>
 
-<section class="card bg-base-100 mt-6 shadow-xl" aria-label="Unprocessed transactions">
-  <div class="card-body">
+<section class="card bg-base-100 mt-6" aria-label="Unprocessed transactions">
+  <div class="card-body p-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h3 class="text-xl font-semibold">
         Unprocessed transactions {month ? `— ${month}` : '— all months'}
@@ -123,11 +123,10 @@
               >{#each result.items as tx (tx.id)}
                 {@const link = fireflyLink(result.firefly_url, tx.id)}
                 <tr
-                  ><td class="whitespace-nowrap">{tx.date}</td><td>{tx.description}</td><td
-                    class="whitespace-nowrap">{tx.amount} {tx.currency_code}</td
-                  ><td>{tx.source_account?.name ?? '—'}</td><td
-                    >{tx.destination_account?.name ?? '—'}</td
-                  ><td
+                  ><td class="toolkit-data whitespace-nowrap">{tx.date}</td><td>{tx.description}</td
+                  ><td class="toolkit-data whitespace-nowrap">{tx.amount} {tx.currency_code}</td><td
+                    >{tx.source_account?.name ?? '—'}</td
+                  ><td>{tx.destination_account?.name ?? '—'}</td><td
                     >{#each tx.tags as tag}<span class="badge badge-sm mr-1">{tag}</span>{/each}</td
                   ><td
                     >{#if link}<a

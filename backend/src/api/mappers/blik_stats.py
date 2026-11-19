@@ -1,8 +1,11 @@
+from dataclasses import asdict
+
 from api.mappers.job_status import map_status
 from api.models.blik_stats import (
     BlikMetricsResultResponse,
     BlikMetricsStatusResponse,
 )
+from api.models.provider_metrics import ProviderAmountMetricsResponse
 from services.domain.metrics import BlikStatisticsMetrics
 from services.tx_stats.models import MetricsState
 
@@ -18,6 +21,11 @@ def map_blik_metrics_state_to_response(
             filtered_by_description_exact=state.result.filtered_by_description_exact,
             not_processed_transactions=state.result.not_processed_transactions,
             not_processed_by_month=state.result.not_processed_by_month,
+            amount_metrics=(
+                ProviderAmountMetricsResponse(**asdict(state.result.amount_metrics))
+                if state.result.amount_metrics is not None
+                else None
+            ),
             time_stamp=state.result.time_stamp,
             fetch_seconds=state.result.fetching_duration_ms / 1000.0,
         )

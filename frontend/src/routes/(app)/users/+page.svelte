@@ -1,4 +1,5 @@
 <script lang="ts">
+  import WorkflowHeader from '#lib/components/WorkflowHeader.svelte';
   import { onMount } from 'svelte';
   import { Icon } from '@steeze-ui/svelte-icon';
   import * as icons from '@steeze-ui/heroicons';
@@ -263,57 +264,23 @@
   <title>Users — Firefly Toolkit</title>
 </svelte:head>
 
-<div class="mx-auto flex w-full max-w-7xl flex-col gap-6">
-  <section class="card bg-base-100 border-base-200 overflow-hidden border shadow-xl">
-    <div
-      class="from-primary/10 via-base-100 to-base-100 grid gap-5 bg-gradient-to-br px-6 py-6 lg:grid-cols-[1.3fr_0.7fr] lg:px-8"
+<div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
+  <WorkflowHeader title="Users">
+    <svelte:fragment slot="description"
+      >Manage application users and onboarding invites with a clean admin workflow.</svelte:fragment
     >
-      <div class="flex items-start gap-4">
-        <div class="bg-primary/12 text-primary rounded-3xl p-4">
-          <Icon src={icons.Users} class="h-8 w-8" />
-        </div>
-
-        <div class="space-y-2">
-          <div
-            class="bg-base-200/80 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium tracking-[0.24em] uppercase"
-          >
-            <span class="bg-success h-2 w-2 rounded-full"></span>
-            Admin directory
-          </div>
-          <div>
-            <h2 class="text-3xl font-semibold tracking-tight">Users</h2>
-            <p class="text-base-content/70 mt-2 max-w-2xl text-sm sm:text-base">
-              Manage application users and onboarding invites with a clean admin workflow.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="bg-base-100/80 ring-base-200 flex flex-col justify-between gap-4 rounded-3xl p-5 shadow-sm ring-1"
-      >
-        <div>
-          <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Quick actions</div>
-          <p class="mt-2 text-sm">
-            Create accounts, regenerate invite tokens and control access without leaving the
-            dashboard.
-          </p>
-        </div>
-
-        <div class="flex flex-wrap justify-end gap-3">
-          <button class="btn btn-primary" disabled={loading || creating} on:click={openCreateModal}>
-            <Icon src={icons.UserPlus} class="h-5 w-5" />
-            Create user
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
+    <svelte:fragment slot="actions"
+      ><button class="btn btn-primary" disabled={loading || creating} on:click={openCreateModal}>
+        <Icon src={icons.UserPlus} class="h-5 w-5" />
+        Create user
+      </button></svelte:fragment
+    >
+  </WorkflowHeader>
 
   <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
     {#if loading}
       {#each Array(4) as _}
-        <div class="card bg-base-100 shadow-lg">
+        <div class="card bg-base-100">
           <div class="card-body gap-3">
             <div class="skeleton h-4 w-24"></div>
             <div class="skeleton h-9 w-16"></div>
@@ -322,12 +289,12 @@
         </div>
       {/each}
     {:else}
-      <div class="card bg-base-100 shadow-lg">
-        <div class="card-body">
+      <div class="card bg-base-100">
+        <div class="card-body p-4">
           <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Total users</div>
           <div class="mt-3 flex items-end justify-between gap-4">
-            <div class="text-4xl font-semibold">{totalUsers}</div>
-            <div class="bg-primary/12 text-primary rounded-2xl p-3">
+            <div class="toolkit-data text-2xl font-semibold">{totalUsers}</div>
+            <div class="bg-base-200 text-primary rounded-sm p-3">
               <Icon src={icons.Users} class="h-5 w-5" />
             </div>
           </div>
@@ -337,12 +304,12 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow-lg">
-        <div class="card-body">
+      <div class="card bg-base-100">
+        <div class="card-body p-4">
           <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Active</div>
           <div class="mt-3 flex items-end justify-between gap-4">
-            <div class="text-4xl font-semibold">{activeUsers}</div>
-            <div class="bg-success/12 text-success rounded-2xl p-3">
+            <div class="toolkit-data text-2xl font-semibold">{activeUsers}</div>
+            <div class="bg-base-200 text-success rounded-sm p-3">
               <Icon src={icons.CheckBadge} class="h-5 w-5" />
             </div>
           </div>
@@ -352,12 +319,12 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow-lg">
-        <div class="card-body">
+      <div class="card bg-base-100">
+        <div class="card-body p-4">
           <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Pending setup</div>
           <div class="mt-3 flex items-end justify-between gap-4">
-            <div class="text-4xl font-semibold">{pendingInvites}</div>
-            <div class="bg-warning/15 text-warning rounded-2xl p-3">
+            <div class="toolkit-data text-2xl font-semibold">{pendingInvites}</div>
+            <div class="bg-base-200 text-warning rounded-sm p-3">
               <Icon src={icons.Envelope} class="h-5 w-5" />
             </div>
           </div>
@@ -367,12 +334,12 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow-lg">
-        <div class="card-body">
+      <div class="card bg-base-100">
+        <div class="card-body p-4">
           <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Superusers</div>
           <div class="mt-3 flex items-end justify-between gap-4">
-            <div class="text-4xl font-semibold">{adminUsers}</div>
-            <div class="bg-secondary/12 text-secondary rounded-2xl p-3">
+            <div class="toolkit-data text-2xl font-semibold">{adminUsers}</div>
+            <div class="bg-base-200 text-secondary rounded-sm p-3">
               <Icon src={icons.ShieldCheck} class="h-5 w-5" />
             </div>
           </div>
@@ -384,8 +351,8 @@
     {/if}
   </section>
 
-  <section class="card bg-base-100 shadow-xl">
-    <div class="card-body gap-5">
+  <section class="card bg-base-100">
+    <div class="card-body gap-4 p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 class="text-xl font-semibold">User directory</h3>
@@ -409,7 +376,7 @@
       </div>
 
       {#if pageError}
-        <div class="alert alert-error">
+        <div class="alert alert-error" role="alert">
           <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
           <span>{pageError}</span>
         </div>
@@ -419,16 +386,14 @@
         <div class="space-y-4">
           <div class="grid gap-4 md:grid-cols-4">
             {#each Array(4) as _}
-              <div class="skeleton h-24 w-full rounded-3xl"></div>
+              <div class="skeleton h-24 w-full rounded-sm"></div>
             {/each}
           </div>
           <TableSkeleton rows={6} cols={5} colWidths={['w-28', 'w-20', 'w-20', 'w-24', 'w-16']} />
         </div>
       {:else if !list.length}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-primary/12 text-primary rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-primary rounded-sm p-4">
             <Icon src={icons.UserGroup} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">No users yet</h4>
@@ -457,9 +422,7 @@
                 <tr class="hover">
                   <td>
                     <div class="flex items-center gap-3">
-                      <div
-                        class="from-primary/15 to-secondary/10 rounded-2xl bg-gradient-to-br px-3 py-2 text-sm font-semibold"
-                      >
+                      <div class="  rounded-sm px-3 py-2 text-sm font-semibold">
                         {getInitials(user.username)}
                       </div>
                       <div>
@@ -516,15 +479,11 @@
 
         <div class="grid gap-4 xl:hidden">
           {#each list as user (user.id)}
-            <article
-              class="from-base-100 to-base-200/60 rounded-[1.75rem] bg-gradient-to-br p-[1px] shadow-sm"
-            >
-              <div class="bg-base-100 rounded-[1.7rem] p-5">
+            <article class="border-base-300 rounded-sm border">
+              <div class="bg-base-100 rounded-sm p-5">
                 <div class="flex items-start justify-between gap-4">
                   <div class="flex items-center gap-3">
-                    <div
-                      class="from-primary/15 to-secondary/10 rounded-2xl bg-gradient-to-br px-3 py-2 text-sm font-semibold"
-                    >
+                    <div class="  rounded-sm px-3 py-2 text-sm font-semibold">
                       {getInitials(user.username)}
                     </div>
                     <div>
@@ -548,7 +507,7 @@
                 </div>
 
                 <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div class="bg-base-200/70 rounded-2xl px-4 py-3">
+                  <div class="bg-base-200/70 rounded-sm px-4 py-3">
                     <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Role</div>
                     <div class="mt-2">
                       <span
@@ -559,7 +518,7 @@
                     </div>
                   </div>
 
-                  <div class="bg-base-200/70 rounded-2xl px-4 py-3">
+                  <div class="bg-base-200/70 rounded-sm px-4 py-3">
                     <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">
                       Status
                     </div>
@@ -572,7 +531,7 @@
                     </div>
                   </div>
 
-                  <div class="bg-base-200/70 rounded-2xl px-4 py-3">
+                  <div class="bg-base-200/70 rounded-sm px-4 py-3">
                     <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">
                       Password setup
                     </div>
@@ -628,7 +587,7 @@
         undone.
       </p>
 
-      <div class="bg-base-200/70 mt-5 rounded-2xl p-4">
+      <div class="bg-base-200/70 mt-5 rounded-sm p-4">
         <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Account summary</div>
         <div class="mt-3 grid gap-2 text-sm">
           <div><span class="font-medium">Username:</span> {pendingDelete.username}</div>

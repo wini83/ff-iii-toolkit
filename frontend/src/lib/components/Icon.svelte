@@ -15,5 +15,5 @@
 {#if IconComponent}
   <svelte:component this={IconComponent} class={className} />
 {:else}
-  <span class="font-bold text-red-600">?</span>
+  <span class="text-error font-bold">?</span>
 {/if}

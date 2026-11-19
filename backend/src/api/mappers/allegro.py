@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from dataclasses import asdict
 
 from api.mappers.job_status import map_status
 from api.mappers.tx import DOMAIN_TO_API_STATUS, map_tx_to_api
@@ -12,6 +13,7 @@ from api.models.allegro import (
     ApplyPayload,
 )
 from api.models.allegro import MatchResult as ApiMatchResult
+from api.models.provider_metrics import ProviderAmountMetricsResponse
 from api.models.tx import MatchProcessingStatus as MatchProcessingStatus
 from services.domain.allegro import (
     AllegroApplyJob,
@@ -37,6 +39,11 @@ def map_allegro_metrics_state_to_response(
             allegro_transactions=state.result.allegro_transactions,
             not_processed__allegro_transactions=state.result.not_processed_allegro_transactions,
             not_processed_by_month=state.result.not_processed_by_month,
+            amount_metrics=(
+                ProviderAmountMetricsResponse(**asdict(state.result.amount_metrics))
+                if state.result.amount_metrics is not None
+                else None
+            ),
             time_stamp=state.result.time_stamp,
             fetch_seconds=state.result.fetching_duration_ms / 1000.0,
         )

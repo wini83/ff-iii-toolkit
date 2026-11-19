@@ -11,6 +11,31 @@ Each component retains its own detailed documentation and changelog:
 `backend/README.md`, `backend/CHANGELOG.md`, `frontend/DEVELOPING.md`, and
 `frontend/CHANGELOG.md`.
 
+## Potential duplicates (MVP)
+
+Open **Transactions → Potential duplicates**, select one asset account and a date
+range, then search. Candidates have exactly the same amount and currency, the
+same direction on that account and different tag sets. Types may differ: a
+transfer into the account can match a deposit, for example. The configurable
+maximum date difference defaults to 2 days (0–7 supported); both transaction
+dates must be inside the inclusive date range.
+
+Partially overlapping tag sets and empty vs nonempty tags qualify. Equal sets,
+including two empty sets, do not. Descriptions do not affect matching. Pairs are
+ordered by their newer date descending, then transaction IDs ascending, with
+pagination pinned to a snapshot; reload and search again if the snapshot changes.
+**Reload transactions** forces a new Firefly fetch even while the cached snapshot
+is still fresh. Opening the page uses the shared snapshot when available.
+Repeated legitimate payments remain review candidates. Links open the original
+transactions in Firefly; the toolkit does not modify them.
+
+Filters are not saved and there are no persistent dismissals in this MVP.
+Luciferin excludes multipart/split groups before building the shared snapshot;
+the page reports their count and never compares individual split legs. Incoming
+foreign-currency transfers are also excluded because the simplified snapshot
+cannot reliably provide their destination-account amount. Reconciling opposite
+sides of transfers across accounts is outside this feature's scope.
+
 ## Releases
 
 The toolkit has one product version, stored in [`VERSION`](VERSION) and managed
@@ -103,7 +128,7 @@ The full local Compose stack configures Redis automatically. When running FastAP
 on your host (including VS Code debugging), start only the development Redis:
 
 ```sh
-docker compose -f compose.redis-dev.yaml up -d --wait
+make redis-up
 ```
 
 Set `REDIS_URL=redis://127.0.0.1:6379/0` in `backend/.env`, then start FastAPI as
@@ -112,7 +137,7 @@ use it on the VPS. It uses the separate Compose project
 `ff-iii-toolkit-redis-dev`, so starting or stopping it does not manage the full
 stack's Redis. Do not override its project name with `-p` or `COMPOSE_PROJECT_NAME`
 when using these commands. Redis contains disposable data and has no persistence.
-Stop it with `docker compose -f compose.redis-dev.yaml down`.
+Stop it with `make redis-down`.
 
 Run the real Redis connection test against that instance:
 

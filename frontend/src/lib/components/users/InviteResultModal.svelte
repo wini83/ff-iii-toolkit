@@ -26,12 +26,10 @@
 {#if open && invite}
   <dialog class="modal modal-open" open>
     <div class="modal-box max-w-3xl p-0">
-      <div
-        class="from-success/12 via-base-100 to-base-100 border-base-200 border-b bg-gradient-to-br px-6 py-5"
-      >
+      <div class="bg-base-100 border-base-300 border-b px-6 py-5">
         <div class="flex items-start justify-between gap-4">
           <div class="flex items-start gap-4">
-            <div class="bg-success/12 text-success rounded-2xl p-3">
+            <div class="toolkit-icon">
               <Icon src={icons.ShieldCheck} class="h-6 w-6" />
             </div>
             <div>
@@ -54,21 +52,21 @@
 
       <div class="space-y-5 px-6 py-6">
         <div class="grid gap-3 md:grid-cols-3">
-          <div class="bg-base-200/70 rounded-2xl p-4">
+          <div class="bg-base-200/70 rounded-sm p-4">
             <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Username</div>
             <div class="mt-2 text-sm font-semibold">{invite.username ?? 'n/a'}</div>
           </div>
-          <div class="bg-base-200/70 rounded-2xl p-4">
+          <div class="bg-base-200/70 rounded-sm p-4">
             <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">User ID</div>
             <div class="mt-2 truncate font-mono text-sm">{invite.userId ?? 'n/a'}</div>
           </div>
-          <div class="bg-base-200/70 rounded-2xl p-4">
+          <div class="bg-base-200/70 rounded-sm p-4">
             <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Expires</div>
             <div class="mt-2 text-sm font-semibold">{formatDateTime(invite.expiresAt)}</div>
           </div>
         </div>
 
-        <div class="bg-base-200/50 space-y-4 rounded-3xl p-4">
+        <div class="bg-base-200/50 space-y-4 rounded-sm p-4">
           <label class="form-control">
             <div class="label">
               <span class="label-text font-medium">Invite link</span>

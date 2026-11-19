@@ -42,8 +42,8 @@
   ]}
 />
 
-<div class="card bg-base-100 mt-2 w-full shadow-xl">
-  <div class="card-body">
+<div class="card bg-base-100 mt-2 w-full">
+  <div class="card-body p-4">
     <h2 class="card-title">Wyślij plik Alior BLIK (.csv)</h2>
 
     <form on:submit={upload} enctype="multipart/form-data" class="space-y-4">

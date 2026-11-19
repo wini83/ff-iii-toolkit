@@ -14,12 +14,10 @@
 {#if open}
   <dialog class="modal modal-open" open>
     <div class="modal-box max-w-2xl p-0">
-      <div
-        class="from-primary/10 via-base-100 to-base-100 border-base-200 border-b bg-gradient-to-br px-6 py-5"
-      >
+      <div class="bg-base-100 border-base-300 border-b px-6 py-5">
         <div class="flex items-start justify-between gap-4">
           <div class="flex items-start gap-4">
-            <div class="bg-primary/12 text-primary rounded-2xl p-3">
+            <div class="toolkit-icon">
               <Icon src={icons.UserPlus} class="h-6 w-6" />
             </div>
             <div>
@@ -55,7 +53,7 @@
           />
         </label>
 
-        <label class="bg-base-200/70 flex items-center justify-between gap-4 rounded-2xl px-4 py-4">
+        <label class="bg-base-200/70 flex items-center justify-between gap-4 rounded-sm px-4 py-4">
           <div>
             <div class="font-medium">Grant superuser access</div>
             <div class="text-base-content/70 mt-1 text-sm">
@@ -72,7 +70,7 @@
         </label>
 
         {#if error}
-          <div class="alert alert-error">
+          <div class="alert alert-error" role="alert">
             <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
             <span>{error}</span>
           </div>

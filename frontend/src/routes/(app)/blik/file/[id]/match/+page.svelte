@@ -1,4 +1,5 @@
 <script lang="ts">
+  import WorkflowHeader from '#lib/components/WorkflowHeader.svelte';
   import { onDestroy, onMount, tick } from 'svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
@@ -447,68 +448,35 @@
   <title>Blik Matches — Firefly Toolkit</title>
 </svelte:head>
 
-<div class="mx-auto mt-2 flex w-full max-w-7xl flex-col gap-6">
-  <section class="card bg-base-100 border-base-200 overflow-hidden border shadow-xl">
-    <div
-      class="from-primary/10 via-base-100 to-base-100 grid gap-5 bg-gradient-to-br px-6 py-6 lg:grid-cols-[1.3fr_0.7fr] lg:px-8"
+<div class="mx-auto mt-2 flex w-full max-w-7xl min-w-0 flex-col gap-4">
+  <WorkflowHeader title="Blik matches">
+    <svelte:fragment slot="description"
+      >Review matching candidates for file
+      <span class="font-medium">{matchData?.decoded_name ?? 'BLIK'}</span>
+      and apply confirmed pairs.</svelte:fragment
     >
-      <div class="flex items-start gap-4">
-        <div class="bg-warning/15 text-warning rounded-3xl p-4">
-          <Icon src={icons.Sparkles} class="h-8 w-8" />
-        </div>
-
-        <div class="space-y-2">
-          <div
-            class="bg-base-200/80 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium tracking-[0.24em] uppercase"
-          >
-            <span class="bg-success h-2 w-2 rounded-full"></span>
-            Matching workflow
-          </div>
-          <div>
-            <h2 class="text-3xl font-semibold tracking-tight">Blik matches</h2>
-            <p class="text-base-content/70 mt-2 max-w-2xl text-sm sm:text-base">
-              Review matching candidates for file
-              <span class="font-medium">{matchData?.decoded_name ?? 'BLIK'}</span>
-              and apply confirmed pairs.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        class="bg-base-100/80 ring-base-200 flex flex-col justify-between gap-4 rounded-3xl p-5 shadow-sm ring-1"
+    <svelte:fragment slot="actions"
+      ><button
+        class="btn btn-outline"
+        on:click={() => (isStatsModalOpen = true)}
+        disabled={!matchData}
       >
-        <div>
-          <div class="text-base-content/60 text-xs tracking-[0.2em] uppercase">Quick actions</div>
-          <p class="mt-2 text-sm">
-            Open file preview, inspect matching stats or jump to the next upload.
-          </p>
-        </div>
+        <Icon src={icons.ChartBar} class="h-5 w-5" />
+        Stats
+      </button>
+      <button class="btn btn-outline" on:click={openUpload}>
+        <Icon src={icons.ArrowUpTray} class="h-5 w-5" />
+        Upload
+      </button>
+      <button class="btn btn-primary" on:click={openPreview}>
+        <Icon src={icons.DocumentMagnifyingGlass} class="h-5 w-5" />
+        Preview
+      </button></svelte:fragment
+    >
+  </WorkflowHeader>
 
-        <div class="flex flex-wrap justify-end gap-3">
-          <button
-            class="btn btn-outline"
-            on:click={() => (isStatsModalOpen = true)}
-            disabled={!matchData}
-          >
-            <Icon src={icons.ChartBar} class="h-5 w-5" />
-            Stats
-          </button>
-          <button class="btn btn-outline" on:click={openUpload}>
-            <Icon src={icons.ArrowUpTray} class="h-5 w-5" />
-            Upload
-          </button>
-          <button class="btn btn-primary" on:click={openPreview}>
-            <Icon src={icons.DocumentMagnifyingGlass} class="h-5 w-5" />
-            Preview
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="card bg-base-100 shadow-xl">
-    <div class="card-body gap-5">
+  <section class="card bg-base-100">
+    <div class="card-body gap-4 p-4">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 class="text-xl font-semibold">Matching candidates</h3>
@@ -556,7 +524,7 @@
       </div>
 
       {#if error}
-        <div class="alert alert-error">
+        <div class="alert alert-error" role="alert">
           <Icon src={icons.ExclamationTriangle} class="h-5 w-5" />
           <span>{error}</span>
         </div>
@@ -564,15 +532,13 @@
 
       {#if loading}
         <div class="space-y-3 pt-2">
-          <div class="skeleton h-20 w-full rounded-3xl"></div>
-          <div class="skeleton h-20 w-full rounded-3xl"></div>
-          <div class="skeleton h-20 w-full rounded-3xl"></div>
+          <div class="skeleton h-20 w-full rounded-sm"></div>
+          <div class="skeleton h-20 w-full rounded-sm"></div>
+          <div class="skeleton h-20 w-full rounded-sm"></div>
         </div>
       {:else if !matchData}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-primary/12 text-primary rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-primary rounded-sm p-4">
             <Icon src={icons.InformationCircle} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">No matches data available</h4>
@@ -581,10 +547,8 @@
           </p>
         </div>
       {:else if rows.length === 0}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-warning/15 text-warning rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-warning rounded-sm p-4">
             <Icon src={icons.Sparkles} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">No match candidates to display</h4>
@@ -593,10 +557,8 @@
           </p>
         </div>
       {:else if visibleRows.length === 0}
-        <div
-          class="bg-base-200/60 flex flex-col items-center rounded-[2rem] px-6 py-14 text-center"
-        >
-          <div class="bg-primary/12 text-primary rounded-3xl p-4">
+        <div class="bg-base-200/60 flex flex-col items-center rounded-sm px-4 py-6 text-center">
+          <div class="bg-base-200 text-primary rounded-sm p-4">
             <Icon src={icons.Funnel} class="h-8 w-8" />
           </div>
           <h4 class="mt-5 text-xl font-semibold">No actionable rows after filtering</h4>
@@ -607,10 +569,8 @@
       {:else}
         <div class="space-y-4">
           {#each visibleRows as row}
-            <article
-              class="from-base-100 to-base-200/60 rounded-[1.75rem] bg-gradient-to-br p-[1px] shadow-sm"
-            >
-              <div class="bg-base-100 rounded-[calc(1.75rem-1px)] p-5">
+            <article class="border-base-300 rounded-sm border">
+              <div class="bg-base-100 rounded-sm p-5">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
@@ -647,7 +607,7 @@
                 </div>
 
                 {#if row.matches.length === 0}
-                  <div class="bg-base-200/60 mt-4 rounded-2xl px-4 py-3 text-sm">No candidates</div>
+                  <div class="bg-base-200/60 mt-4 rounded-sm px-4 py-3 text-sm">No candidates</div>
                 {:else}
                   <div class="mt-4 grid gap-3">
                     {#each row.matches as candidate}
@@ -656,10 +616,8 @@
                         ? appliedMatches.has(matchKey(row.tx.id, candidateMatchId))
                         : false}
                       <div
-                        class={`rounded-[1.25rem] p-4 ${
-                          candidateApplied
-                            ? 'bg-success/12 ring-success/30 ring-1'
-                            : 'bg-base-200/55'
+                        class={`rounded-sm p-4 ${
+                          candidateApplied ? 'bg-base-200 ring-success/30 ring-1' : 'bg-base-200/55'
                         }`}
                       >
                         <div
@@ -711,7 +669,7 @@
                             {#if candidateMatchId}
                               <div class="tooltip" data-tip={candidateMatchId}>
                                 <span
-                                  class="from-warning/20 to-primary/10 inline-flex rounded-2xl bg-gradient-to-br px-3 py-2 font-mono text-xs font-semibold"
+                                  class="  inline-flex rounded-sm px-3 py-2 font-mono text-xs font-semibold"
                                 >
                                   {candidateMatchId.slice(0, 8)}
                                 </span>
@@ -850,7 +808,7 @@
           aria-valuemax="100"
         >
           <div class="text-center leading-tight">
-            <div class="text-3xl font-semibold">{applyProgressPercent}%</div>
+            <div class="text-xl font-semibold">{applyProgressPercent}%</div>
             <div class="text-base-content/60 text-xs">{applyRunProcessed} / {applyRunTotal}</div>
           </div>
         </div>
@@ -879,7 +837,7 @@
           </div>
         {/if}
 
-        <div class="border-base-200 bg-base-200/40 rounded-2xl border">
+        <div class="border-base-200 bg-base-200/40 rounded-sm border">
           <div class="border-base-200 flex items-center justify-between border-b px-4 py-3">
             <div class="text-sm font-medium">Processed items</div>
             <div class="text-base-content/60 text-xs">Latest 20 updates</div>
@@ -892,7 +850,7 @@
               <div class="space-y-2">
                 {#each applyUpdates as update, index (`${update.transactionId}-${index}`)}
                   <div
-                    class="bg-base-100 flex items-center justify-between rounded-xl px-3 py-2 text-sm"
+                    class="bg-base-100 flex items-center justify-between rounded-sm px-3 py-2 text-sm"
                   >
                     <div class="min-w-0">
                       <div class="font-medium">Transaction #{update.transactionId}</div>

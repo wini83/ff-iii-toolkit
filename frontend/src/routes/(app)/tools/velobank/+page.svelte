@@ -220,13 +220,13 @@
 
 <svelte:head><title>VeloBank Import · Firefly Toolkit</title></svelte:head>
 
-<div class="mx-auto flex w-full max-w-7xl flex-col gap-6">
+<div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <div class="flex items-center gap-4">
-    <div class="bg-secondary/12 text-secondary rounded-2xl p-4">
+    <div class="bg-base-200 text-secondary rounded-sm p-4">
       <Icon src={icons.DocumentArrowUp} class="h-8 w-8" />
     </div>
     <div>
-      <h2 class="text-3xl font-semibold">VeloBank Import</h2>
+      <h2 class="text-xl font-semibold">VeloBank Import</h2>
       <p class="text-base-content/70 mt-1">
         Upload account history, review operations and prepare a CSV for Firefly.
       </p>
@@ -235,8 +235,8 @@
   {#if error}<div role="alert" class="alert alert-error"><span>{error}</span></div>{/if}
   {#if message}<div role="status" class="alert alert-success"><span>{message}</span></div>{/if}
 
-  <section class="card bg-base-100 border-base-200 border shadow-sm">
-    <div class="card-body">
+  <section class="card bg-base-100 border-base-200 border">
+    <div class="card-body p-4">
       <h3 class="card-title">Account-history PDF</h3>
       <p class="text-base-content/70 text-sm">
         Use a text-based VeloBank “Historia rachunku” PDF. Include all operation types and complete
@@ -271,8 +271,8 @@
     {#if expired}<div role="alert" class="alert alert-warning">
         <span>This preview has expired. Upload the PDF again to continue.</span>
       </div>{/if}
-    <section class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body gap-4">
+    <section class="card bg-base-100 border-base-200 border">
+      <div class="card-body gap-4 p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 class="card-title">Review account history</h3>
@@ -287,13 +287,13 @@
         </div>
         <div class="flex flex-wrap gap-3">
           {#each result.totals as total (total.currency)}<div
-              class="bg-base-200 rounded-xl px-4 py-3"
+              class="bg-base-200 rounded-sm px-4 py-3"
             >
               <div class="text-sm font-semibold">{total.currency}</div>
               <div>Debits: {total.debits}</div>
               <div>Credits: {total.credits}</div>
             </div>{/each}
-          <div class="bg-base-200 rounded-xl px-4 py-3">
+          <div class="bg-base-200 rounded-sm px-4 py-3">
             <div class="text-sm font-semibold">Needs review</div>
             <div>{reviewCount} counterparties</div>
           </div>
@@ -304,8 +304,8 @@
       </div>
     </section>
 
-    <section class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body gap-4">
+    <section class="card bg-base-100 border-base-200 border">
+      <div class="card-body gap-4 p-4">
         <h3 class="card-title">Map your accounts</h3>
         <p class="text-base-content/70 text-sm">
           Choose the existing Firefly asset account for this statement. Map other own accounts so
@@ -338,7 +338,7 @@
         </div>
         {#if ownMappings.length}<div class="flex flex-col gap-2">
             {#each ownMappings as [iban, name] (iban)}<div
-                class="bg-base-200 flex flex-wrap items-center justify-between gap-2 rounded-xl p-3"
+                class="bg-base-200 flex flex-wrap items-center justify-between gap-2 rounded-sm p-3"
               >
                 <div class="min-w-0">
                   <div class="text-sm break-all">{iban}</div>
@@ -351,7 +351,7 @@
                 >
               </div>{/each}
           </div>{/if}
-        <fieldset disabled={busy || expired} class="border-base-300 rounded-xl border p-4">
+        <fieldset disabled={busy || expired} class="border-base-300 rounded-sm border p-4">
           <legend class="px-2 text-sm font-semibold">Add another own account</legend>
           <div class="grid gap-3 md:grid-cols-2">
             <div>
@@ -401,8 +401,8 @@
       </div>
     </section>
 
-    <section class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body gap-4">
+    <section class="card bg-base-100 border-base-200 border">
+      <div class="card-body gap-4 p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h3 class="card-title">Operations</h3>
           <button
@@ -419,7 +419,7 @@
             {#each result.warnings as warning}<p>{warning}</p>{/each}
           </div>
         </div>
-        <details class="border-base-300 rounded-xl border p-3">
+        <details class="border-base-300 rounded-sm border p-3">
           <summary class="cursor-pointer text-sm font-semibold"
             >Export options and importer setup</summary
           >
