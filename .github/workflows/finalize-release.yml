@@ -6,26 +6,62 @@ on:
       - closed
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      release_pr:
+        description: Merged release pull request number to finalize (for example 158)
+        required: true
+        type: string
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
-  group: finalize-release-${{ github.event.pull_request.number }}
+  group: finalize-release-${{ github.event.pull_request.number || inputs.release_pr }}
   cancel-in-progress: false
 
 jobs:
   finalize-release:
     if: >-
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/v')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve merged release pull request
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PR: ${{ github.event.pull_request.number || inputs.release_pr }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_PR" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Expected a release pull request number." >&2
+            exit 1
+          fi
+
+          release_pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${RELEASE_PR}")"
+          if ! jq -e '
+            .merged == true and
+            .base.ref == "main" and
+            .head.repo.full_name == env.GITHUB_REPOSITORY and
+            (.head.ref | test("^release/v[0-9]+\\.[0-9]+\\.[0-9]+$")) and
+            (.merge_commit_sha | test("^[0-9a-f]{40}$"))
+          ' <<< "$release_pr" >/dev/null; then
+            echo "Expected a merged release/v<version> PR from this repository into main." >&2
+            exit 1
+          fi
+
+          echo "sha=$(jq -r .merge_commit_sha <<< "$release_pr")" >> "$GITHUB_OUTPUT"
+          echo "branch=$(jq -r .head.ref <<< "$release_pr")" >> "$GITHUB_OUTPUT"
+
       - name: Checkout release merge commit
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ steps.release.outputs.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -46,7 +82,7 @@ jobs:
       - name: Resolve and validate release version
         id: version
         env:
-          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          RELEASE_BRANCH: ${{ steps.release.outputs.branch }}
         shell: bash
         run: |
           version="${RELEASE_BRANCH#release/v}"
@@ -76,16 +112,29 @@ jobs:
       - name: Create and push release tag
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         shell: bash
         run: |
           tag="v${RELEASE_VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag $tag already exists."
+          if git show-ref --verify --quiet "refs/tags/${tag}"; then
+            if [[ "$(git rev-parse "${tag}^{commit}")" != "$(git rev-parse HEAD)" ]]; then
+              echo "Tag $tag already points to a different commit; refusing to reuse it." >&2
+              exit 1
+            fi
+            echo "Tag $tag already exists at the release merge commit."
             exit 0
           fi
 
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "Set the RELEASE_TOKEN repository secret with Contents and Workflows read/write permissions." >&2
+            exit 1
+          fi
+
           git tag -a "$tag" -m "$tag"
-          git push origin "$tag"
+          # Use the release credential only for this push, without persisting it.
+          git -c credential.helper= \
+            -c 'credential.helper=!gh auth git-credential' \
+            push origin "refs/tags/${tag}"
 
       - name: Create draft GitHub Release
         env:
