@@ -41,6 +41,11 @@
         },
         { label: 'Stats', href: resolve('tx/stats'), icon: icons.ChartBar },
         {
+          label: 'Reconciliation',
+          href: resolve('tx/reconcile'),
+          icon: icons.DocumentMagnifyingGlass
+        },
+        {
           label: 'Potential duplicates',
           href: resolve('tx/duplicates'),
           icon: icons.DocumentMagnifyingGlass

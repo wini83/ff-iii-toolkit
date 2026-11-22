@@ -52,6 +52,38 @@ foreign-currency transfers are also excluded because the simplified snapshot
 cannot reliably provide their destination-account amount. Reconciling opposite
 sides of transfers across accounts is outside this feature's scope.
 
+## Reconciliation assistant (MVP)
+
+Open **Transactions → Reconciliation**, select an asset account, an inclusive
+period and the Alior CSV export used by BLIK enrichment. Confirm that the file
+contains every booked operation for that account and period, then compare.
+The file is processed for this request and is not retained as an application upload.
+Supported: UTF-8 semicolon CSV, up to 2 MiB / 2000 transactions / 366 days.
+Booking date takes precedence over transaction date when present.
+
+Matches require the same signed account amount, currency and normalized title
+(case and whitespace ignored), with configurable date tolerance of 0–2 days.
+Both dates must remain inside the selected period. Repeated identical payments
+remain ambiguous. The page shows matches, candidates needing review, bank-only
+and Firefly-only movements, plus signed totals per currency. Equal totals do not
+prove that all operations match; opening and closing balances are not verified.
+
+Select verified matches and click **Mark selected as reconciled** (at most 100).
+Only `reconciled=true` is written, with rules and webhooks disabled. Each comparison
+reads Firefly directly. Before writing, the server recomputes the comparison and
+revalidates all selected transactions; a changed comparison requires another
+preview. Each write is read back. An unverifiable outcome stops the remaining
+batch, and the page requires another comparison before further marking.
+Firefly does not provide atomic conditional updates, so avoid simultaneous edits
+while marking. There is no automatic deletion or correction of differences.
+
+Transfers are comparison-only because Firefly reconciles both account legs.
+Split groups, invalid simplified transactions and incoming FX transfers are
+excluded and counted. Transactions tagged `do-usuniecia` are also read-only.
+Account choices come from the shared transaction snapshot; refresh that snapshot
+on the duplicate-search page if a newly added account is missing.
+This feature requires Luciferin 1.3.1 or newer (the backend dependency enforces it).
+
 ## Releases
 
 The toolkit has one product version, stored in [`VERSION`](VERSION) and managed

@@ -6,6 +6,7 @@ export default defineConfig({
     'matching-apply.spec.ts',
     'metric-transactions.spec.ts',
     'duplicates.spec.ts',
+    'reconciliation.spec.ts',
     'themes.spec.ts',
     'shell.spec.ts',
     'screening.spec.ts',

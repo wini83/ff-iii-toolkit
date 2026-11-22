@@ -77,7 +77,11 @@ for (const theme of ['wireframe', 'black']) {
       await expect(
         nav.getByRole('link', { name: 'Potential duplicates', exact: true })
       ).toHaveAttribute('href', '/tx/duplicates');
-      await expect(nav.getByRole('link')).toHaveCount(12);
+      await expect(nav.getByRole('link', { name: 'Reconciliation', exact: true })).toHaveAttribute(
+        'href',
+        '/tx/reconcile'
+      );
+      await expect(nav.getByRole('link')).toHaveCount(13);
       await page.screenshot({ path: testInfo.outputPath('navigation-focus.png') });
       await nav.getByText('Transactions', { exact: true }).click();
       await expect(nav.getByRole('link', { name: 'Categorize', exact: true })).toBeHidden();

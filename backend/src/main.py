@@ -13,6 +13,7 @@ from api.routers.blik_files import router as blik_router
 from api.routers.duplicates import router as duplicates_router
 from api.routers.me import router as me_router
 from api.routers.metric_transactions import router as metric_transactions_router
+from api.routers.reconciliation import router as reconciliation_router
 from api.routers.system import router as system_router
 from api.routers.transactions import router as transactions_router
 from api.routers.tx import router as tx_router
@@ -217,6 +218,7 @@ def create_app(
     app.include_router(transactions_router)
     app.include_router(tx_router)
     app.include_router(duplicates_router)
+    app.include_router(reconciliation_router)
     app.include_router(allegro_router)
     app.include_router(metric_transactions_router)
     app.include_router(users_router)
