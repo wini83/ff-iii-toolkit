@@ -98,6 +98,21 @@ workflow opens a `release/v<version>` pull request. Review and merge that PR:
 **Finalize release** creates an annotated tag at the release PR's merge commit
 and a **draft GitHub Release**, with notes extracted only for that version.
 
+Configure the repository Actions secret `RELEASE_TOKEN` with a fine-grained
+personal access token restricted to this repository and **Contents: Read and
+write** plus **Workflows: Read and write** permissions. The finalizer uses this
+token only to push the release tag: GitHub can require workflow permission when
+the tagged history changes `.github/workflows/` files. Checkout and draft
+creation use the built-in `GITHUB_TOKEN`; the release token is not persisted in
+Git configuration. Renew the secret when the token expires.
+
+To recover a failed finalization after fixing the workflow or credentials, open
+**Actions → Finalize release → Run workflow**, select `main`, and enter the
+merged release PR number as `release_pr` (for example `158` for `v3.8.0`). This
+uses the current workflow but tags the original release PR's merge commit,
+even if `main` has advanced. Existing tags are accepted only if they point to
+that same commit. Re-running the old run does not pick up workflow fixes.
+
 Review the draft under **Releases**, then click **Publish release**. This starts
 **Publish container images**, which checks out the release tag and publishes
 both GHCR images with `<version>` and `latest` tags. Creating a tag or a draft
