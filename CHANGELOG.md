@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.7.0 (2026-11-22)
+
+### Feat
+
+- **duplicates**: immediately tag the other copy when keeping a transaction (#155)
+
 ## v3.6.0 (2026-11-19)
 
 ### Feat
