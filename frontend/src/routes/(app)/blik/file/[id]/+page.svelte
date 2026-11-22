@@ -64,9 +64,9 @@
         class="input input-sm input-bordered w-full max-w-xs"
         value=""
       />
-      <button class="btn btn-sm btn-primary" on:click={goToMatch}
-        >Match Transactions ({content.length})</button
-      >
+      <button class="btn btn-sm btn-primary" on:click={goToMatch}>
+        Match Transactions ({content.length})
+      </button>
     </div>
   </div>
 
@@ -96,21 +96,22 @@
             {#each content as row}
               <tr>
                 <td class="whitespace-nowrap">{row.date}</td>
-                <td class="whitespace-nowrap"
-                  >{formatAmount(row.amount)}
+                <td class="whitespace-nowrap">
+                  {formatAmount(row.amount)}
                   {row.account_currency}<br />
-                  <span class="italic"
-                    >{formatAmount(row.operation_amount)} {row.operation_currency}</span
-                  ></td
-                >
-                <td class="whitespace-nowrap"
-                  >{row.sender || '-'} <br />
-                  <span class="italic">{row.sender_account || '-'}</span></td
-                >
-                <td class="whitespace-nowrap"
-                  >{row.recipient || '-'}<br />
-                  <span class="italic">{row.recipient_account || '-'}</span></td
-                >
+                  <span class="italic">
+                    {formatAmount(row.operation_amount)}
+                    {row.operation_currency}
+                  </span>
+                </td>
+                <td class="whitespace-nowrap">
+                  {row.sender || '-'} <br />
+                  <span class="italic">{row.sender_account || '-'}</span>
+                </td>
+                <td class="whitespace-nowrap">
+                  {row.recipient || '-'}<br />
+                  <span class="italic">{row.recipient_account || '-'}</span>
+                </td>
                 <td>{row.details || '-'}</td>
               </tr>
             {/each}

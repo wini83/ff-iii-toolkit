@@ -46,11 +46,11 @@
 
 <div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Profile">
-    <svelte:fragment slot="description"
-      >Current account details returned by the application identity endpoint.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><a href={resolve('settings/secrets')} class="btn btn-ghost btn-sm">
+    <svelte:fragment slot="description">
+      Current account details returned by the application identity endpoint.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <a href={resolve('settings/secrets')} class="btn btn-ghost btn-sm">
         <Icon src={icons.Key} class="h-4 w-4" />
         Secrets
       </a>
@@ -61,8 +61,8 @@
           <Icon src={icons.ArrowPath} class="h-4 w-4" />
         {/if}
         Refresh
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   <section class="card bg-base-100">

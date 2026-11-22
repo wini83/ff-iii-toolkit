@@ -81,9 +81,9 @@
     <header
       class="border-base-300 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4"
     >
-      <a href={resolve('login')} class="inline-flex items-center gap-2 font-semibold"
-        ><img src="/logo_b.png" alt="" class="h-6 w-6 object-contain" />Firefly Toolkit</a
-      >
+      <a href={resolve('login')} class="inline-flex items-center gap-2 font-semibold">
+        <img src="/logo_b.png" alt="" class="h-6 w-6 object-contain" />Firefly Toolkit
+      </a>
       <span class="text-base-content/70 text-xs">Account activation</span>
     </header>
 

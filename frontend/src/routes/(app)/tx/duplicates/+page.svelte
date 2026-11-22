@@ -239,16 +239,18 @@
 
 <div class="min-w-0 space-y-4">
   <WorkflowHeader title="Potential duplicates">
-    <span slot="description"
-      >Compare transactions on one account with exactly the same amount and currency, different tag
-      sets and nearby dates.</span
-    >
+    <span slot="description">
+      Compare transactions on one account with exactly the same amount and currency, different tag
+      sets and nearby dates.
+    </span>
     <button
       slot="actions"
       class="btn btn-sm"
       disabled={busy || marking}
-      on:click={() => loadOptions(true)}>Reload transactions</button
+      on:click={() => loadOptions(true)}
     >
+      Reload transactions
+    </button>
   </WorkflowHeader>
 
   {#if options}
@@ -258,17 +260,17 @@
         class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
         <legend class="sr-only">Duplicate search filters</legend>
-        <label class="min-w-0 text-sm sm:col-span-2 xl:col-span-1"
-          >Account
+        <label class="min-w-0 text-sm sm:col-span-2 xl:col-span-1">
+          Account
           <select class="select mt-1 w-full" bind:value={accountId} required>
             <option value="" disabled>Select an account</option>
-            {#each options.accounts as account}<option value={String(account.id)}
-                >{account.name}</option
-              >{/each}
+            {#each options.accounts as account}<option value={String(account.id)}>
+                {account.name}
+              </option>{/each}
           </select>
         </label>
-        <label class="min-w-0 text-sm"
-          >Date from
+        <label class="min-w-0 text-sm">
+          Date from
           <input
             class="input mt-1 w-full"
             type="date"
@@ -277,8 +279,8 @@
             required
           />
         </label>
-        <label class="min-w-0 text-sm"
-          >Date to
+        <label class="min-w-0 text-sm">
+          Date to
           <input
             class="input mt-1 w-full"
             type="date"
@@ -287,8 +289,8 @@
             required
           />
         </label>
-        <label class="min-w-0 text-sm"
-          >Date tolerance (days)
+        <label class="min-w-0 text-sm">
+          Date tolerance (days)
           <input
             class="input mt-1 w-full"
             type="number"
@@ -334,8 +336,9 @@
         disabled={busy || marking}
         on:click={() =>
           changed || !submitted ? loadOptions(!changed && options !== null) : search()}
-        >{changed || !submitted ? 'Reload transactions and filters' : 'Retry search'}</button
       >
+        {changed || !submitted ? 'Reload transactions and filters' : 'Retry search'}
+      </button>
     </div>
   {/if}
   {#if result && submitted}
@@ -351,9 +354,9 @@
       </div>
       <p class="text-base-content/70 text-sm">
         These are review candidates, including possible legitimate repeated payments.
-        <strong
-          >Keep this immediately adds <code>{deletionTag}</code> to the other transaction.</strong
-        >
+        <strong>
+          Keep this immediately adds <code>{deletionTag}</code> to the other transaction.
+        </strong>
         Keep both leaves both transactions unchanged. Existing tags are preserved; delete marked entries
         later in Firefly.
       </p>
@@ -374,9 +377,9 @@
               {pair.amount}
               {pair.currency_code} · {pair.direction === 'incoming' ? 'Incoming' : 'Outgoing'}
             </h4>
-            <span class="text-base-content/70 text-xs"
-              >Date difference: {pair.date_difference_days} days · Different tag sets</span
-            >
+            <span class="text-base-content/70 text-xs">
+              Date difference: {pair.date_difference_days} days · Different tag sets
+            </span>
             <div class="flex gap-2">
               <button
                 class="btn btn-xs"
@@ -387,30 +390,31 @@
                   isMarked(pair.second, markedIds)}
                 aria-pressed={keptBoth.has(pair.id)}
                 on:click={() => toggleKeepBoth(pair)}
-                >{keptBoth.has(pair.id) ? 'Undo keep both' : 'Keep both'}</button
               >
+                {keptBoth.has(pair.id) ? 'Undo keep both' : 'Keep both'}
+              </button>
               {#if savingPairId === pair.id}<span role="status" class="text-sm">Saving…</span>{/if}
             </div>
           </div>
           <div class="overflow-x-auto">
             <table class="table-sm table">
               <caption class="sr-only">Transactions in candidate pair {pair.id}</caption>
-              <thead
-                ><tr
-                  ><th>Decision</th><th>Date</th><th>Description</th><th>Type</th><th
-                    >Source account</th
-                  ><th>Destination account</th><th>Tags</th><th>Firefly</th></tr
-                ></thead
-              >
+              <thead>
+                <tr>
+                  <th>Decision</th><th>Date</th><th>Description</th><th>Type</th><th>
+                    Source account
+                  </th><th>Destination account</th><th>Tags</th><th>Firefly</th>
+                </tr>
+              </thead>
               <tbody>
                 {#each [pair.first, pair.second] as tx (tx.id)}
                   {@const link = fireflyLink(result.firefly_url, tx.id)}
                   <tr class:bg-base-200={isMarked(tx, markedIds)}>
                     <td>
                       {#if isMarked(tx, markedIds)}
-                        <span class="badge badge-outline badge-sm whitespace-nowrap"
-                          >Marked for deletion</span
-                        >
+                        <span class="badge badge-outline badge-sm whitespace-nowrap">
+                          Marked for deletion
+                        </span>
                       {:else}
                         <div class="flex flex-col items-start gap-1">
                           <button
@@ -420,8 +424,10 @@
                             aria-pressed={keptIds.has(tx.id)}
                             disabled={busy || marking || needsFreshSnapshot}
                             title={`Immediately mark transaction #${tx.id === pair.first.id ? pair.second.id : pair.first.id} with ${deletionTag}`}
-                            on:click={() => keepThis(pair, tx.id)}>Keep this</button
+                            on:click={() => keepThis(pair, tx.id)}
                           >
+                            Keep this
+                          </button>
                           {#if keptIds.has(tx.id)}
                             <span class="text-base-content/70 text-xs">Keep</span>
                           {/if}
@@ -430,23 +436,28 @@
                     </td>
                     <td class="toolkit-data whitespace-nowrap">{tx.date}</td>
                     <td class="min-w-40 wrap-anywhere whitespace-normal">{tx.description}</td>
-                    <td>{tx.type}</td><td>{tx.source_account?.name ?? '—'}</td><td
-                      >{tx.destination_account?.name ?? '—'}</td
-                    >
-                    <td
-                      >{#if markedIds.has(tx.id) && !tx.tags.includes(deletionTag)}<span
-                          class="badge badge-sm m-0.5">{deletionTag}</span
-                        >{/if}{#each tx.tags as tag}<span class="badge badge-sm m-0.5">{tag}</span
-                        >{:else}<span class="text-base-content/70">No tags</span>{/each}</td
-                    >
-                    <td
-                      >{#if link}<a
+                    <td>{tx.type}</td><td>{tx.source_account?.name ?? '—'}</td><td>
+                      {tx.destination_account?.name ?? '—'}
+                    </td>
+                    <td>
+                      {#if markedIds.has(tx.id) && !tx.tags.includes(deletionTag)}<span
+                          class="badge badge-sm m-0.5"
+                        >
+                          {deletionTag}
+                        </span>{/if}{#each tx.tags as tag}<span class="badge badge-sm m-0.5">
+                          {tag}
+                        </span>{:else}<span class="text-base-content/70">No tags</span>{/each}
+                    </td>
+                    <td>
+                      {#if link}<a
                           class="link whitespace-nowrap"
                           href={link}
                           target="_blank"
-                          rel="external noopener noreferrer">Open #{tx.id}</a
-                        >{:else}#{tx.id}{/if}</td
-                    >
+                          rel="external noopener noreferrer"
+                        >
+                          Open #{tx.id}
+                        </a>{:else}#{tx.id}{/if}
+                    </td>
                   </tr>
                 {/each}
               </tbody>
@@ -456,22 +467,26 @@
       {/each}
       {#if result.total > 0}
         <div class="flex flex-wrap items-center justify-end gap-3">
-          <span class="toolkit-data text-xs"
-            >{result.offset + 1}–{Math.min(result.offset + result.items.length, result.total)} of {result.total}</span
-          >
+          <span class="toolkit-data text-xs">
+            {result.offset + 1}–{Math.min(result.offset + result.items.length, result.total)} of {result.total}
+          </span>
           <button
             class="btn btn-sm"
             disabled={busy || marking || needsFreshSnapshot || result.offset === 0}
-            on:click={() => search(Math.max(0, result!.offset - 25))}>Previous</button
+            on:click={() => search(Math.max(0, result!.offset - 25))}
           >
+            Previous
+          </button>
           <button
             class="btn btn-sm"
             disabled={busy ||
               marking ||
               needsFreshSnapshot ||
               result.offset + result.limit >= result.total}
-            on:click={() => search(result!.offset + 25)}>Next</button
+            on:click={() => search(result!.offset + 25)}
           >
+            Next
+          </button>
         </div>
       {/if}
     </section>

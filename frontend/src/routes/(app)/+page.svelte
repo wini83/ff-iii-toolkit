@@ -265,9 +265,9 @@
           {snapshot.is_stale ? 'Stale snapshot at last check' : 'Fresh snapshot at last check'}
         </p>
         <p class="text-base-content/70 mt-1">
-          Retrieved <time datetime={snapshot.snapshot_fetched_at}
-            >{formatTimestamp(snapshot.snapshot_fetched_at)}</time
-          >
+          Retrieved <time datetime={snapshot.snapshot_fetched_at}>
+            {formatTimestamp(snapshot.snapshot_fetched_at)}
+          </time>
         </p>
       {:else}
         <p class="text-base-content/70">Data freshness unavailable</p>
@@ -304,9 +304,10 @@
           {:else if metric.failed || metric.count === null}
             <p class="text-base-content/70">Count unavailable</p>
           {:else}
-            <a class="link inline-block font-medium wrap-anywhere" href={resolve(source.stats)}
-              ><span class="toolkit-data">{metric.count}</span> {source.label}</a
-            >
+            <a class="link inline-block font-medium wrap-anywhere" href={resolve(source.stats)}>
+              <span class="toolkit-data">{metric.count}</span>
+              {source.label}
+            </a>
             {#if metric.count === 0}<p class="text-base-content/70 mt-1">
                 No work in this snapshot.
               </p>{/if}
@@ -327,8 +328,10 @@
             class="btn btn-outline btn-sm"
             href={source.id === 'tx'
               ? resolve(`tx/categorize${screeningQuery}`)
-              : resolve(source.href)}>{source.action}</a
+              : resolve(source.href)}
           >
+            {source.action}
+          </a>
           {#if source.id === 'tx' && oldestMonth}<p class="text-base-content/60 mt-1 text-xs">
               Oldest month: <span class="toolkit-data">{oldestMonth}</span>
             </p>{/if}

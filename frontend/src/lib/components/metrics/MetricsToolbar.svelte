@@ -23,9 +23,9 @@
   <div class="min-w-0">
     <h2 class="text-lg font-semibold">{title}</h2>
     <details class="text-base-content/70 mt-1 text-xs">
-      <summary class="cursor-pointer"
-        >Data: {timestamp ? dateLabel(timestamp) : 'unavailable'}</summary
-      >
+      <summary class="cursor-pointer">
+        Data: {timestamp ? dateLabel(timestamp) : 'unavailable'}
+      </summary>
       <p class="mt-1">
         Generation time: {typeof fetchSeconds === 'number'
           ? `${fetchSeconds.toFixed(2)} s`
@@ -40,18 +40,22 @@
           class="btn btn-sm join-item"
           class:btn-active={mode === 'count'}
           aria-pressed={mode === 'count'}
-          on:click={() => onMode('count')}>Count</button
+          on:click={() => onMode('count')}
         >
+          Count
+        </button>
         <button
           class="btn btn-sm join-item"
           class:btn-active={mode === 'amount'}
           aria-pressed={mode === 'amount'}
-          on:click={() => onMode('amount')}>Amount</button
+          on:click={() => onMode('amount')}
         >
+          Amount
+        </button>
       </div>
       {#if mode === 'amount' && currencies.length}
-        <label class="flex items-center gap-2 text-sm"
-          >Chart currency
+        <label class="flex items-center gap-2 text-sm">
+          Chart currency
           <select
             class="select select-sm w-auto"
             aria-label="Chart currency"
@@ -63,8 +67,8 @@
         </label>
       {/if}
     {/if}
-    <button class="btn btn-sm" disabled={busy} on:click={onRefresh}
-      >{busy ? 'Refreshing…' : 'Refresh'}</button
-    >
+    <button class="btn btn-sm" disabled={busy} on:click={onRefresh}>
+      {busy ? 'Refreshing…' : 'Refresh'}
+    </button>
   </div>
 </header>

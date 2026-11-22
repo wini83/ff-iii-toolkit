@@ -169,21 +169,21 @@
 
 <div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Allegro payments">
-    <svelte:fragment slot="description"
-      >Review imported payments for the selected Allegro secret{accountLogin
+    <svelte:fragment slot="description">
+      Review imported payments for the selected Allegro secret{accountLogin
         ? ` (${accountLogin})`
-        : ''}.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><button class="btn btn-secondary" on:click={openAccounts}>
+        : ''}.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <button class="btn btn-secondary" on:click={openAccounts}>
         <Icon src={icons.Key} class="h-5 w-5" />
         Acounts
       </button>
       <button class="btn btn-primary" on:click={openMatches}>
         <Icon src={icons.Sparkles} class="h-5 w-5" />
         Matches
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   <section class="card bg-base-100">

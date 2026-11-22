@@ -139,16 +139,16 @@
 
 <div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Allegro accounts">
-    <svelte:fragment slot="description"
-      >Choose a configured Allegro secret to inspect imported payments and continue the matching
-      workflow.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><button class="btn btn-primary" on:click={openSettings}>
+    <svelte:fragment slot="description">
+      Choose a configured Allegro secret to inspect imported payments and continue the matching
+      workflow.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <button class="btn btn-primary" on:click={openSettings}>
         <Icon src={icons.Key} class="h-5 w-5" />
         Edit secrets
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   <section class="card bg-base-100">

@@ -50,12 +50,15 @@
     <header
       class="border-base-300 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4"
     >
-      <a href={resolve('login')} class="inline-flex items-center gap-2 font-semibold"
-        ><img src="/logo_b.png" alt="" class="h-6 w-6 object-contain" />Firefly Toolkit</a
+      <a href={resolve('login')} class="inline-flex items-center gap-2 font-semibold">
+        <img src="/logo_b.png" alt="" class="h-6 w-6 object-contain" />Firefly Toolkit
+      </a>
+      <span
+        class="tooltip inline-flex items-center gap-2 text-xs"
+        data-tip={getStatusTooltipText()}
       >
-      <span class="tooltip inline-flex items-center gap-2 text-xs" data-tip={getStatusTooltipText()}
-        ><Icon src={getStatusIcon()} class="h-4 w-4" />v{getVersionLabel()}</span
-      >
+        <Icon src={getStatusIcon()} class="h-4 w-4" />v{getVersionLabel()}
+      </span>
     </header>
 
     <section class="p-5 sm:p-6">

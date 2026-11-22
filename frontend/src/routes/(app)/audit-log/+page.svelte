@@ -145,19 +145,19 @@
 
 <div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Audit log">
-    <svelte:fragment slot="description"
-      >Inspect user actions, target entities and metadata for administrative events across the
-      application.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><button class="btn btn-ghost" disabled={loading || refreshing} on:click={resetFilters}>
+    <svelte:fragment slot="description">
+      Inspect user actions, target entities and metadata for administrative events across the
+      application.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <button class="btn btn-ghost" disabled={loading || refreshing} on:click={resetFilters}>
         Reset filters
       </button>
       <button class="btn btn-primary" disabled={loading || refreshing} on:click={submitFilters}>
         <Icon src={icons.Funnel} class="h-5 w-5" />
         Apply filters
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   <section class="card bg-base-100">
