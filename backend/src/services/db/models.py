@@ -52,18 +52,18 @@ class UserORM(Base):
         nullable=True,
     )
 
-    secrets: Mapped[list["UserSecretORM"]] = relationship(
+    secrets: Mapped[list[UserSecretORM]] = relationship(
         "UserSecretORM",
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    secret_vault: Mapped["UserSecretVaultORM | None"] = relationship(
+    secret_vault: Mapped[UserSecretVaultORM | None] = relationship(
         "UserSecretVaultORM",
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False,
     )
-    password_set_tokens: Mapped[list["UserPasswordSetTokenORM"]] = relationship(
+    password_set_tokens: Mapped[list[UserPasswordSetTokenORM]] = relationship(
         "UserPasswordSetTokenORM",
         back_populates="user",
         cascade="all, delete-orphan",
@@ -201,7 +201,7 @@ class UserSecretORM(Base):
         nullable=False,
     )
 
-    user: Mapped["UserORM"] = relationship(
+    user: Mapped[UserORM] = relationship(
         "UserORM",
         back_populates="secrets",
     )
@@ -244,7 +244,7 @@ class UserSecretVaultORM(Base):
         nullable=False,
     )
 
-    user: Mapped["UserORM"] = relationship(
+    user: Mapped[UserORM] = relationship(
         "UserORM",
         back_populates="secret_vault",
     )
@@ -292,7 +292,7 @@ class UserPasswordSetTokenORM(Base):
         nullable=True,
     )
 
-    user: Mapped["UserORM"] = relationship(
+    user: Mapped[UserORM] = relationship(
         "UserORM",
         back_populates="password_set_tokens",
         foreign_keys=[user_id],

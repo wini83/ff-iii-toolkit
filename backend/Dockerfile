@@ -1,5 +1,5 @@
 # ========= BUILDER: uv + deps =========
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS builder
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY src ./src
 
 
 # ========= RUNTIME: ultra-slim backend =========
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /app
 

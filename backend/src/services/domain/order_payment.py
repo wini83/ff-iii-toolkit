@@ -17,7 +17,7 @@ class OrderPayment(BaseMatchItem):
         """Return details as a single string."""
         return "\n".join(self.details)
 
-    def compare(self, other: "Matchable") -> bool:
+    def compare(self, other: Matchable) -> bool:
         """Check whether ``other`` matches this payment within tolerance."""
         if not bool(super().compare_amounts_abs(other)):
             return False

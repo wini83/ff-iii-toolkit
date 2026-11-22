@@ -66,6 +66,9 @@ manually.
 
 ## Development
 
+Python 3.14+ is required. The repository pins Python 3.14 in `.python-version`;
+`uv sync` selects it automatically. Docker and CI use the same Python series.
+
 Configure the backend first:
 
 ```sh
