@@ -29,12 +29,13 @@
     ...[...keptBoth.values()].flatMap((pair) => [pair.first.id, pair.second.id])
   ]);
 
-  function isMarked(tx: components['schemas']['SimplifiedTx']): boolean {
-    return tx.tags.includes(deletionTag) || markedIds.has(tx.id);
+  function isMarked(tx: components['schemas']['SimplifiedTx'], knownIds: Set<number>): boolean {
+    return tx.tags.includes(deletionTag) || knownIds.has(tx.id);
   }
 
   function toggleKeepBoth(pair: Pair) {
-    if (busy || marking || isMarked(pair.first) || isMarked(pair.second)) return;
+    if (busy || marking || isMarked(pair.first, markedIds) || isMarked(pair.second, markedIds))
+      return;
     const next = new Map(keptBoth);
     if (next.has(pair.id)) next.delete(pair.id);
     else next.set(pair.id, pair);
@@ -47,7 +48,7 @@
     if (busy || marking) return;
     const keep = pair.first.id === keepId ? pair.first : pair.second;
     const other = pair.first.id === keepId ? pair.second : pair.first;
-    if (isMarked(keep)) return;
+    if (isMarked(keep, markedIds)) return;
     // A local "keep both" on this pair can be replaced. Other keep decisions
     // and successfully retained copies must never be marked through this pair.
     const protectedIds = new Set(confirmedKeepIds);
@@ -67,7 +68,7 @@
     marking = true;
     savingPairId = pair.id;
     try {
-      if (!isMarked(other)) await applyTag(other.id, deletionTag);
+      if (!isMarked(other, markedIds)) await applyTag(other.id, deletionTag);
       if (id !== requestId) return;
       markedIds = new Set([...markedIds, other.id]);
       confirmedKeepIds = new Set([...confirmedKeepIds, keep.id]);
@@ -320,7 +321,10 @@
             <div class="flex gap-2">
               <button
                 class="btn btn-xs"
-                disabled={busy || marking || isMarked(pair.first) || isMarked(pair.second)}
+                disabled={busy ||
+                  marking ||
+                  isMarked(pair.first, markedIds) ||
+                  isMarked(pair.second, markedIds)}
                 aria-pressed={keptBoth.has(pair.id)}
                 on:click={() => toggleKeepBoth(pair)}
                 >{keptBoth.has(pair.id) ? 'Undo keep both' : 'Keep both'}</button
@@ -341,9 +345,9 @@
               <tbody>
                 {#each [pair.first, pair.second] as tx (tx.id)}
                   {@const link = fireflyLink(result.firefly_url, tx.id)}
-                  <tr class:bg-base-200={isMarked(tx)}>
+                  <tr class:bg-base-200={isMarked(tx, markedIds)}>
                     <td>
-                      {#if isMarked(tx)}
+                      {#if isMarked(tx, markedIds)}
                         <span class="badge badge-outline badge-sm whitespace-nowrap"
                           >Marked for deletion</span
                         >
