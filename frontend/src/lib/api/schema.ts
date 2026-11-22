@@ -465,6 +465,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/reconciliation/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview */
+    post: operations['preview_api_reconciliation_preview_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/reconciliation/apply': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Apply */
+    post: operations['apply_api_reconciliation_apply_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/allegro/secrets': {
     parameters: {
       query?: never;
@@ -1142,6 +1176,27 @@ export interface components {
       /** Offset */
       offset: number;
     };
+    /** BankLine */
+    BankLine: {
+      /** Row Id */
+      row_id: number;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Amount */
+      amount: string;
+      /** Currency */
+      currency: string;
+      /** Description */
+      description: string;
+      /**
+       * Own Account
+       * @default
+       */
+      own_account: string;
+    };
     /** BlikMetricsResultResponse */
     BlikMetricsResultResponse: {
       /** Single Part Transactions */
@@ -1174,6 +1229,32 @@ export interface components {
       /** Error */
       error: string | null;
     };
+    /** Body_apply_api_reconciliation_apply_post */
+    Body_apply_api_reconciliation_apply_post: {
+      /** File */
+      file: string;
+      /** Account Id */
+      account_id: number;
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string;
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string;
+      /**
+       * Tolerance Days
+       * @default 0
+       */
+      tolerance_days: number;
+      /** Revision */
+      revision: string;
+      /** Selected Ids */
+      selected_ids: string;
+    };
     /** Body_login_for_access_token_api_auth_token_post */
     Body_login_for_access_token_api_auth_token_post: {
       /** Grant Type */
@@ -1197,6 +1278,28 @@ export interface components {
        * Format: password
        */
       client_secret?: string | null;
+    };
+    /** Body_preview_api_reconciliation_preview_post */
+    Body_preview_api_reconciliation_preview_post: {
+      /** File */
+      file: string;
+      /** Account Id */
+      account_id: number;
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string;
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string;
+      /**
+       * Tolerance Days
+       * @default 0
+       */
+      tolerance_days: number;
     };
     /** Body_upload_csv_api_blik_files_post */
     Body_upload_csv_api_blik_files_post: {
@@ -1236,6 +1339,19 @@ export interface components {
       /** Suggestions */
       suggestions: components['schemas']['CategorySuggestionDto'][];
     };
+    /** ComparisonRow */
+    ComparisonRow: {
+      bank: components['schemas']['BankLine'];
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'matched' | 'review' | 'bank_only';
+      /** Candidates */
+      candidates: components['schemas']['FireflyLine'][];
+      /** Candidate Count */
+      candidate_count: number;
+    };
     /** CreateSecretPayload */
     CreateSecretPayload: {
       type: components['schemas']['SecretType'];
@@ -1245,6 +1361,17 @@ export interface components {
       external_username?: string | null;
       /** Secret */
       secret: string;
+    };
+    /** CurrencyDifference */
+    CurrencyDifference: {
+      /** Currency */
+      currency: string;
+      /** Bank Total */
+      bank_total: string;
+      /** Firefly Total */
+      firefly_total: string;
+      /** Difference */
+      difference: string;
     };
     /** DuplicateOptions */
     DuplicateOptions: {
@@ -1329,6 +1456,30 @@ export interface components {
       size: number;
       /** Content */
       content: components['schemas']['SimplifiedRecord'][];
+    };
+    /** FireflyLine */
+    FireflyLine: {
+      /** Id */
+      id: number;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Amount */
+      amount: string;
+      /** Currency */
+      currency: string;
+      /** Description */
+      description: string;
+      /** Type */
+      type: string;
+      /** Reconciled */
+      reconciled: boolean | null;
+      /** Can Mark */
+      can_mark: boolean;
+      /** Restriction */
+      restriction?: string | null;
     };
     /** FireflyStatusResponse */
     FireflyStatusResponse: {
@@ -1454,6 +1605,38 @@ export interface components {
           [key: string]: string;
         };
       };
+    };
+    /** ReconciliationApplyResult */
+    ReconciliationApplyResult: {
+      /** Outcomes */
+      outcomes: components['schemas']['ReconciliationOutcome'][];
+    };
+    /** ReconciliationOutcome */
+    ReconciliationOutcome: {
+      /** Id */
+      id: number;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'reconciled' | 'already_reconciled' | 'unknown' | 'not_processed';
+    };
+    /** ReconciliationPreview */
+    ReconciliationPreview: {
+      /** Revision */
+      revision: string;
+      /** Rows */
+      rows: components['schemas']['ComparisonRow'][];
+      /** Firefly Only */
+      firefly_only: components['schemas']['FireflyLine'][];
+      /** Totals */
+      totals: components['schemas']['CurrencyDifference'][];
+      /** Skipped Multipart */
+      skipped_multipart: number;
+      /** Skipped Invalid */
+      skipped_invalid: number;
+      /** Excluded Foreign Transfers */
+      excluded_foreign_transfers: number;
     };
     /** ScreeningMonthResponse */
     ScreeningMonthResponse: {
@@ -3018,6 +3201,76 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['DuplicateResults'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  preview_api_reconciliation_preview_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_preview_api_reconciliation_preview_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReconciliationPreview'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  apply_api_reconciliation_apply_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_apply_api_reconciliation_apply_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReconciliationApplyResult'];
         };
       };
       /** @description Validation Error */
