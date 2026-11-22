@@ -6,6 +6,13 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.8.1 (2026-11-22)
+
+### Fix
+
+- **release**: authenticate tag pushes and support finalization recovery (#160)
+- **reconciliation**: include all transaction types and allow statement uploads (#159)
+
 ## v3.8.0 (2026-11-22)
 
 ### Feat
