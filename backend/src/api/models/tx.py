@@ -71,6 +71,7 @@ class TxTag(StrEnum):
     allegro_done = "allegro_done"
     rule_p = "rule_potential"
     action_req = "action_req"
+    duplicate_delete = "do-usuniecia"
 
 
 class MatchProcessingStatus(StrEnum):

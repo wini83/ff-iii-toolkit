@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function setup(page: Page, empty = false) {
+async function setup(page: Page, empty = false, overlap = false, preMarked: number[] = []) {
   const token = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.test`;
   await page
     .context()
@@ -8,6 +8,9 @@ async function setup(page: Page, empty = false) {
   const queries: URLSearchParams[] = [];
   const errors: string[] = [];
   const refreshes: string[] = [];
+  const tagRequests: { id: number; tag: string | null; method: string }[] = [];
+  const failTags = new Set<number>();
+  const marked = new Set(preMarked);
   let changed = false;
   let fail = false;
   let stamp = '2026-11-18T10:00:00Z';
@@ -24,6 +27,19 @@ async function setup(page: Page, empty = false) {
         });
       if (path.endsWith('/vault/status'))
         return route.fulfill({ json: { configured: true, unlocked: true, expires_at: null } });
+      const tagging = path.match(/^\/api\/tx\/(\d+)\/tag\/$/);
+      if (tagging) {
+        const id = Number(tagging[1]);
+        tagRequests.push({
+          id,
+          tag: url.searchParams.get('tag'),
+          method: route.request().method()
+        });
+        if (failTags.delete(id))
+          return route.fulfill({ status: 502, json: { detail: 'Firefly unavailable' } });
+        marked.add(id);
+        return route.fulfill({ status: 204, body: '' });
+      }
       if (path.endsWith('/duplicates/options/refresh')) {
         refreshes.push(route.request().method());
         stamp = '2026-11-18T12:00:00Z';
@@ -60,8 +76,14 @@ async function setup(page: Page, empty = false) {
           json: {
             items: noResults
               ? []
-              : Array.from({ length: offset ? 1 : 25 }, (_, i) => {
-                  const id = 2 * (offset + i) + 1;
+              : Array.from({ length: overlap ? 3 : offset ? 1 : 25 }, (_, i) => {
+                  const [firstId, secondId] = overlap
+                    ? [
+                        [1, 2],
+                        [1, 3],
+                        [2, 3]
+                      ][i]
+                    : [2 * (offset + i) + 1, 2 * (offset + i) + 2];
                   const tx = (id: number) => ({
                     id,
                     date: '2026-11-10',
@@ -69,21 +91,24 @@ async function setup(page: Page, empty = false) {
                     currency_code: 'PLN',
                     description: `Bank payment ${id}`,
                     type: id % 2 ? 'deposit' : 'transfer',
-                    tags: id % 2 ? ['bank', 'shared'] : ['csv', 'shared'],
+                    tags: [
+                      ...(id % 2 ? ['bank', 'shared'] : ['csv', 'shared']),
+                      ...(marked.has(id) ? ['do-usuniecia'] : [])
+                    ],
                     source_account: { id: 3, name: 'Other account' },
                     destination_account: { id: 1, name: 'Main bank' }
                   });
                   return {
-                    id: `${id}:${id + 1}`,
-                    first: tx(id),
-                    second: tx(id + 1),
+                    id: `${firstId}:${secondId}`,
+                    first: tx(firstId),
+                    second: tx(secondId),
                     amount: '12.34',
                     currency_code: 'PLN',
                     direction: 'incoming',
                     date_difference_days: 2
                   };
                 }),
-            total: noResults ? 0 : 26,
+            total: noResults ? 0 : overlap ? 3 : 26,
             offset,
             limit: 25,
             snapshot_timestamp: stamp,
@@ -97,6 +122,8 @@ async function setup(page: Page, empty = false) {
   );
   return {
     queries,
+    tagRequests,
+    failTag: (id: number) => failTags.add(id),
     errors,
     refreshes,
     change: () => {
@@ -207,4 +234,114 @@ test('reload forces a refresh and searches with the replacement snapshot', async
   await expect(page.getByRole('heading', { name: 'Candidate pairs: 26' })).toBeVisible();
   expect(mock.queries.at(-1)?.get('snapshot_timestamp')).toBe('2026-11-18T12:00:00Z');
   expect(mock.errors).toEqual([]);
+});
+
+async function searchCandidates(page: Page) {
+  await page.goto('/tx/duplicates');
+  await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Pair 1:2', exact: true })).toBeVisible();
+}
+
+test('explicit keep decisions, keep both, preview and cancel before adding deletion tags', async ({
+  page
+}) => {
+  const mock = await setup(page);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  const review = page.getByRole('button', { name: 'Review decisions (0)', exact: true });
+  await expect(review).toBeDisabled();
+  await pair.getByRole('button', { name: 'Keep both', exact: true }).click();
+  await expect(page.getByText('Keep: 2 · To mark: 0', { exact: true })).toBeVisible();
+  await expect(review).toBeDisabled();
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair.getByText('To mark for deletion', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Review deletion markers' });
+  await expect(dialog.getByRole('list', { name: 'Transactions to mark' })).toContainText('#2');
+  await expect(dialog).toContainText('Bank payment 2');
+  await expect(dialog).toContainText('Existing tags: csv, shared');
+  expect(mock.tagRequests).toEqual([]);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(mock.tagRequests).toEqual([]);
+  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm marking (1)', exact: true }).click();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  expect(mock.tagRequests).toEqual([{ id: 2, tag: 'do-usuniecia', method: 'POST' }]);
+  await expect(
+    pair.getByRole('button', { name: 'Keep transaction #1', exact: true })
+  ).toBeVisible();
+  await expect(pair.getByText('csv', { exact: true })).toBeVisible();
+  expect(mock.errors).toEqual([]);
+});
+
+test('overlapping pairs share decisions, reject conflicts and retry only failed unique IDs', async ({
+  page
+}) => {
+  const mock = await setup(page, false, true);
+  await searchCandidates(page);
+  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+  const pair23 = page.getByRole('article', { name: 'Pair 2:3', exact: true });
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await pair13.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByText('Keep: 1 · To mark: 2', { exact: true })).toBeVisible();
+  await pair23.getByRole('button', { name: 'Keep transaction #2', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('kept in another pair');
+  await expect(page.getByText('Keep: 1 · To mark: 2', { exact: true })).toBeVisible();
+  mock.failTag(3);
+  await page.getByRole('button', { name: 'Review decisions (2)', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Review deletion markers' });
+  await expect(dialog.getByRole('listitem')).toHaveCount(2);
+  await dialog.getByRole('button', { name: 'Confirm marking (2)', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('#3');
+  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(pair23.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(page.getByText('Keep: 1 · To mark: 1', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm marking (1)', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('Keep: 1 · To mark: 0', { exact: true })).toBeVisible();
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2, 3, 3]);
+  await page.getByRole('button', { name: 'Clear decisions', exact: true }).click();
+  await expect(page.getByText('Keep: 1 · To mark: 0', { exact: true })).toBeVisible();
+  expect(mock.errors).toEqual([]);
+});
+
+test('already marked transactions cannot be chosen as the kept copy', async ({ page }) => {
+  const mock = await setup(page, false, false, [2]);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(pair.getByRole('button', { name: 'Keep transaction #2', exact: true })).toHaveCount(
+    0
+  );
+  await expect(pair.getByRole('button', { name: 'Keep both', exact: true })).toBeDisabled();
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review decisions (0)', exact: true })
+  ).toBeDisabled();
+  expect(mock.tagRequests).toEqual([]);
+});
+
+test('a confirmed kept copy stays protected after starting another search', async ({ page }) => {
+  const mock = await setup(page, false, true);
+  await searchCandidates(page);
+  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirm marking (1)', exact: true })
+    .click();
+  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+  await pair13.getByRole('button', { name: 'Keep transaction #3', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('confirmed batch');
+  await expect(
+    page.getByRole('button', { name: 'Review decisions (0)', exact: true })
+  ).toBeDisabled();
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
 });

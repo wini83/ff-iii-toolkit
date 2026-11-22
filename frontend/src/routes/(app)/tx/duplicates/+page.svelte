@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import WorkflowHeader from '#lib/components/WorkflowHeader.svelte';
+  import { applyTag } from '#lib/api/tx.js';
+  import type { components } from '#lib/api/schema.js';
   import { ApiError } from '#lib/api/errors.js';
   import {
     getDuplicateOptions,
@@ -10,6 +12,103 @@
     type DuplicateResults,
     type DuplicateQuery
   } from '#lib/api/duplicates.js';
+
+  const deletionTag = 'do-usuniecia';
+  type Pair = DuplicateResults['items'][number];
+  let decisions = new Map<string, number | 'both'>();
+  let selectedIds = new Set<number>();
+  let keptIds = new Set<number>();
+  let confirmedKeepIds = new Set<number>();
+  let reviewDialog: HTMLDialogElement;
+  let markedIds = new Set<number>();
+  let marking = false;
+  let markError: string | null = null;
+  let markMessage: string | null = null;
+
+  function isMarked(tx: components['schemas']['SimplifiedTx']): boolean {
+    return tx.tags.includes(deletionTag) || markedIds.has(tx.id);
+  }
+
+  function chooseKeep(pair: Pair, keep: number | 'both' | null) {
+    if (busy || marking || !result) return;
+    const next = new Map(decisions);
+    if (keep === null) next.delete(pair.id);
+    else next.set(pair.id, keep);
+    const kept = new Set(confirmedKeepIds);
+    const removed = new Set<number>();
+    for (const candidate of result.items) {
+      const choice = next.get(candidate.id);
+      if (choice === undefined) continue;
+      for (const tx of [candidate.first, candidate.second]) {
+        if (choice === 'both' || choice === tx.id) kept.add(tx.id);
+        else if (!isMarked(tx)) removed.add(tx.id);
+      }
+    }
+    const conflict = [...removed].find((txId) => kept.has(txId));
+    if (conflict !== undefined) {
+      markError = `Transaction #${conflict} is kept in another pair. Clear conflicting pending decisions before marking it for deletion. Copies kept in a confirmed batch remain protected during this session.`;
+      return;
+    }
+    decisions = next;
+    keptIds = kept;
+    selectedIds = removed;
+    markError = null;
+    markMessage = null;
+  }
+
+  function clearDecisions() {
+    decisions = new Map();
+    selectedIds = new Set();
+    keptIds = new Set(confirmedKeepIds);
+    markError = null;
+    markMessage = null;
+  }
+
+  function pendingTransactions(results: DuplicateResults | null, ids: Set<number>) {
+    const unique = new Map<number, components['schemas']['SimplifiedTx']>();
+    for (const pair of results?.items ?? []) {
+      for (const tx of [pair.first, pair.second]) {
+        if (ids.has(tx.id)) unique.set(tx.id, tx);
+      }
+    }
+    return [...unique.values()];
+  }
+
+  async function markSelected() {
+    if (busy || marking || selectedIds.size === 0) return;
+    reviewDialog.close();
+    const id = requestId;
+    const ids = [...selectedIds];
+    marking = true;
+    markError = null;
+    markMessage = null;
+    let succeeded = 0;
+    const failed: number[] = [];
+    try {
+      for (const txId of ids) {
+        if (id !== requestId) return;
+        try {
+          await applyTag(txId, deletionTag);
+          if (id !== requestId) return;
+          markedIds = new Set([...markedIds, txId]);
+          confirmedKeepIds = new Set([...confirmedKeepIds, ...keptIds]);
+          const next = new Set(selectedIds);
+          next.delete(txId);
+          selectedIds = next;
+          succeeded += 1;
+        } catch {
+          if (id !== requestId) return;
+          failed.push(txId);
+        }
+      }
+      markMessage = `Marked ${succeeded} transaction(s) with ${deletionTag}.`;
+      if (failed.length > 0) {
+        markError = `Could not mark transaction(s) ${failed.map((txId) => `#${txId}`).join(', ')}. They remain selected; retry marking them.`;
+      }
+    } finally {
+      if (id === requestId) marking = false;
+    }
+  }
 
   let options: DuplicateOptions | null = null;
   let result: DuplicateResults | null = null;
@@ -32,6 +131,7 @@
 
   async function loadOptions(forceRefresh = false) {
     const id = ++requestId;
+    clearDecisions();
     busy = true;
     error = null;
     changed = false;
@@ -41,6 +141,7 @@
       const next = await (forceRefresh ? refreshDuplicateOptions() : getDuplicateOptions());
       if (id !== requestId) return;
       options = next;
+      if (forceRefresh) markedIds = new Set();
       if (!next.accounts.some((account) => String(account.id) === accountId)) accountId = '';
       dateFrom ||= next.date_from ?? '';
       dateTo ||= next.date_to ?? '';
@@ -54,6 +155,7 @@
   async function search(offset = 0, query = submitted) {
     if (!query) return;
     const id = ++requestId;
+    clearDecisions();
     busy = true;
     error = null;
     changed = false;
@@ -108,15 +210,18 @@
       >Compare transactions on one account with exactly the same amount and currency, different tag
       sets and nearby dates.</span
     >
-    <button slot="actions" class="btn btn-sm" disabled={busy} on:click={() => loadOptions(true)}
-      >Reload transactions</button
+    <button
+      slot="actions"
+      class="btn btn-sm"
+      disabled={busy || marking}
+      on:click={() => loadOptions(true)}>Reload transactions</button
     >
   </WorkflowHeader>
 
   {#if options}
     <form class="card bg-base-100 p-4" on:submit={submit}>
       <fieldset
-        disabled={busy || options.accounts.length === 0}
+        disabled={busy || marking || options.accounts.length === 0}
         class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
         <legend class="sr-only">Duplicate search filters</legend>
@@ -188,7 +293,7 @@
       <span>{error}</span>
       <button
         class="btn btn-sm"
-        disabled={busy}
+        disabled={busy || marking}
         on:click={() =>
           changed || !submitted ? loadOptions(!changed && options !== null) : search()}
         >{changed || !submitted ? 'Reload transactions and filters' : 'Retry search'}</button
@@ -207,9 +312,31 @@
         </p>
       </div>
       <p class="text-base-content/70 text-sm">
-        These are review candidates, including possible legitimate repeated payments. No
-        transactions are modified.
+        These are review candidates, including possible legitimate repeated payments. Select the
+        copy to keep in each pair, or keep both. Review your decisions before adding
+        <code>{deletionTag}</code> to the other copies. Existing tags are preserved. Decisions apply to
+        this page only; nothing is selected automatically.
       </p>
+      {#if result.items.length > 0}
+        <div
+          class="border-base-300 bg-base-100 sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded border p-3"
+        >
+          <span class="text-sm">Keep: {keptIds.size} · To mark: {selectedIds.size}</span>
+          <button
+            class="btn btn-sm btn-primary"
+            disabled={busy || marking || selectedIds.size === 0}
+            on:click={() => reviewDialog.showModal()}
+            >{marking ? 'Marking…' : `Review decisions (${selectedIds.size})`}</button
+          >
+          <button
+            class="btn btn-sm btn-ghost"
+            disabled={marking || selectedIds.size === 0}
+            on:click={clearDecisions}>Clear decisions</button
+          >
+        </div>
+      {/if}
+      {#if markMessage}<p role="status" class="text-sm">{markMessage}</p>{/if}
+      {#if markError}<div class="alert alert-warning" role="alert">{markError}</div>{/if}
       {#if result.total === 0}<p>No potential duplicates for these filters.</p>{/if}
       {#each result.items as pair (pair.id)}
         <article class="card bg-base-100 min-w-0 overflow-hidden" aria-label={`Pair ${pair.id}`}>
@@ -223,28 +350,67 @@
             <span class="text-base-content/70 text-xs"
               >Date difference: {pair.date_difference_days} days · Different tag sets</span
             >
+            <div class="flex gap-2">
+              <button
+                class="btn btn-xs"
+                disabled={busy || marking || isMarked(pair.first) || isMarked(pair.second)}
+                on:click={() => chooseKeep(pair, 'both')}>Keep both</button
+              >
+              <button
+                class="btn btn-xs btn-ghost"
+                disabled={busy || marking || !decisions.has(pair.id)}
+                on:click={() => chooseKeep(pair, null)}>Clear pair decision</button
+              >
+            </div>
           </div>
           <div class="overflow-x-auto">
             <table class="table-sm table">
               <caption class="sr-only">Transactions in candidate pair {pair.id}</caption>
               <thead
                 ><tr
-                  ><th>Date</th><th>Description</th><th>Type</th><th>Source account</th><th
-                    >Destination account</th
-                  ><th>Tags</th><th>Firefly</th></tr
+                  ><th>Decision</th><th>Date</th><th>Description</th><th>Type</th><th
+                    >Source account</th
+                  ><th>Destination account</th><th>Tags</th><th>Firefly</th></tr
                 ></thead
               >
               <tbody>
                 {#each [pair.first, pair.second] as tx (tx.id)}
                   {@const link = fireflyLink(result.firefly_url, tx.id)}
-                  <tr>
+                  <tr class:bg-base-200={selectedIds.has(tx.id)}>
+                    <td>
+                      {#if isMarked(tx)}
+                        <span class="badge badge-outline badge-sm whitespace-nowrap"
+                          >Marked for deletion</span
+                        >
+                      {:else}
+                        <div class="flex flex-col items-start gap-1">
+                          <button
+                            class="btn btn-xs"
+                            class:btn-primary={keptIds.has(tx.id)}
+                            aria-label={`Keep transaction #${tx.id}`}
+                            aria-pressed={keptIds.has(tx.id)}
+                            disabled={busy || marking}
+                            on:click={() => chooseKeep(pair, tx.id)}>Keep this</button
+                          >
+                          {#if selectedIds.has(tx.id)}
+                            <span class="badge badge-outline badge-sm whitespace-nowrap"
+                              >To mark for deletion</span
+                            >
+                          {:else if keptIds.has(tx.id)}
+                            <span class="text-base-content/70 text-xs">Keep</span>
+                          {/if}
+                        </div>
+                      {/if}
+                    </td>
                     <td class="toolkit-data whitespace-nowrap">{tx.date}</td>
                     <td class="min-w-40 wrap-anywhere whitespace-normal">{tx.description}</td>
                     <td>{tx.type}</td><td>{tx.source_account?.name ?? '—'}</td><td
                       >{tx.destination_account?.name ?? '—'}</td
                     >
                     <td
-                      >{#each tx.tags as tag}<span class="badge badge-sm m-0.5">{tag}</span
+                      >{#if markedIds.has(tx.id) && !tx.tags.includes(deletionTag)}<span
+                          class="badge badge-sm m-0.5">{deletionTag}</span
+                        >{/if}{#each tx.tags as tag}<span class="badge badge-sm m-0.5">{tag}</span
                         >{:else}<span class="text-base-content/70">No tags</span>{/each}</td
                     >
                     <td
@@ -269,12 +435,12 @@
           >
           <button
             class="btn btn-sm"
-            disabled={busy || result.offset === 0}
+            disabled={busy || marking || result.offset === 0}
             on:click={() => search(Math.max(0, result!.offset - 25))}>Previous</button
           >
           <button
             class="btn btn-sm"
-            disabled={busy || result.offset + result.limit >= result.total}
+            disabled={busy || marking || result.offset + result.limit >= result.total}
             on:click={() => search(result!.offset + 25)}>Next</button
           >
         </div>
@@ -284,3 +450,31 @@
     <p class="text-base-content/70 text-sm">Select an account and find candidates to compare.</p>
   {/if}
 </div>
+
+<dialog bind:this={reviewDialog} class="modal" aria-labelledby="deletion-review-title">
+  <div class="modal-box max-w-3xl">
+    <h3 id="deletion-review-title" class="text-lg font-semibold">Review deletion markers</h3>
+    <p class="mt-2 text-sm">
+      Add <code>{deletionTag}</code> to {selectedIds.size} transaction(s). No transactions will be deleted.
+      Filter by this tag in Firefly to review and delete them later.
+    </p>
+    <ul class="mt-4 max-h-80 space-y-2 overflow-y-auto text-sm" aria-label="Transactions to mark">
+      {#each pendingTransactions(result, selectedIds) as tx (tx.id)}
+        <li class="border-base-300 rounded border p-2">
+          <span class="toolkit-data">#{tx.id} · {tx.date} · {tx.amount} {tx.currency_code}</span>
+          <p class="wrap-anywhere">{tx.description}</p>
+          <p class="text-base-content/70 text-xs">Existing tags: {tx.tags.join(', ') || 'None'}</p>
+        </li>
+      {/each}
+    </ul>
+    <div class="modal-action">
+      <button class="btn btn-sm" on:click={() => reviewDialog.close()}>Cancel</button>
+      <button
+        class="btn btn-sm btn-primary"
+        disabled={marking || selectedIds.size === 0}
+        on:click={markSelected}>Confirm marking ({selectedIds.size})</button
+      >
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>Close review</button></form>
+</dialog>

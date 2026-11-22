@@ -105,9 +105,7 @@ def _metrics_state() -> MetricsState[TXStatisticsMetrics]:
         action_req_amount={"PLN": Decimal("10.00")},
         allegro_not_ok_amount={"PLN": Decimal("10.00")},
         categorizable_amount={"PLN": Decimal("30.00")},
-        categorizable_amount_by_month={
-            "2024-01": {"PLN": Decimal("30.00")}
-        },
+        categorizable_amount_by_month={"2024-01": {"PLN": Decimal("30.00")}},
         time_stamp=datetime(2024, 1, 1, tzinfo=UTC),
     )
     return MetricsState(
@@ -283,3 +281,21 @@ def test_tx_category_suggestions_missing_transaction_returns_404(client, db):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Transaction id 999 not found"
+
+
+def test_mark_duplicate_for_deletion_uses_existing_tag_endpoint(client, db):
+    user = _create_user(db)
+    svc = FakeTxApplicationService()
+    client.app.dependency_overrides[get_tx_application_runtime] = lambda: svc
+    response = client.post(
+        "/api/tx/123/tag/",
+        params={"tag": "do-usuniecia"},
+        headers=_auth_header(str(user.id)),
+    )
+    assert response.status_code == 204
+    assert svc.applied_tags == [(123, TxTag.duplicate_delete)]
+
+
+def test_deletion_tag_requires_authentication(client):
+    response = client.post("/api/tx/123/tag/", params={"tag": "do-usuniecia"})
+    assert response.status_code == 401

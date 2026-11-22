@@ -8,7 +8,7 @@ from decimal import Decimal
 from heapq import nsmallest
 from typing import Literal
 
-from services.domain.transaction import AccountType, Transaction, TxType
+from services.domain.transaction import AccountType, Transaction, TxTag, TxType
 
 Direction = Literal["incoming", "outgoing"]
 
@@ -78,7 +78,8 @@ def candidate_pairs(
                 del active[expired_tags][expired.id]
                 if not active[expired_tags]:
                     del active[expired_tags]
-            tags = tuple(sorted(tx.tags))
+            # The cleanup marker must not create candidates by itself.
+            tags = tuple(sorted(tx.tags - {TxTag.duplicate_delete.value}))
             # Only different tag sets within the date window are compared.
             # Identical sets (including two empty sets) never get paired.
             for other_tags, others in active.items():

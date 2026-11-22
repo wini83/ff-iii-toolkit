@@ -211,3 +211,16 @@ def test_luciferin_excludes_split_groups_before_duplicate_analysis():
     mapped = map_transaction(group)
     assert mapped.tx is None
     assert mapped.reason == "multipart"
+
+
+@pytest.mark.parametrize(
+    "left,right,expected",
+    [
+        ({"bank", "do-usuniecia"}, {"bank"}, False),
+        ({"do-usuniecia"}, set(), False),
+        ({"bank", "do-usuniecia"}, {"csv"}, True),
+        ({"bank"}, {"csv", "do-usuniecia"}, True),
+    ],
+)
+def test_deletion_marker_does_not_change_candidate_matching(left, right, expected):
+    assert bool(ids([tx(1, tags=left), tx(2, tags=right)])) == expected

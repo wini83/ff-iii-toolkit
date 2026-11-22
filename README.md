@@ -27,7 +27,16 @@ pagination pinned to a snapshot; reload and search again if the snapshot changes
 **Reload transactions** forces a new Firefly fetch even while the cached snapshot
 is still fresh. Opening the page uses the shared snapshot when available.
 Repeated legitimate payments remain review candidates. Links open the original
-transactions in Firefly; the toolkit does not modify them.
+transactions in Firefly. Choose **Keep this** in each pair (or **Keep both**), then **Review decisions**
+and confirm the preview to add the `do-usuniecia` tag, preserving existing tags. A transaction selected in
+several pairs is updated once. Conflicting keep/delete decisions are rejected;
+no copy is selected automatically. Confirmed keep choices remain protected while
+reviewing other pages in the same session. Successful marks remain visible across result pages;
+failed updates stay selected for retry. Selection clears when searching or changing
+pages. Filter by `do-usuniecia` in Firefly to review and delete the marked entries.
+The toolkit does not delete transactions. The marker is ignored when comparing tag
+sets, so tagging alone cannot produce new duplicate candidates. Search results use
+the existing snapshot; use **Reload transactions** to fetch external changes.
 
 Filters are not saved and there are no persistent dismissals in this MVP.
 Luciferin excludes multipart/split groups before building the shared snapshot;
