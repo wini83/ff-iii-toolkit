@@ -30,9 +30,14 @@ Repeated legitimate payments remain review candidates. Links open the original
 transactions in Firefly. Clicking **Keep this** immediately adds the `do-usuniecia`
 tag to the other transaction, preserving its existing tags. There is no preview
 or confirmation step. **Keep both** leaves both transactions unchanged and can be
-undone locally. Successfully kept copies remain protected across searches and
-result pages in the same browser session. Shared transactions are marked once;
-failed writes show an error and can be retried by clicking **Keep this** again.
+undone locally. Copies explicitly chosen to keep remain protected across
+searches, result pages and page reloads in the same tab session, including after
+uncertain writes. Shared transactions are marked once;
+an error leaves the write outcome unknown and blocks further marking until
+**Reload transactions** successfully fetches a fresh Firefly snapshot. This guard
+also forces a fresh fetch after reloading or reopening the page in the same tab.
+After re-running the search, a persisted marker is displayed without resending
+the write; if no marker exists, **Keep this** can be retried.
 Navigation and further actions are disabled while a write is in progress.
 Filter by `do-usuniecia` in Firefly to review and delete the marked entries.
 The toolkit does not delete transactions. The marker is ignored when comparing
