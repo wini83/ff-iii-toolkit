@@ -4,6 +4,12 @@ This directory deploys the two images emitted by one Firefly III Toolkit
 release through a single Nginx gateway. The gateway routes `/api/` to the
 backend and all other requests to the frontend.
 
+The API gateway accepts request bodies up to 3 MiB, allowing reconciliation's
+2 MiB CSV limit plus multipart overhead. The backend still enforces its per-file
+limit. If another reverse proxy sits in front of this gateway (including the
+external Nginx in the VPS stack), allow at least `client_max_body_size 3m;` for
+the API there as well. Reload that proxy after changing its configuration.
+
 ## Deploy a release
 
 1. Create `deploy/.env` from `.env.example` and set
