@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import WorkflowHeader from '#lib/components/WorkflowHeader.svelte';
+  import { applyTag } from '#lib/api/tx.js';
+  import type { components } from '#lib/api/schema.js';
   import { ApiError } from '#lib/api/errors.js';
   import {
     getDuplicateOptions,
@@ -10,6 +12,119 @@
     type DuplicateResults,
     type DuplicateQuery
   } from '#lib/api/duplicates.js';
+
+  const deletionTag = 'do-usuniecia';
+  const refreshRequiredKey = 'toolkit:duplicates:refresh-required';
+  const retainedCopiesKey = 'toolkit:duplicates:retained-copies';
+  let needsFreshSnapshot = false;
+  type Pair = DuplicateResults['items'][number];
+  let keptBoth = new Map<string, Pair>();
+  let retainedIds = new Set<number>();
+  let keptIds: Set<number>;
+  let markedIds = new Set<number>();
+  let marking = false;
+  let savingPairId: string | null = null;
+  let markError: string | null = null;
+  let markMessage: string | null = null;
+
+  $: keptIds = new Set([
+    ...retainedIds,
+    ...[...keptBoth.values()].flatMap((pair) => [pair.first.id, pair.second.id])
+  ]);
+
+  function requireFreshSnapshot(required: boolean) {
+    needsFreshSnapshot = required;
+    try {
+      if (required) sessionStorage.setItem(refreshRequiredKey, 'true');
+      else sessionStorage.removeItem(refreshRequiredKey);
+    } catch {
+      // Storage may be unavailable; retain the in-memory write guard.
+    }
+  }
+
+  function rememberKeep(txId: number) {
+    retainedIds = new Set([...retainedIds, txId]);
+    try {
+      sessionStorage.setItem(retainedCopiesKey, JSON.stringify([...retainedIds]));
+    } catch {
+      // The current view still protects the user's explicit keep choice.
+    }
+  }
+
+  function isMarked(tx: components['schemas']['SimplifiedTx'], knownIds: Set<number>): boolean {
+    return tx.tags.includes(deletionTag) || knownIds.has(tx.id);
+  }
+
+  function toggleKeepBoth(pair: Pair) {
+    if (
+      busy ||
+      marking ||
+      needsFreshSnapshot ||
+      isMarked(pair.first, markedIds) ||
+      isMarked(pair.second, markedIds)
+    )
+      return;
+    const next = new Map(keptBoth);
+    if (next.has(pair.id)) next.delete(pair.id);
+    else next.set(pair.id, pair);
+    keptBoth = next;
+    markError = null;
+    markMessage = null;
+  }
+
+  async function keepThis(pair: Pair, keepId: number) {
+    if (busy || marking || needsFreshSnapshot) return;
+    const keep = pair.first.id === keepId ? pair.first : pair.second;
+    const other = pair.first.id === keepId ? pair.second : pair.first;
+    if (isMarked(keep, markedIds)) return;
+    // A local "keep both" on this pair can be replaced. Other keep decisions
+    // and successfully retained copies must never be marked through this pair.
+    const protectedIds = new Set(retainedIds);
+    for (const [pairId, both] of keptBoth) {
+      if (pairId !== pair.id) {
+        protectedIds.add(both.first.id);
+        protectedIds.add(both.second.id);
+      }
+    }
+    if (protectedIds.has(other.id)) {
+      markError = `Transaction #${other.id} is kept in another pair. Undo any conflicting "keep both" choice first. Chosen kept copies remain protected during this tab session.`;
+      return;
+    }
+    markError = null;
+    markMessage = null;
+    const id = requestId;
+    marking = true;
+    savingPairId = pair.id;
+    // Keeping a copy is an explicit user decision even when the other write
+    // has an unknown outcome. Preserve it across refreshes and remounts.
+    rememberKeep(keep.id);
+    try {
+      if (!isMarked(other, markedIds)) {
+        // Record uncertainty before sending: a navigation or lost response must
+        // not allow the opposite choice against the old cached snapshot.
+        requireFreshSnapshot(true);
+        await applyTag(other.id, deletionTag);
+      }
+      if (id !== requestId) return;
+      markedIds = new Set([...markedIds, other.id]);
+      const next = new Map(keptBoth);
+      next.delete(pair.id);
+      keptBoth = next;
+      // This view knows the outcome. Keep the storage flag until the shared
+      // snapshot is refreshed, so remounting cannot revive stale candidates.
+      needsFreshSnapshot = false;
+      markMessage = `Kept #${keep.id}. Transaction #${other.id} is marked with ${deletionTag}.`;
+    } catch {
+      if (id !== requestId) return;
+      requireFreshSnapshot(true);
+      markError = `The result of marking transaction #${other.id} is unknown. Reload transactions from Firefly before making another decision.`;
+    } finally {
+      if (id === requestId) {
+        marking = false;
+        savingPairId = null;
+      }
+    }
+  }
 
   let options: DuplicateOptions | null = null;
   let result: DuplicateResults | null = null;
@@ -24,6 +139,17 @@
   let requestId = 0;
 
   onMount(() => {
+    try {
+      needsFreshSnapshot = sessionStorage.getItem(refreshRequiredKey) === 'true';
+      const stored: unknown = JSON.parse(sessionStorage.getItem(retainedCopiesKey) ?? '[]');
+      if (Array.isArray(stored)) {
+        retainedIds = new Set(
+          stored.filter((id): id is number => Number.isSafeInteger(id) && id > 0)
+        );
+      }
+    } catch {
+      // The normal initial fetch still works when browser storage is disabled.
+    }
     void loadOptions();
   });
   onDestroy(() => {
@@ -31,16 +157,23 @@
   });
 
   async function loadOptions(forceRefresh = false) {
+    const mustRefresh = forceRefresh || needsFreshSnapshot;
     const id = ++requestId;
+    markError = null;
+    markMessage = null;
     busy = true;
     error = null;
     changed = false;
     result = null;
     submitted = null;
     try {
-      const next = await (forceRefresh ? refreshDuplicateOptions() : getDuplicateOptions());
+      const next = await (mustRefresh ? refreshDuplicateOptions() : getDuplicateOptions());
       if (id !== requestId) return;
       options = next;
+      if (mustRefresh) {
+        markedIds = new Set();
+        requireFreshSnapshot(false);
+      }
       if (!next.accounts.some((account) => String(account.id) === accountId)) accountId = '';
       dateFrom ||= next.date_from ?? '';
       dateTo ||= next.date_to ?? '';
@@ -52,8 +185,10 @@
   }
 
   async function search(offset = 0, query = submitted) {
-    if (!query) return;
+    if (!query || needsFreshSnapshot) return;
     const id = ++requestId;
+    markError = null;
+    markMessage = null;
     busy = true;
     error = null;
     changed = false;
@@ -77,7 +212,7 @@
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
-    if (!options || !accountId || !dateFrom || !dateTo) return;
+    if (needsFreshSnapshot || !options || !accountId || !dateFrom || !dateTo) return;
     void search(0, {
       account_id: Number(accountId),
       date_from: dateFrom,
@@ -108,15 +243,18 @@
       >Compare transactions on one account with exactly the same amount and currency, different tag
       sets and nearby dates.</span
     >
-    <button slot="actions" class="btn btn-sm" disabled={busy} on:click={() => loadOptions(true)}
-      >Reload transactions</button
+    <button
+      slot="actions"
+      class="btn btn-sm"
+      disabled={busy || marking}
+      on:click={() => loadOptions(true)}>Reload transactions</button
     >
   </WorkflowHeader>
 
   {#if options}
     <form class="card bg-base-100 p-4" on:submit={submit}>
       <fieldset
-        disabled={busy || options.accounts.length === 0}
+        disabled={busy || marking || needsFreshSnapshot || options.accounts.length === 0}
         class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
         <legend class="sr-only">Duplicate search filters</legend>
@@ -182,13 +320,18 @@
     </p>
   {/if}
 
+  {#if needsFreshSnapshot && !marking}
+    <p class="text-base-content/70 text-sm">
+      Marking is paused until a fresh Firefly snapshot is loaded with Reload transactions.
+    </p>
+  {/if}
   {#if busy}<p role="status">{options ? 'Loading…' : 'Loading transactions…'}</p>{/if}
   {#if error}
     <div class="alert alert-warning" role="alert">
       <span>{error}</span>
       <button
         class="btn btn-sm"
-        disabled={busy}
+        disabled={busy || marking}
         on:click={() =>
           changed || !submitted ? loadOptions(!changed && options !== null) : search()}
         >{changed || !submitted ? 'Reload transactions and filters' : 'Retry search'}</button
@@ -207,9 +350,20 @@
         </p>
       </div>
       <p class="text-base-content/70 text-sm">
-        These are review candidates, including possible legitimate repeated payments. No
-        transactions are modified.
+        These are review candidates, including possible legitimate repeated payments.
+        <strong
+          >Keep this immediately adds <code>{deletionTag}</code> to the other transaction.</strong
+        >
+        Keep both leaves both transactions unchanged. Existing tags are preserved; delete marked entries
+        later in Firefly.
       </p>
+      {#if result.items.length > 0}
+        <p class="text-base-content/70 text-xs">
+          Kept this session: {keptIds.size} · Marked this session: {markedIds.size}
+        </p>
+      {/if}
+      {#if markMessage}<p role="status" class="text-sm">{markMessage}</p>{/if}
+      {#if markError}<div class="alert alert-warning" role="alert">{markError}</div>{/if}
       {#if result.total === 0}<p>No potential duplicates for these filters.</p>{/if}
       {#each result.items as pair (pair.id)}
         <article class="card bg-base-100 min-w-0 overflow-hidden" aria-label={`Pair ${pair.id}`}>
@@ -223,28 +377,66 @@
             <span class="text-base-content/70 text-xs"
               >Date difference: {pair.date_difference_days} days · Different tag sets</span
             >
+            <div class="flex gap-2">
+              <button
+                class="btn btn-xs"
+                disabled={busy ||
+                  marking ||
+                  needsFreshSnapshot ||
+                  isMarked(pair.first, markedIds) ||
+                  isMarked(pair.second, markedIds)}
+                aria-pressed={keptBoth.has(pair.id)}
+                on:click={() => toggleKeepBoth(pair)}
+                >{keptBoth.has(pair.id) ? 'Undo keep both' : 'Keep both'}</button
+              >
+              {#if savingPairId === pair.id}<span role="status" class="text-sm">Saving…</span>{/if}
+            </div>
           </div>
           <div class="overflow-x-auto">
             <table class="table-sm table">
               <caption class="sr-only">Transactions in candidate pair {pair.id}</caption>
               <thead
                 ><tr
-                  ><th>Date</th><th>Description</th><th>Type</th><th>Source account</th><th
-                    >Destination account</th
-                  ><th>Tags</th><th>Firefly</th></tr
+                  ><th>Decision</th><th>Date</th><th>Description</th><th>Type</th><th
+                    >Source account</th
+                  ><th>Destination account</th><th>Tags</th><th>Firefly</th></tr
                 ></thead
               >
               <tbody>
                 {#each [pair.first, pair.second] as tx (tx.id)}
                   {@const link = fireflyLink(result.firefly_url, tx.id)}
-                  <tr>
+                  <tr class:bg-base-200={isMarked(tx, markedIds)}>
+                    <td>
+                      {#if isMarked(tx, markedIds)}
+                        <span class="badge badge-outline badge-sm whitespace-nowrap"
+                          >Marked for deletion</span
+                        >
+                      {:else}
+                        <div class="flex flex-col items-start gap-1">
+                          <button
+                            class="btn btn-xs"
+                            class:btn-primary={keptIds.has(tx.id)}
+                            aria-label={`Keep transaction #${tx.id}`}
+                            aria-pressed={keptIds.has(tx.id)}
+                            disabled={busy || marking || needsFreshSnapshot}
+                            title={`Immediately mark transaction #${tx.id === pair.first.id ? pair.second.id : pair.first.id} with ${deletionTag}`}
+                            on:click={() => keepThis(pair, tx.id)}>Keep this</button
+                          >
+                          {#if keptIds.has(tx.id)}
+                            <span class="text-base-content/70 text-xs">Keep</span>
+                          {/if}
+                        </div>
+                      {/if}
+                    </td>
                     <td class="toolkit-data whitespace-nowrap">{tx.date}</td>
                     <td class="min-w-40 wrap-anywhere whitespace-normal">{tx.description}</td>
                     <td>{tx.type}</td><td>{tx.source_account?.name ?? '—'}</td><td
                       >{tx.destination_account?.name ?? '—'}</td
                     >
                     <td
-                      >{#each tx.tags as tag}<span class="badge badge-sm m-0.5">{tag}</span
+                      >{#if markedIds.has(tx.id) && !tx.tags.includes(deletionTag)}<span
+                          class="badge badge-sm m-0.5">{deletionTag}</span
+                        >{/if}{#each tx.tags as tag}<span class="badge badge-sm m-0.5">{tag}</span
                         >{:else}<span class="text-base-content/70">No tags</span>{/each}</td
                     >
                     <td
@@ -269,12 +461,15 @@
           >
           <button
             class="btn btn-sm"
-            disabled={busy || result.offset === 0}
+            disabled={busy || marking || needsFreshSnapshot || result.offset === 0}
             on:click={() => search(Math.max(0, result!.offset - 25))}>Previous</button
           >
           <button
             class="btn btn-sm"
-            disabled={busy || result.offset + result.limit >= result.total}
+            disabled={busy ||
+              marking ||
+              needsFreshSnapshot ||
+              result.offset + result.limit >= result.total}
             on:click={() => search(result!.offset + 25)}>Next</button
           >
         </div>

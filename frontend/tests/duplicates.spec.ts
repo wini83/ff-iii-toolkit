@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function setup(page: Page, empty = false) {
+async function setup(page: Page, empty = false, overlap = false, preMarked: number[] = []) {
   const token = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.test`;
   await page
     .context()
@@ -8,6 +8,13 @@ async function setup(page: Page, empty = false) {
   const queries: URLSearchParams[] = [];
   const errors: string[] = [];
   const refreshes: string[] = [];
+  const tagRequests: { id: number; tag: string | null; method: string }[] = [];
+  const failTags = new Set<number>();
+  const lostResponses = new Set<number>();
+  let failRefresh = false;
+  const tagHolds = new Map<number, Promise<void>>();
+  const marked = new Set(preMarked);
+  let snapshotMarked = new Set(preMarked);
   let changed = false;
   let fail = false;
   let stamp = '2026-11-18T10:00:00Z';
@@ -24,8 +31,30 @@ async function setup(page: Page, empty = false) {
         });
       if (path.endsWith('/vault/status'))
         return route.fulfill({ json: { configured: true, unlocked: true, expires_at: null } });
+      const tagging = path.match(/^\/api\/tx\/(\d+)\/tag\/$/);
+      if (tagging) {
+        const id = Number(tagging[1]);
+        tagRequests.push({
+          id,
+          tag: url.searchParams.get('tag'),
+          method: route.request().method()
+        });
+        const hold = tagHolds.get(id);
+        if (hold) await hold;
+        if (failTags.delete(id))
+          return route.fulfill({ status: 502, json: { detail: 'Firefly unavailable' } });
+        marked.add(id);
+        if (lostResponses.delete(id))
+          return route.fulfill({ status: 502, json: { detail: 'Response failed after write' } });
+        return route.fulfill({ status: 204, body: '' });
+      }
       if (path.endsWith('/duplicates/options/refresh')) {
         refreshes.push(route.request().method());
+        if (failRefresh) {
+          failRefresh = false;
+          return route.fulfill({ status: 502, json: { detail: 'Fresh snapshot unavailable' } });
+        }
+        snapshotMarked = new Set(marked);
         stamp = '2026-11-18T12:00:00Z';
       }
       if (path.endsWith('/duplicates/options') || path.endsWith('/duplicates/options/refresh'))
@@ -60,8 +89,14 @@ async function setup(page: Page, empty = false) {
           json: {
             items: noResults
               ? []
-              : Array.from({ length: offset ? 1 : 25 }, (_, i) => {
-                  const id = 2 * (offset + i) + 1;
+              : Array.from({ length: overlap ? 3 : offset ? 1 : 25 }, (_, i) => {
+                  const [firstId, secondId] = overlap
+                    ? [
+                        [1, 2],
+                        [1, 3],
+                        [2, 3]
+                      ][i]
+                    : [2 * (offset + i) + 1, 2 * (offset + i) + 2];
                   const tx = (id: number) => ({
                     id,
                     date: '2026-11-10',
@@ -69,21 +104,24 @@ async function setup(page: Page, empty = false) {
                     currency_code: 'PLN',
                     description: `Bank payment ${id}`,
                     type: id % 2 ? 'deposit' : 'transfer',
-                    tags: id % 2 ? ['bank', 'shared'] : ['csv', 'shared'],
+                    tags: [
+                      ...(id % 2 ? ['bank', 'shared'] : ['csv', 'shared']),
+                      ...(snapshotMarked.has(id) ? ['do-usuniecia'] : [])
+                    ],
                     source_account: { id: 3, name: 'Other account' },
                     destination_account: { id: 1, name: 'Main bank' }
                   });
                   return {
-                    id: `${id}:${id + 1}`,
-                    first: tx(id),
-                    second: tx(id + 1),
+                    id: `${firstId}:${secondId}`,
+                    first: tx(firstId),
+                    second: tx(secondId),
                     amount: '12.34',
                     currency_code: 'PLN',
                     direction: 'incoming',
                     date_difference_days: 2
                   };
                 }),
-            total: noResults ? 0 : 26,
+            total: noResults ? 0 : overlap ? 3 : 26,
             offset,
             limit: 25,
             snapshot_timestamp: stamp,
@@ -97,6 +135,26 @@ async function setup(page: Page, empty = false) {
   );
   return {
     queries,
+    tagRequests,
+    failTag: (id: number) => failTags.add(id),
+    loseTagResponse: (id: number) => lostResponses.add(id),
+    failRefresh: () => {
+      failRefresh = true;
+    },
+    persistedMarkers: () => [...marked],
+    holdTag: (id: number) => {
+      let release: () => void = () => {};
+      tagHolds.set(
+        id,
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+      );
+      return () => {
+        tagHolds.delete(id);
+        release();
+      };
+    },
     errors,
     refreshes,
     change: () => {
@@ -208,3 +266,202 @@ test('reload forces a refresh and searches with the replacement snapshot', async
   expect(mock.queries.at(-1)?.get('snapshot_timestamp')).toBe('2026-11-18T12:00:00Z');
   expect(mock.errors).toEqual([]);
 });
+
+async function searchCandidates(page: Page) {
+  await page.goto('/tx/duplicates');
+  await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Pair 1:2', exact: true })).toBeVisible();
+}
+
+test('keep this immediately marks the other copy without review or repeat writes', async ({
+  page
+}) => {
+  const mock = await setup(page);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await expect(page.getByRole('button', { name: /Review decisions/ })).toHaveCount(0);
+  expect(mock.tagRequests).toEqual([]);
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  expect(mock.tagRequests).toEqual([{ id: 2, tag: 'do-usuniecia', method: 'POST' }]);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(pair.getByText('csv', { exact: true })).toBeVisible();
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Kept #1');
+  expect(mock.tagRequests).toHaveLength(1);
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+  expect(mock.errors).toEqual([]);
+});
+
+test('keep both is local, reversible and protects shared copies', async ({ page }) => {
+  const mock = await setup(page, false, true);
+  await searchCandidates(page);
+  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+  await pair13.getByRole('button', { name: 'Keep both', exact: true }).click();
+  await expect(pair13.getByRole('button', { name: 'Undo keep both', exact: true })).toBeVisible();
+  expect(mock.tagRequests).toEqual([]);
+  await pair12.getByRole('button', { name: 'Keep transaction #2', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('kept in another pair');
+  expect(mock.tagRequests).toEqual([]);
+  await pair13.getByRole('button', { name: 'Undo keep both', exact: true }).click();
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
+  expect(mock.errors).toEqual([]);
+});
+
+test('failed writes require a fresh snapshot before retrying', async ({ page }) => {
+  const mock = await setup(page);
+  mock.failTag(2);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('marking transaction #2 is unknown');
+  await expect(
+    pair.getByRole('button', { name: 'Keep transaction #2', exact: true })
+  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toHaveCount(0);
+  await expect(
+    pair.getByRole('button', { name: 'Keep transaction #1', exact: true })
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Reload transactions', exact: true }).click();
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  expect(mock.refreshes).toEqual(['POST']);
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2, 2]);
+  expect(mock.errors).toEqual([]);
+});
+
+test('shared marks and confirmed keep protection survive a new search', async ({ page }) => {
+  const mock = await setup(page, false, true);
+  await searchCandidates(page);
+  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  const pair23 = page.getByRole('article', { name: 'Pair 2:3', exact: true });
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(pair23.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(
+    pair23.getByRole('button', { name: 'Keep transaction #2', exact: true })
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+  await pair13.getByRole('button', { name: 'Keep transaction #3', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Chosen kept copies remain protected');
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
+  await pair13.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair13.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2, 3]);
+  expect(mock.errors).toEqual([]);
+});
+
+test('already marked transactions are not kept or updated again', async ({ page }) => {
+  const mock = await setup(page, false, false, [2]);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await expect(pair.getByRole('button', { name: 'Keep transaction #2', exact: true })).toHaveCount(
+    0
+  );
+  await expect(pair.getByRole('button', { name: 'Keep both', exact: true })).toBeDisabled();
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Kept #1');
+  expect(mock.tagRequests).toEqual([]);
+});
+
+test('an in-flight write blocks repeated clicks and navigation until it completes', async ({
+  page
+}) => {
+  const mock = await setup(page);
+  const release = mock.holdTag(2);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair.getByText('Saving…', { exact: true })).toBeVisible();
+  await expect(
+    pair.getByRole('button', { name: 'Keep transaction #1', exact: true })
+  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Reload transactions', exact: true })
+  ).toBeDisabled();
+  release();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+  expect(mock.tagRequests).toHaveLength(1);
+  expect(mock.errors).toEqual([]);
+});
+
+test('a committed write with an error response blocks opposite and shared decisions until a successful fresh fetch', async ({
+  page
+}) => {
+  const mock = await setup(page, false, true);
+  mock.loseTagResponse(2);
+  await searchCandidates(page);
+  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('is unknown');
+  expect(mock.persistedMarkers()).toEqual([2]);
+  await expect(
+    pair12.getByRole('button', { name: 'Keep transaction #2', exact: true })
+  ).toBeDisabled();
+  await expect(
+    pair13.getByRole('button', { name: 'Keep transaction #3', exact: true })
+  ).toBeDisabled();
+  await expect(pair12.getByRole('button', { name: 'Keep both', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
+
+  mock.failRefresh();
+  await page.getByRole('button', { name: 'Reload transactions', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Fresh snapshot unavailable');
+  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
+  expect(mock.tagRequests).toHaveLength(1);
+  await page.getByRole('button', { name: 'Reload transactions', exact: true }).click();
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(
+    pair12.getByRole('button', { name: 'Keep transaction #2', exact: true })
+  ).toHaveCount(0);
+  await pair13.getByRole('button', { name: 'Keep transaction #3', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('kept in another pair');
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Kept #1');
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
+  expect(mock.persistedMarkers()).toEqual([2]);
+  expect(mock.refreshes).toEqual(['POST', 'POST']);
+  expect(mock.errors).toEqual([]);
+});
+
+for (const lostResponse of [false, true]) {
+  test(`reopening the page forces a fresh snapshot after ${lostResponse ? 'an uncertain' : 'a successful'} write`, async ({
+    page
+  }) => {
+    const mock = await setup(page, false, true);
+    if (lostResponse) mock.loseTagResponse(2);
+    await searchCandidates(page);
+    const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+    await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+    if (lostResponse) await expect(page.getByRole('alert')).toContainText('is unknown');
+    else await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+    expect(mock.refreshes).toEqual([]);
+    await page.reload();
+    await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
+    await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+    expect(mock.refreshes).toEqual(['POST']);
+    await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+    await expect(
+      pair.getByRole('button', { name: 'Keep transaction #2', exact: true })
+    ).toHaveCount(0);
+    const related = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+    await related.getByRole('button', { name: 'Keep transaction #3', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('kept in another pair');
+    expect(mock.persistedMarkers()).toEqual([2]);
+    expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
+    expect(mock.errors).toEqual([]);
+  });
+}

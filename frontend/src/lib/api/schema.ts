@@ -1710,7 +1710,7 @@ export interface components {
      * TxTag
      * @enum {string}
      */
-    TxTag: 'blik_done' | 'allegro_done' | 'rule_potential' | 'action_req';
+    TxTag: 'blik_done' | 'allegro_done' | 'rule_potential' | 'action_req' | 'do-usuniecia';
     /** UpdateSecretPayload */
     UpdateSecretPayload: {
       /** Alias */

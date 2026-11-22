@@ -267,3 +267,27 @@ def test_add_tag_by_id_delegates_to_helpers():
 
     service.get_transaction.assert_awaited_once_with(9)
     service.add_tag.assert_awaited_once_with(tx=tx, tag="blik_done")
+
+
+@pytest.mark.parametrize("already_marked", [False, True])
+def test_deletion_tag_preserves_live_tags_and_only_patches_tags(already_marked):
+    from tests.services.test_duplicate_detection import tx
+
+    current = tx(9, tags={"bank", "new-live-tag"})
+    if already_marked:
+        current.tags.add(TxTag.duplicate_delete.value)
+    firefly = MagicMock()
+    firefly.update_transaction = AsyncMock()
+    service = FireflyTxService(firefly, "blik", "allegro")
+    service.get_transaction = AsyncMock(return_value=current)
+
+    asyncio.run(service.add_tag_by_id(9, TxTag.duplicate_delete.value))
+
+    service.get_transaction.assert_awaited_once_with(9)
+    transaction_id, payload = firefly.update_transaction.await_args.args
+    assert transaction_id == 9
+    assert set(payload.tags) == {"bank", "new-live-tag", "do-usuniecia"}
+    assert len(payload.tags) == 3
+    assert payload.description is None
+    assert payload.notes is None
+    assert payload.category_id is None
