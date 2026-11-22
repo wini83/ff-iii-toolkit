@@ -27,16 +27,18 @@ pagination pinned to a snapshot; reload and search again if the snapshot changes
 **Reload transactions** forces a new Firefly fetch even while the cached snapshot
 is still fresh. Opening the page uses the shared snapshot when available.
 Repeated legitimate payments remain review candidates. Links open the original
-transactions in Firefly. Choose **Keep this** in each pair (or **Keep both**), then **Review decisions**
-and confirm the preview to add the `do-usuniecia` tag, preserving existing tags. A transaction selected in
-several pairs is updated once. Conflicting keep/delete decisions are rejected;
-no copy is selected automatically. Confirmed keep choices remain protected while
-reviewing other pages in the same session. Successful marks remain visible across result pages;
-failed updates stay selected for retry. Confirm or clear pending decisions before
-searching or changing pages. Filter by `do-usuniecia` in Firefly to review and delete the marked entries.
-The toolkit does not delete transactions. The marker is ignored when comparing tag
-sets, so tagging alone cannot produce new duplicate candidates. Search results use
-the existing snapshot; use **Reload transactions** to fetch external changes.
+transactions in Firefly. Clicking **Keep this** immediately adds the `do-usuniecia`
+tag to the other transaction, preserving its existing tags. There is no preview
+or confirmation step. **Keep both** leaves both transactions unchanged and can be
+undone locally. Successfully kept copies remain protected across searches and
+result pages in the same browser session. Shared transactions are marked once;
+failed writes show an error and can be retried by clicking **Keep this** again.
+Navigation and further actions are disabled while a write is in progress.
+Filter by `do-usuniecia` in Firefly to review and delete the marked entries.
+The toolkit does not delete transactions. The marker is ignored when comparing
+tag sets, so tagging alone cannot produce new duplicate candidates. Search
+results use the existing snapshot; use **Reload transactions** to fetch external
+changes.
 
 Filters are not saved and there are no persistent dismissals in this MVP.
 Luciferin excludes multipart/split groups before building the shared snapshot;

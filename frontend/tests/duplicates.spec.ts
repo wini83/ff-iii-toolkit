@@ -10,6 +10,7 @@ async function setup(page: Page, empty = false, overlap = false, preMarked: numb
   const refreshes: string[] = [];
   const tagRequests: { id: number; tag: string | null; method: string }[] = [];
   const failTags = new Set<number>();
+  const tagHolds = new Map<number, Promise<void>>();
   const marked = new Set(preMarked);
   let changed = false;
   let fail = false;
@@ -35,6 +36,8 @@ async function setup(page: Page, empty = false, overlap = false, preMarked: numb
           tag: url.searchParams.get('tag'),
           method: route.request().method()
         });
+        const hold = tagHolds.get(id);
+        if (hold) await hold;
         if (failTags.delete(id))
           return route.fulfill({ status: 502, json: { detail: 'Firefly unavailable' } });
         marked.add(id);
@@ -124,6 +127,19 @@ async function setup(page: Page, empty = false, overlap = false, preMarked: numb
     queries,
     tagRequests,
     failTag: (id: number) => failTags.add(id),
+    holdTag: (id: number) => {
+      let release: () => void = () => {};
+      tagHolds.set(
+        id,
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+      );
+      return () => {
+        tagHolds.delete(id);
+        release();
+      };
+    },
     errors,
     refreshes,
     change: () => {
@@ -243,107 +259,119 @@ async function searchCandidates(page: Page) {
   await expect(page.getByRole('article', { name: 'Pair 1:2', exact: true })).toBeVisible();
 }
 
-test('explicit keep decisions, keep both, preview and cancel before adding deletion tags', async ({
+test('keep this immediately marks the other copy without review or repeat writes', async ({
   page
 }) => {
   const mock = await setup(page);
   await searchCandidates(page);
   const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
-  const review = page.getByRole('button', { name: 'Review decisions (0)', exact: true });
-  await expect(review).toBeDisabled();
-  await pair.getByRole('button', { name: 'Keep both', exact: true }).click();
-  await expect(page.getByText('Keep: 2 · To mark: 0', { exact: true })).toBeVisible();
-  await expect(review).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Review decisions/ })).toHaveCount(0);
+  expect(mock.tagRequests).toEqual([]);
   await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
-  await expect(pair.getByText('To mark for deletion', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Review deletion markers' });
-  await expect(dialog.getByRole('list', { name: 'Transactions to mark' })).toContainText('#2');
-  await expect(dialog).toContainText('Bank payment 2');
-  await expect(dialog).toContainText('Existing tags: csv, shared');
-  expect(mock.tagRequests).toEqual([]);
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(dialog).not.toBeVisible();
-  expect(mock.tagRequests).toEqual([]);
-  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Confirm marking (1)', exact: true }).click();
   await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
   expect(mock.tagRequests).toEqual([{ id: 2, tag: 'do-usuniecia', method: 'POST' }]);
-  await expect(
-    pair.getByRole('button', { name: 'Keep transaction #1', exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(pair.getByText('csv', { exact: true })).toBeVisible();
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Kept #1');
+  expect(mock.tagRequests).toHaveLength(1);
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
   expect(mock.errors).toEqual([]);
 });
 
-test('overlapping pairs share decisions, reject conflicts and retry only failed unique IDs', async ({
-  page
-}) => {
+test('keep both is local, reversible and protects shared copies', async ({ page }) => {
   const mock = await setup(page, false, true);
   await searchCandidates(page);
   const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
   const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
-  const pair23 = page.getByRole('article', { name: 'Pair 2:3', exact: true });
-  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
-  await pair13.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
-  await expect(page.getByText('Keep: 1 · To mark: 2', { exact: true })).toBeVisible();
-  await pair23.getByRole('button', { name: 'Keep transaction #2', exact: true }).click();
+  await pair13.getByRole('button', { name: 'Keep both', exact: true }).click();
+  await expect(pair13.getByRole('button', { name: 'Undo keep both', exact: true })).toBeVisible();
+  expect(mock.tagRequests).toEqual([]);
+  await pair12.getByRole('button', { name: 'Keep transaction #2', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('kept in another pair');
-  await expect(page.getByText('Keep: 1 · To mark: 2', { exact: true })).toBeVisible();
-  mock.failTag(3);
-  await page.getByRole('button', { name: 'Review decisions (2)', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Review deletion markers' });
-  await expect(dialog.getByRole('listitem')).toHaveCount(2);
-  await dialog.getByRole('button', { name: 'Confirm marking (2)', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('#3');
+  expect(mock.tagRequests).toEqual([]);
+  await pair13.getByRole('button', { name: 'Undo keep both', exact: true }).click();
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
   await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
-  await expect(pair23.getByText('Marked for deletion', { exact: true })).toBeVisible();
-  await expect(page.getByText('Keep: 1 · To mark: 1', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Confirm marking (1)', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(page.getByText('Keep: 1 · To mark: 0', { exact: true })).toBeVisible();
-  expect(mock.tagRequests.map((r) => r.id)).toEqual([2, 3, 3]);
-  await page.getByRole('button', { name: 'Clear decisions', exact: true }).click();
-  await expect(page.getByText('Keep: 1 · To mark: 0', { exact: true })).toBeVisible();
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
   expect(mock.errors).toEqual([]);
 });
 
-test('already marked transactions cannot be chosen as the kept copy', async ({ page }) => {
+test('failed immediate writes can be retried without an optimistic success state', async ({
+  page
+}) => {
+  const mock = await setup(page);
+  mock.failTag(2);
+  await searchCandidates(page);
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not mark transaction #2');
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toHaveCount(0);
+  await expect(
+    pair.getByRole('button', { name: 'Keep transaction #1', exact: true })
+  ).toHaveAttribute('aria-pressed', 'false');
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2, 2]);
+  expect(mock.errors).toEqual([]);
+});
+
+test('shared marks and confirmed keep protection survive a new search', async ({ page }) => {
+  const mock = await setup(page, false, true);
+  await searchCandidates(page);
+  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  const pair23 = page.getByRole('article', { name: 'Pair 2:3', exact: true });
+  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(pair23.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(
+    pair23.getByRole('button', { name: 'Keep transaction #2', exact: true })
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
+  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
+  await pair13.getByRole('button', { name: 'Keep transaction #3', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Successfully kept copies remain protected');
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
+  await pair13.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair13.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  expect(mock.tagRequests.map((r) => r.id)).toEqual([2, 3]);
+  expect(mock.errors).toEqual([]);
+});
+
+test('already marked transactions are not kept or updated again', async ({ page }) => {
   const mock = await setup(page, false, false, [2]);
   await searchCandidates(page);
   const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
-  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
   await expect(pair.getByRole('button', { name: 'Keep transaction #2', exact: true })).toHaveCount(
     0
   );
   await expect(pair.getByRole('button', { name: 'Keep both', exact: true })).toBeDisabled();
   await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: 'Review decisions (0)', exact: true })
-  ).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Kept #1');
   expect(mock.tagRequests).toEqual([]);
 });
 
-test('a confirmed kept copy stays protected after starting another search', async ({ page }) => {
-  const mock = await setup(page, false, true);
+test('an in-flight write blocks repeated clicks and navigation until it completes', async ({
+  page
+}) => {
+  const mock = await setup(page);
+  const release = mock.holdTag(2);
   await searchCandidates(page);
-  const pair12 = page.getByRole('article', { name: 'Pair 1:2', exact: true });
-  await pair12.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
-  await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
-  await page
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Confirm marking (1)', exact: true })
-    .click();
-  await expect(pair12.getByText('Marked for deletion', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Find candidates', exact: true }).click();
-  const pair13 = page.getByRole('article', { name: 'Pair 1:3', exact: true });
-  await pair13.getByRole('button', { name: 'Keep transaction #3', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('confirmed batch');
+  const pair = page.getByRole('article', { name: 'Pair 1:2', exact: true });
+  await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
+  await expect(pair.getByText('Saving…', { exact: true })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Review decisions (0)', exact: true })
+    pair.getByRole('button', { name: 'Keep transaction #1', exact: true })
   ).toBeDisabled();
-  expect(mock.tagRequests.map((r) => r.id)).toEqual([2]);
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Reload transactions', exact: true })
+  ).toBeDisabled();
+  release();
+  await expect(pair.getByText('Marked for deletion', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+  expect(mock.tagRequests).toHaveLength(1);
+  expect(mock.errors).toEqual([]);
 });

@@ -15,98 +15,74 @@
 
   const deletionTag = 'do-usuniecia';
   type Pair = DuplicateResults['items'][number];
-  let decisions = new Map<string, number | 'both'>();
-  let selectedIds = new Set<number>();
-  let keptIds = new Set<number>();
+  let keptBoth = new Map<string, Pair>();
   let confirmedKeepIds = new Set<number>();
-  let reviewDialog: HTMLDialogElement;
+  let keptIds = new Set<number>();
   let markedIds = new Set<number>();
   let marking = false;
+  let savingPairId: string | null = null;
   let markError: string | null = null;
   let markMessage: string | null = null;
+
+  $: keptIds = new Set([
+    ...confirmedKeepIds,
+    ...[...keptBoth.values()].flatMap((pair) => [pair.first.id, pair.second.id])
+  ]);
 
   function isMarked(tx: components['schemas']['SimplifiedTx']): boolean {
     return tx.tags.includes(deletionTag) || markedIds.has(tx.id);
   }
 
-  function chooseKeep(pair: Pair, keep: number | 'both' | null) {
-    if (busy || marking || !result) return;
-    const next = new Map(decisions);
-    if (keep === null) next.delete(pair.id);
-    else next.set(pair.id, keep);
-    const kept = new Set(confirmedKeepIds);
-    const removed = new Set<number>();
-    for (const candidate of result.items) {
-      const choice = next.get(candidate.id);
-      if (choice === undefined) continue;
-      for (const tx of [candidate.first, candidate.second]) {
-        if (choice === 'both' || choice === tx.id) kept.add(tx.id);
-        else if (!isMarked(tx)) removed.add(tx.id);
+  function toggleKeepBoth(pair: Pair) {
+    if (busy || marking || isMarked(pair.first) || isMarked(pair.second)) return;
+    const next = new Map(keptBoth);
+    if (next.has(pair.id)) next.delete(pair.id);
+    else next.set(pair.id, pair);
+    keptBoth = next;
+    markError = null;
+    markMessage = null;
+  }
+
+  async function keepThis(pair: Pair, keepId: number) {
+    if (busy || marking) return;
+    const keep = pair.first.id === keepId ? pair.first : pair.second;
+    const other = pair.first.id === keepId ? pair.second : pair.first;
+    if (isMarked(keep)) return;
+    // A local "keep both" on this pair can be replaced. Other keep decisions
+    // and successfully retained copies must never be marked through this pair.
+    const protectedIds = new Set(confirmedKeepIds);
+    for (const [pairId, both] of keptBoth) {
+      if (pairId !== pair.id) {
+        protectedIds.add(both.first.id);
+        protectedIds.add(both.second.id);
       }
     }
-    const conflict = [...removed].find((txId) => kept.has(txId));
-    if (conflict !== undefined) {
-      markError = `Transaction #${conflict} is kept in another pair. Clear conflicting pending decisions before marking it for deletion. Copies kept in a confirmed batch remain protected during this session.`;
+    if (protectedIds.has(other.id)) {
+      markError = `Transaction #${other.id} is kept in another pair. Undo any conflicting "keep both" choice first. Successfully kept copies remain protected during this session.`;
       return;
     }
-    decisions = next;
-    keptIds = kept;
-    selectedIds = removed;
     markError = null;
     markMessage = null;
-  }
-
-  function clearDecisions() {
-    decisions = new Map();
-    selectedIds = new Set();
-    keptIds = new Set(confirmedKeepIds);
-    markError = null;
-    markMessage = null;
-  }
-
-  function pendingTransactions(results: DuplicateResults | null, ids: Set<number>) {
-    const unique = new Map<number, components['schemas']['SimplifiedTx']>();
-    for (const pair of results?.items ?? []) {
-      for (const tx of [pair.first, pair.second]) {
-        if (ids.has(tx.id)) unique.set(tx.id, tx);
-      }
-    }
-    return [...unique.values()];
-  }
-
-  async function markSelected() {
-    if (busy || marking || selectedIds.size === 0) return;
-    reviewDialog.close();
     const id = requestId;
-    const ids = [...selectedIds];
     marking = true;
-    markError = null;
-    markMessage = null;
-    let succeeded = 0;
-    const failed: number[] = [];
+    savingPairId = pair.id;
     try {
-      for (const txId of ids) {
-        if (id !== requestId) return;
-        try {
-          await applyTag(txId, deletionTag);
-          if (id !== requestId) return;
-          markedIds = new Set([...markedIds, txId]);
-          confirmedKeepIds = new Set([...confirmedKeepIds, ...keptIds]);
-          const next = new Set(selectedIds);
-          next.delete(txId);
-          selectedIds = next;
-          succeeded += 1;
-        } catch {
-          if (id !== requestId) return;
-          failed.push(txId);
-        }
-      }
-      markMessage = `Marked ${succeeded} transaction(s) with ${deletionTag}.`;
-      if (failed.length > 0) {
-        markError = `Could not mark transaction(s) ${failed.map((txId) => `#${txId}`).join(', ')}. They remain selected; retry marking them.`;
-      }
+      if (!isMarked(other)) await applyTag(other.id, deletionTag);
+      if (id !== requestId) return;
+      markedIds = new Set([...markedIds, other.id]);
+      confirmedKeepIds = new Set([...confirmedKeepIds, keep.id]);
+      const next = new Map(keptBoth);
+      next.delete(pair.id);
+      keptBoth = next;
+      markMessage = `Kept #${keep.id}. Transaction #${other.id} is marked with ${deletionTag}.`;
+    } catch {
+      if (id !== requestId) return;
+      markError = `Could not mark transaction #${other.id}. Click "Keep this" again to retry; no decision was saved.`;
     } finally {
-      if (id === requestId) marking = false;
+      if (id === requestId) {
+        marking = false;
+        savingPairId = null;
+      }
     }
   }
 
@@ -131,7 +107,8 @@
 
   async function loadOptions(forceRefresh = false) {
     const id = ++requestId;
-    clearDecisions();
+    markError = null;
+    markMessage = null;
     busy = true;
     error = null;
     changed = false;
@@ -155,7 +132,8 @@
   async function search(offset = 0, query = submitted) {
     if (!query) return;
     const id = ++requestId;
-    clearDecisions();
+    markError = null;
+    markMessage = null;
     busy = true;
     error = null;
     changed = false;
@@ -213,7 +191,7 @@
     <button
       slot="actions"
       class="btn btn-sm"
-      disabled={busy || marking || selectedIds.size > 0}
+      disabled={busy || marking}
       on:click={() => loadOptions(true)}>Reload transactions</button
     >
   </WorkflowHeader>
@@ -221,7 +199,7 @@
   {#if options}
     <form class="card bg-base-100 p-4" on:submit={submit}>
       <fieldset
-        disabled={busy || marking || selectedIds.size > 0 || options.accounts.length === 0}
+        disabled={busy || marking || options.accounts.length === 0}
         class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
         <legend class="sr-only">Duplicate search filters</legend>
@@ -312,31 +290,17 @@
         </p>
       </div>
       <p class="text-base-content/70 text-sm">
-        These are review candidates, including possible legitimate repeated payments. Select the
-        copy to keep in each pair, or keep both. Review your decisions before adding
-        <code>{deletionTag}</code> to the other copies. Existing tags are preserved. Decisions apply to
-        this page only; nothing is selected automatically.
+        These are review candidates, including possible legitimate repeated payments.
+        <strong
+          >Keep this immediately adds <code>{deletionTag}</code> to the other transaction.</strong
+        >
+        Keep both leaves both transactions unchanged. Existing tags are preserved; delete marked entries
+        later in Firefly.
       </p>
       {#if result.items.length > 0}
-        <div
-          class="border-base-300 bg-base-100 sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded border p-3"
-        >
-          <span class="text-sm">Keep: {keptIds.size} · To mark: {selectedIds.size}</span>
-          {#if selectedIds.size > 0}<span class="text-base-content/70 text-xs"
-              >Confirm or clear decisions before searching or changing pages.</span
-            >{/if}
-          <button
-            class="btn btn-sm btn-primary"
-            disabled={busy || marking || selectedIds.size === 0}
-            on:click={() => reviewDialog.showModal()}
-            >{marking ? 'Marking…' : `Review decisions (${selectedIds.size})`}</button
-          >
-          <button
-            class="btn btn-sm btn-ghost"
-            disabled={marking || decisions.size === 0}
-            on:click={clearDecisions}>Clear decisions</button
-          >
-        </div>
+        <p class="text-base-content/70 text-xs">
+          Kept this session: {keptIds.size} · Marked this session: {markedIds.size}
+        </p>
       {/if}
       {#if markMessage}<p role="status" class="text-sm">{markMessage}</p>{/if}
       {#if markError}<div class="alert alert-warning" role="alert">{markError}</div>{/if}
@@ -357,13 +321,11 @@
               <button
                 class="btn btn-xs"
                 disabled={busy || marking || isMarked(pair.first) || isMarked(pair.second)}
-                on:click={() => chooseKeep(pair, 'both')}>Keep both</button
+                aria-pressed={keptBoth.has(pair.id)}
+                on:click={() => toggleKeepBoth(pair)}
+                >{keptBoth.has(pair.id) ? 'Undo keep both' : 'Keep both'}</button
               >
-              <button
-                class="btn btn-xs btn-ghost"
-                disabled={busy || marking || !decisions.has(pair.id)}
-                on:click={() => chooseKeep(pair, null)}>Clear pair decision</button
-              >
+              {#if savingPairId === pair.id}<span role="status" class="text-sm">Saving…</span>{/if}
             </div>
           </div>
           <div class="overflow-x-auto">
@@ -379,7 +341,7 @@
               <tbody>
                 {#each [pair.first, pair.second] as tx (tx.id)}
                   {@const link = fireflyLink(result.firefly_url, tx.id)}
-                  <tr class:bg-base-200={selectedIds.has(tx.id)}>
+                  <tr class:bg-base-200={isMarked(tx)}>
                     <td>
                       {#if isMarked(tx)}
                         <span class="badge badge-outline badge-sm whitespace-nowrap"
@@ -393,13 +355,10 @@
                             aria-label={`Keep transaction #${tx.id}`}
                             aria-pressed={keptIds.has(tx.id)}
                             disabled={busy || marking}
-                            on:click={() => chooseKeep(pair, tx.id)}>Keep this</button
+                            title={`Immediately mark transaction #${tx.id === pair.first.id ? pair.second.id : pair.first.id} with ${deletionTag}`}
+                            on:click={() => keepThis(pair, tx.id)}>Keep this</button
                           >
-                          {#if selectedIds.has(tx.id)}
-                            <span class="badge badge-outline badge-sm whitespace-nowrap"
-                              >To mark for deletion</span
-                            >
-                          {:else if keptIds.has(tx.id)}
+                          {#if keptIds.has(tx.id)}
                             <span class="text-base-content/70 text-xs">Keep</span>
                           {/if}
                         </div>
@@ -438,15 +397,12 @@
           >
           <button
             class="btn btn-sm"
-            disabled={busy || marking || selectedIds.size > 0 || result.offset === 0}
+            disabled={busy || marking || result.offset === 0}
             on:click={() => search(Math.max(0, result!.offset - 25))}>Previous</button
           >
           <button
             class="btn btn-sm"
-            disabled={busy ||
-              marking ||
-              selectedIds.size > 0 ||
-              result.offset + result.limit >= result.total}
+            disabled={busy || marking || result.offset + result.limit >= result.total}
             on:click={() => search(result!.offset + 25)}>Next</button
           >
         </div>
@@ -456,31 +412,3 @@
     <p class="text-base-content/70 text-sm">Select an account and find candidates to compare.</p>
   {/if}
 </div>
-
-<dialog bind:this={reviewDialog} class="modal" aria-labelledby="deletion-review-title">
-  <div class="modal-box max-w-3xl">
-    <h3 id="deletion-review-title" class="text-lg font-semibold">Review deletion markers</h3>
-    <p class="mt-2 text-sm">
-      Add <code>{deletionTag}</code> to {selectedIds.size} transaction(s). No transactions will be deleted.
-      Filter by this tag in Firefly to review and delete them later.
-    </p>
-    <ul class="mt-4 max-h-80 space-y-2 overflow-y-auto text-sm" aria-label="Transactions to mark">
-      {#each pendingTransactions(result, selectedIds) as tx (tx.id)}
-        <li class="border-base-300 rounded border p-2">
-          <span class="toolkit-data">#{tx.id} · {tx.date} · {tx.amount} {tx.currency_code}</span>
-          <p class="wrap-anywhere">{tx.description}</p>
-          <p class="text-base-content/70 text-xs">Existing tags: {tx.tags.join(', ') || 'None'}</p>
-        </li>
-      {/each}
-    </ul>
-    <div class="modal-action">
-      <button class="btn btn-sm" on:click={() => reviewDialog.close()}>Cancel</button>
-      <button
-        class="btn btn-sm btn-primary"
-        disabled={marking || selectedIds.size === 0}
-        on:click={markSelected}>Confirm marking ({selectedIds.size})</button
-      >
-    </div>
-  </div>
-  <form method="dialog" class="modal-backdrop"><button>Close review</button></form>
-</dialog>
