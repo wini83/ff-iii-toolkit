@@ -32,8 +32,8 @@ and confirm the preview to add the `do-usuniecia` tag, preserving existing tags.
 several pairs is updated once. Conflicting keep/delete decisions are rejected;
 no copy is selected automatically. Confirmed keep choices remain protected while
 reviewing other pages in the same session. Successful marks remain visible across result pages;
-failed updates stay selected for retry. Selection clears when searching or changing
-pages. Filter by `do-usuniecia` in Firefly to review and delete the marked entries.
+failed updates stay selected for retry. Confirm or clear pending decisions before
+searching or changing pages. Filter by `do-usuniecia` in Firefly to review and delete the marked entries.
 The toolkit does not delete transactions. The marker is ignored when comparing tag
 sets, so tagging alone cannot produce new duplicate candidates. Search results use
 the existing snapshot; use **Reload transactions** to fetch external changes.

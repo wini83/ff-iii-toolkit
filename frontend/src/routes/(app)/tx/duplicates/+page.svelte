@@ -213,7 +213,7 @@
     <button
       slot="actions"
       class="btn btn-sm"
-      disabled={busy || marking}
+      disabled={busy || marking || selectedIds.size > 0}
       on:click={() => loadOptions(true)}>Reload transactions</button
     >
   </WorkflowHeader>
@@ -221,7 +221,7 @@
   {#if options}
     <form class="card bg-base-100 p-4" on:submit={submit}>
       <fieldset
-        disabled={busy || marking || options.accounts.length === 0}
+        disabled={busy || marking || selectedIds.size > 0 || options.accounts.length === 0}
         class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5"
       >
         <legend class="sr-only">Duplicate search filters</legend>
@@ -322,6 +322,9 @@
           class="border-base-300 bg-base-100 sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded border p-3"
         >
           <span class="text-sm">Keep: {keptIds.size} · To mark: {selectedIds.size}</span>
+          {#if selectedIds.size > 0}<span class="text-base-content/70 text-xs"
+              >Confirm or clear decisions before searching or changing pages.</span
+            >{/if}
           <button
             class="btn btn-sm btn-primary"
             disabled={busy || marking || selectedIds.size === 0}
@@ -435,12 +438,15 @@
           >
           <button
             class="btn btn-sm"
-            disabled={busy || marking || result.offset === 0}
+            disabled={busy || marking || selectedIds.size > 0 || result.offset === 0}
             on:click={() => search(Math.max(0, result!.offset - 25))}>Previous</button
           >
           <button
             class="btn btn-sm"
-            disabled={busy || marking || result.offset + result.limit >= result.total}
+            disabled={busy ||
+              marking ||
+              selectedIds.size > 0 ||
+              result.offset + result.limit >= result.total}
             on:click={() => search(result!.offset + 25)}>Next</button
           >
         </div>

@@ -256,6 +256,8 @@ test('explicit keep decisions, keep both, preview and cancel before adding delet
   await expect(review).toBeDisabled();
   await pair.getByRole('button', { name: 'Keep transaction #1', exact: true }).click();
   await expect(pair.getByText('To mark for deletion', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Find candidates', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Review decisions (1)', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Review deletion markers' });
   await expect(dialog.getByRole('list', { name: 'Transactions to mark' })).toContainText('#2');
