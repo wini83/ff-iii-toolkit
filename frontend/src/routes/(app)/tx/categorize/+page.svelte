@@ -403,10 +403,10 @@
         role="status"
         aria-label="Queue summary"
       >
-        <span
-          ><strong class="text-base-content">{data?.remaining ?? 0} remaining</strong> · {progressValue}
-          completed of {initialCount} loaded</span
-        >
+        <span>
+          <strong class="text-base-content">{data?.remaining ?? 0} remaining</strong> · {progressValue}
+          completed of {initialCount} loaded
+        </span>
         <span class="toolkit-data">{year}-{String(month).padStart(2, '0')}</span>
       </div>
     {/if}
@@ -440,9 +440,9 @@
     </section>
   {:else}
     <nav aria-label="Transaction queue" class="flex flex-wrap items-center justify-between gap-2">
-      <span class="text-base-content/70 text-xs" aria-live="polite"
-        >Position {cursor + 1} of {data.transactions.length} in queue</span
-      >
+      <span class="text-base-content/70 text-xs" aria-live="polite">
+        Position {cursor + 1} of {data.transactions.length} in queue
+      </span>
       <div class="flex items-center gap-2">
         <button
           class="btn btn-outline btn-sm"
@@ -499,16 +499,16 @@
           {#if updateError}
             <div class="alert alert-error py-2 text-sm" role="alert">
               <Icon src={icons.ExclamationTriangle} class="h-4 w-4" />
-              <span class="min-w-0 wrap-anywhere"
-                >{updateError} Your transaction and selection are unchanged. Try again.</span
-              >
+              <span class="min-w-0 wrap-anywhere">
+                {updateError} Your transaction and selection are unchanged. Try again.
+              </span>
             </div>
           {/if}
           <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div class="min-w-0 flex-1">
-              <label for="transaction-category" class="mb-1 block text-xs font-medium"
-                >Category</label
-              >
+              <label for="transaction-category" class="mb-1 block text-xs font-medium">
+                Category
+              </label>
               <select
                 id="transaction-category"
                 class="select select-bordered w-full min-w-0"
@@ -572,8 +572,10 @@
               <button
                 class="btn btn-ghost btn-xs"
                 disabled={busy}
-                on:click={() => loadCategorySuggestions(currentTx.id)}>Retry suggestions</button
+                on:click={() => loadCategorySuggestions(currentTx.id)}
               >
+                Retry suggestions
+              </button>
             </div>
           {:else if displayedCategorySuggestions.length === 0}
             <p class="text-base-content/70 mt-2 text-xs">No category suggestions yet</p>
@@ -584,12 +586,14 @@
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                       <span class="font-medium wrap-anywhere">{suggestion.category_name}</span>
-                      <span class="toolkit-data text-base-content/70 text-xs"
-                        >{formatSuggestionConfidence(suggestion.score)}</span
-                      >
+                      <span class="toolkit-data text-base-content/70 text-xs">
+                        {formatSuggestionConfidence(suggestion.score)}
+                      </span>
                       {#if isCurrentCategorySuggestion(suggestion)}<span
-                          class="badge badge-outline badge-sm">Current</span
-                        >{/if}
+                          class="badge badge-outline badge-sm"
+                        >
+                          Current
+                        </span>{/if}
                     </div>
                     <p class="text-base-content/70 mt-0.5 text-xs wrap-anywhere">
                       {suggestion.reason}
@@ -599,8 +603,10 @@
                     class="btn btn-outline btn-sm shrink-0"
                     disabled={busy}
                     aria-label={`Apply suggestion: ${suggestion.category_name}`}
-                    on:click={() => applySuggestedCategory(suggestion)}>Apply</button
+                    on:click={() => applySuggestedCategory(suggestion)}
                   >
+                    Apply
+                  </button>
                 </li>
               {/each}
             </ul>
@@ -612,11 +618,10 @@
             <div class="grid min-w-0 gap-3 sm:grid-cols-2">
               {#each [{ label: 'Source', account: currentTx.source_account }, { label: 'Destination', account: currentTx.destination_account }] as item}
                 <details class="min-w-0">
-                  <summary class="cursor-pointer text-sm wrap-anywhere"
-                    ><span class="text-base-content/70 text-xs">{item.label}</span> · {item.account
-                      ?.name ||
-                      (item.account ? `Account #${item.account.id}` : 'Not provided')}</summary
-                  >
+                  <summary class="cursor-pointer text-sm wrap-anywhere">
+                    <span class="text-base-content/70 text-xs">{item.label}</span> · {item.account
+                      ?.name || (item.account ? `Account #${item.account.id}` : 'Not provided')}
+                  </summary>
                   {#if item.account}
                     <dl class="text-base-content/70 mt-2 space-y-1 text-xs">
                       <div>
@@ -643,16 +648,17 @@
               {#each currentTx.tags as tag}
                 <span
                   class={`badge badge-sm h-auto min-h-5 max-w-full py-0.5 wrap-anywhere whitespace-normal ${isPrimary(tag) ? 'badge-primary' : 'badge-outline'}`}
-                  >{tag}</span
                 >
+                  {tag}
+                </span>
               {/each}
             </div>
           {/if}
           {#if splitNotesLines(currentTx.notes).length > 0}
             <details>
-              <summary class="cursor-pointer text-xs font-medium"
-                >Notes ({splitNotesLines(currentTx.notes).length})</summary
-              >
+              <summary class="cursor-pointer text-xs font-medium">
+                Notes ({splitNotesLines(currentTx.notes).length})
+              </summary>
               <div class="text-base-content/70 mt-2 space-y-1 text-sm wrap-anywhere">
                 {#each splitNotesLines(currentTx.notes) as line}<p>{line}</p>{/each}
               </div>

@@ -266,15 +266,15 @@
 
 <div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Users">
-    <svelte:fragment slot="description"
-      >Manage application users and onboarding invites with a clean admin workflow.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><button class="btn btn-primary" disabled={loading || creating} on:click={openCreateModal}>
+    <svelte:fragment slot="description">
+      Manage application users and onboarding invites with a clean admin workflow.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <button class="btn btn-primary" disabled={loading || creating} on:click={openCreateModal}>
         <Icon src={icons.UserPlus} class="h-5 w-5" />
         Create user
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -603,8 +603,9 @@
       </div>
 
       <div class="modal-action">
-        <button class="btn btn-ghost" disabled={deleting} on:click={closeDeleteModal}>Cancel</button
-        >
+        <button class="btn btn-ghost" disabled={deleting} on:click={closeDeleteModal}>
+          Cancel
+        </button>
         <button class="btn btn-error" disabled={deleting} on:click={confirmDeleteUser}>
           {#if deleting}
             <span class="loading loading-spinner loading-sm"></span>

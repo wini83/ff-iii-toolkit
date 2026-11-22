@@ -450,13 +450,13 @@
 
 <div class="mx-auto mt-2 flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Blik matches">
-    <svelte:fragment slot="description"
-      >Review matching candidates for file
+    <svelte:fragment slot="description">
+      Review matching candidates for file
       <span class="font-medium">{matchData?.decoded_name ?? 'BLIK'}</span>
-      and apply confirmed pairs.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><button
+      and apply confirmed pairs.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <button
         class="btn btn-outline"
         on:click={() => (isStatsModalOpen = true)}
         disabled={!matchData}
@@ -471,8 +471,8 @@
       <button class="btn btn-primary" on:click={openPreview}>
         <Icon src={icons.DocumentMagnifyingGlass} class="h-5 w-5" />
         Preview
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   <section class="card bg-base-100">
@@ -883,8 +883,8 @@
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
-    <button on:click={() => !applying && (isApplyProgressModalOpen = false)} disabled={applying}
-      >close</button
-    >
+    <button on:click={() => !applying && (isApplyProgressModalOpen = false)} disabled={applying}>
+      close
+    </button>
   </form>
 </dialog>

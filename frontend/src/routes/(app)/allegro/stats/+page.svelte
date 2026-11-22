@@ -256,9 +256,9 @@
   {/if}
   {#if data && !loading && !isBusy(statusData?.status)}
     <div>
-      <button class="btn btn-outline btn-sm" on:click={() => showMonth(null)}
-        >Show unprocessed transactions</button
-      >
+      <button class="btn btn-outline btn-sm" on:click={() => showMonth(null)}>
+        Show unprocessed transactions
+      </button>
     </div>
     {#if showTransactions}{#key data.time_stamp}
         <MetricTransactions

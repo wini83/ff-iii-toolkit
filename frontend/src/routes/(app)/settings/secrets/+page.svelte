@@ -825,9 +825,9 @@
     {/if}
 
     <div class="modal-action">
-      <button class="btn btn-ghost" disabled={editSubmitting} on:click={closeEditModal}
-        >Cancel</button
-      >
+      <button class="btn btn-ghost" disabled={editSubmitting} on:click={closeEditModal}>
+        Cancel
+      </button>
       <button
         class="btn btn-primary"
         disabled={editSubmitting || !pendingEdit}
@@ -851,15 +851,15 @@
     <h3 class="text-lg font-semibold">Delete secret</h3>
     <p class="text-base-content/70 mt-2 text-sm">
       Are you sure you want to delete
-      <span class="font-semibold"
-        >{pendingDelete ? formatSecretType(pendingDelete.type) : 'this secret'}</span
-      >?
+      <span class="font-semibold">
+        {pendingDelete ? formatSecretType(pendingDelete.type) : 'this secret'}
+      </span>?
     </p>
 
     <div class="modal-action">
-      <button class="btn btn-ghost" disabled={deleteSubmitting} on:click={closeDeleteModal}
-        >Cancel</button
-      >
+      <button class="btn btn-ghost" disabled={deleteSubmitting} on:click={closeDeleteModal}>
+        Cancel
+      </button>
       <button
         class="btn btn-error"
         disabled={deleteSubmitting || !pendingDelete}

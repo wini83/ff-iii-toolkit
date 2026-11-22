@@ -445,21 +445,19 @@
 
 <div class="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
   <WorkflowHeader title="Allegro matches">
-    <svelte:fragment slot="description"
-      >Review matching candidates for the selected Allegro secret{login
-        ? ` (${login})`
-        : ''}.</svelte:fragment
-    >
-    <svelte:fragment slot="actions"
-      ><button class="btn btn-outline" on:click={() => (isStatsModalOpen = true)}>
+    <svelte:fragment slot="description">
+      Review matching candidates for the selected Allegro secret{login ? ` (${login})` : ''}.
+    </svelte:fragment>
+    <svelte:fragment slot="actions">
+      <button class="btn btn-outline" on:click={() => (isStatsModalOpen = true)}>
         <Icon src={icons.ChartBar} class="h-5 w-5" />
         Stats
       </button>
       <button class="btn btn-primary" on:click={openPayments}>
         <Icon src={icons.CreditCard} class="h-5 w-5" />
         Payments
-      </button></svelte:fragment
-    >
+      </button>
+    </svelte:fragment>
   </WorkflowHeader>
 
   {#if applyError}
@@ -732,8 +730,9 @@
               Payments fetched from Allegro that do not have any transaction candidate.
             </p>
           </div>
-          <span class="badge badge-outline badge-sm">{matchResponse.unmatched_payments.length}</span
-          >
+          <span class="badge badge-outline badge-sm">
+            {matchResponse.unmatched_payments.length}
+          </span>
         </div>
 
         <div class="divider my-0"></div>

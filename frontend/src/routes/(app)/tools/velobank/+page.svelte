@@ -256,9 +256,9 @@
             }}
           />
         </div>
-        <button class="btn btn-primary" disabled={busy || !selectedFile} on:click={parseFile}
-          >{#if busy}<span class="loading loading-spinner loading-sm"></span>{/if}Read PDF</button
-        >
+        <button class="btn btn-primary" disabled={busy || !selectedFile} on:click={parseFile}>
+          {#if busy}<span class="loading loading-spinner loading-sm"></span>{/if}Read PDF
+        </button>
       </div>
       <p class="text-base-content/60 text-xs">
         Processed on this toolkit server. The source PDF is removed after reading. Preview data
@@ -281,9 +281,9 @@
               {result.start_date} – {result.end_date} · {result.record_count} operations
             </p>
           </div>
-          <button class="btn btn-ghost btn-sm" disabled={busy} on:click={discard}
-            >Discard preview</button
-          >
+          <button class="btn btn-ghost btn-sm" disabled={busy} on:click={discard}>
+            Discard preview
+          </button>
         </div>
         <div class="flex flex-wrap gap-3">
           {#each result.totals as total (total.currency)}<div
@@ -313,18 +313,19 @@
         </p>
         {#if accountError}<div role="status" class="alert alert-info">
             <div>{accountError} You can enter exact account names manually.</div>
-            <button class="btn btn-sm btn-ghost" disabled={busy} on:click={loadAccounts}
-              >Retry</button
-            >
+            <button class="btn btn-sm btn-ghost" disabled={busy} on:click={loadAccounts}>
+              Retry
+            </button>
           </div>{/if}
-        <datalist id="firefly-accounts"
-          >{#each accountOptions as account (account.id)}<option value={account.name}
-              >{account.iban ?? 'Asset account'}</option
-            >{/each}</datalist
-        >
+        <datalist id="firefly-accounts">
+          {#each accountOptions as account (account.id)}<option value={account.name}>
+              {account.iban ?? 'Asset account'}
+            </option>{/each}
+        </datalist>
         <div class="form-control max-w-xl">
-          <label class="label" for="statement-account">Firefly account for this statement</label
-          ><input
+          <label class="label" for="statement-account">
+            Firefly account for this statement
+          </label><input
             id="statement-account"
             list="firefly-accounts"
             class="input input-bordered w-full"
@@ -347,8 +348,10 @@
                 <button
                   class="btn btn-ghost btn-sm"
                   disabled={busy || expired}
-                  on:click={() => removeOwnAccount(iban)}>Remove</button
+                  on:click={() => removeOwnAccount(iban)}
                 >
+                  Remove
+                </button>
               </div>{/each}
           </div>{/if}
         <fieldset disabled={busy || expired} class="border-base-300 rounded-sm border p-4">
@@ -373,13 +376,15 @@
               />
             </div>
           </div>
-          <datalist id="detected-ibans"
-            >{#each detectedIbans as iban (iban)}<option value={iban}></option>{/each}</datalist
-          ><button
+          <datalist id="detected-ibans">
+            {#each detectedIbans as iban (iban)}<option value={iban}></option>{/each}
+          </datalist><button
             class="btn btn-outline btn-sm mt-3"
             disabled={!newIban.trim() || !newAccountName.trim()}
-            on:click={addOwnAccount}>Add own account</button
+            on:click={addOwnAccount}
           >
+            Add own account
+          </button>
           <p class="text-base-content/60 mt-2 text-xs">
             Only add accounts that belong to you. Suggestions come from transfer descriptions.
           </p>
@@ -388,12 +393,16 @@
           <button
             class="btn btn-outline"
             disabled={busy || expired}
-            on:click={() => refreshPreview()}>Update preview</button
-          ><button
+            on:click={() => refreshPreview()}
+          >
+            Update preview
+          </button><button
             class="btn btn-secondary"
             disabled={busy || expired || !statementName.trim()}
-            on:click={() => refreshPreview(true)}>Save mappings for next time</button
+            on:click={() => refreshPreview(true)}
           >
+            Save mappings for next time
+          </button>
         </div>
         {#if mappingDirty}<p role="status" class="text-warning text-sm">
             Account mapping changed. Update the preview to review the new result.
@@ -409,10 +418,11 @@
             class="btn btn-primary"
             disabled={busy || expired || !statementName.trim() || mappingDirty}
             on:click={download}
-            >{#if busy}<span class="loading loading-spinner loading-sm"></span>{/if}Download {zip
-              ? 'ZIP'
-              : 'CSV'}</button
           >
+            {#if busy}<span class="loading loading-spinner loading-sm"></span>{/if}Download {zip
+              ? 'ZIP'
+              : 'CSV'}
+          </button>
         </div>
         <div class="alert alert-warning text-sm">
           <div>
@@ -420,18 +430,18 @@
           </div>
         </div>
         <details class="border-base-300 rounded-sm border p-3">
-          <summary class="cursor-pointer text-sm font-semibold"
-            >Export options and importer setup</summary
-          >
+          <summary class="cursor-pointer text-sm font-semibold">
+            Export options and importer setup
+          </summary>
           <div class="mt-3 space-y-3 text-sm">
-            <label class="flex items-center gap-2"
-              ><input
+            <label class="flex items-center gap-2">
+              <input
                 type="checkbox"
                 class="checkbox checkbox-sm"
                 bind:checked={zip}
                 disabled={busy}
-              />Split CSV into a ZIP package</label
-            >{#if zip}<div>
+              />Split CSV into a ZIP package
+            </label>{#if zip}<div>
                 <label for="chunk-size" class="label">Operations per CSV file</label><input
                   id="chunk-size"
                   type="number"
@@ -456,30 +466,30 @@
         </details>
         <div class="overflow-x-auto">
           <table class="table-sm table">
-            <thead
-              ><tr
-                ><th>Date / booked</th><th>Amount</th><th>Counterparty</th><th>Description</th><th
-                  >Source → destination</th
-                ></tr
-              ></thead
-            ><tbody
-              >{#each visibleRows as row (row.id)}<tr
-                  ><td class="whitespace-nowrap"
-                    >{row.date}
-                    <div class="text-base-content/60 text-xs">{row.booking_date}</div></td
-                  ><td class="whitespace-nowrap"
-                    ><span class:text-success={Number(row.amount) > 0}
-                      >{row.amount} {row.currency}</span
-                    ></td
-                  ><td class="min-w-40"
-                    >{row.payee}{#if row.needs_review}<div
-                        class="badge badge-warning badge-sm mt-1"
-                      >
+            <thead>
+              <tr>
+                <th>Date / booked</th><th>Amount</th><th>Counterparty</th><th>Description</th><th>
+                  Source → destination
+                </th>
+              </tr>
+            </thead><tbody>
+              {#each visibleRows as row (row.id)}<tr>
+                  <td class="whitespace-nowrap">
+                    {row.date}
+                    <div class="text-base-content/60 text-xs">{row.booking_date}</div>
+                  </td><td class="whitespace-nowrap">
+                    <span class:text-success={Number(row.amount) > 0}>
+                      {row.amount}
+                      {row.currency}
+                    </span>
+                  </td><td class="min-w-40">
+                    {row.payee}{#if row.needs_review}<div class="badge badge-warning badge-sm mt-1">
                         Needs review
-                      </div>{/if}</td
-                  ><td class="max-w-lg min-w-64 break-words whitespace-normal">{row.description}</td
-                  ><td class="min-w-48"
-                    ><div>
+                      </div>{/if}
+                  </td><td class="max-w-lg min-w-64 break-words whitespace-normal">
+                    {row.description}
+                  </td><td class="min-w-48">
+                    <div>
                       {row.source_account || 'Choose account'} → {row.destination_account ||
                         'Choose account'}
                     </div>
@@ -489,10 +499,10 @@
                         class="text-base-content/60 text-xs break-all"
                       >
                         To: {row.destination_iban}
-                      </div>{/if}</td
-                  ></tr
-                >{/each}</tbody
-            >
+                      </div>{/if}
+                  </td>
+                </tr>{/each}
+            </tbody>
           </table>
         </div>
         <div class="flex items-center justify-between">
@@ -501,14 +511,18 @@
             disabled={page <= 1}
             on:click={() => {
               page -= 1;
-            }}>Previous</button
-          ><span class="text-sm">Page {page} of {totalPages}</span><button
+            }}
+          >
+            Previous
+          </button><span class="text-sm">Page {page} of {totalPages}</span><button
             class="btn btn-outline btn-sm"
             disabled={page >= totalPages}
             on:click={() => {
               page += 1;
-            }}>Next</button
+            }}
           >
+            Next
+          </button>
         </div>
       </div>
     </section>
