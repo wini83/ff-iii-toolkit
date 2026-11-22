@@ -17,7 +17,7 @@
   type Pair = DuplicateResults['items'][number];
   let keptBoth = new Map<string, Pair>();
   let confirmedKeepIds = new Set<number>();
-  let keptIds = new Set<number>();
+  let keptIds: Set<number>;
   let markedIds = new Set<number>();
   let marking = false;
   let savingPairId: string | null = null;
