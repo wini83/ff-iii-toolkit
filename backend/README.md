@@ -6,7 +6,7 @@ FastAPI backend for reconciling Firefly III transactions with BLIK CSV imports a
 [![Lint (ruff)](https://github.com/wini83/ff-iii-toolkit-api/actions/workflows/lint.yml/badge.svg)](https://github.com/wini83/ff-iii-toolkit-api/actions/workflows/lint.yml)
 [![tests-with-coverage](https://github.com/wini83/ff-iii-toolkit-api/actions/workflows/pytest_coverage.yml/badge.svg)](https://github.com/wini83/ff-iii-toolkit-api/actions/workflows/pytest_coverage.yml)
 [![codecov](https://codecov.io/github/wini83/ff-iii-toolkit-api/graph/badge.svg?token=R5ULUOVPH1)](https://codecov.io/github/wini83/ff-iii-toolkit-api)
-![Python](https://img.shields.io/badge/python-3.12-blue)
+![Python](https://img.shields.io/badge/python-3.14-blue)
 
 ## Table of contents
 - [What it does](#what-it-does)
@@ -66,6 +66,8 @@ Client
 
 ## Getting started
 ### Local
+Python 3.14+ is required; `uv` uses the repository's `.python-version`.
+
 ```bash
 cp .env.example .env
 

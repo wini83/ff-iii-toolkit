@@ -3,7 +3,7 @@ name = "ff-iii-toolkit-api"
 version = "2.15.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
  "pdfplumber>=0.11.8,<0.12",
  "fastapi>=0.141.1",
@@ -61,7 +61,7 @@ DEP002 = ["httpx", "pandas-stubs", "python-multipart", "uvicorn"]
 DEP003 = ["anyio"]
 
 [tool.ty.environment]
-python-version = "3.12"
+python-version = "3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -72,7 +72,7 @@ addopts = "-ra"
 # ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 88
 fix = true
 exclude = [
@@ -121,7 +121,7 @@ skip_empty = true
 fail_under = 70
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 
 explicit_package_bases = true
 namespace_packages = true
