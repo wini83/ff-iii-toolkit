@@ -25,6 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Validate production gateway configuration
+        run: >-
+          docker run --rm
+          --add-host backend:127.0.0.1
+          --add-host frontend:127.0.0.1
+          --volume "$PWD/deploy/nginx.conf:/etc/nginx/nginx.conf:ro"
+          nginx:1.27-alpine nginx -t
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:

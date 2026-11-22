@@ -31,7 +31,7 @@ class ReconciliationService:
     ) -> tuple[ReconciliationPreview, dict[int, SimplifiedTx]]:
         bank = await run_in_threadpool(parse_statement, content)
         transactions, stats = await fetch_transactions_with_stats(
-            self.client, start_date=start, end_date=end
+            self.client, tx_type="all", start_date=start, end_date=end
         )
         preview = await run_in_threadpool(
             compare_statement,

@@ -5,8 +5,9 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
-from ff_iii_luciferin.api import FireflyAPIError
+from ff_iii_luciferin.api import FireflyAPIError, FireflyClient
 from ff_iii_luciferin.domain.models import (
     AccountType,
     Currency,
@@ -317,3 +318,131 @@ def test_transfer_cannot_be_selected_for_marking(service):
 
     asyncio.run(run())
     client.update_transaction.assert_not_awaited()
+
+
+def test_compare_fetches_all_types_through_real_luciferin_transport(monkeypatch):
+    # Exercise the real helper, HTTP query, validation and mapper. Mocking the
+    # fetch helper itself would hide its default withdrawal-only filter.
+    requests = []
+    other_asset = replace(ASSET, id=2, name="Savings")
+    revenue = replace(SHOP, id=9, type=AccountType.REVENUE)
+    transactions = [
+        transaction(description="Shop"),
+        transaction(
+            2,
+            type=TxType.DEPOSIT,
+            description="Salary",
+            amount=Decimal("100"),
+            source_account=revenue,
+            destination_account=ASSET,
+        ),
+        transaction(
+            3,
+            type=TxType.TRANSFER,
+            description="Savings",
+            amount=Decimal("20"),
+            destination_account=other_asset,
+        ),
+        transaction(
+            4,
+            type=TxType.DEPOSIT,
+            description="Refund",
+            amount=Decimal("5"),
+            source_account=revenue,
+            destination_account=ASSET,
+        ),
+    ]
+    account_types = {
+        AccountType.ASSET: "Asset account",
+        AccountType.EXPENSE: "Expense account",
+        AccountType.REVENUE: "Revenue account",
+    }
+
+    def dto(tx):
+        split = {
+            "type": tx.type.value,
+            "date": f"{DAY}T00:00:00Z",
+            "transaction_journal_id": str(tx.transaction_journal_id),
+            "amount": str(tx.amount),
+            "description": tx.description,
+            "currency_code": "PLN",
+            "currency_symbol": "zl",
+            "currency_decimal_places": 2,
+            "reconciled": False,
+        }
+        for side in ("source", "destination"):
+            account = getattr(tx, f"{side}_account")
+            split.update(
+                {
+                    f"{side}_id": str(account.id),
+                    f"{side}_name": account.name,
+                    f"{side}_type": account_types[account.type],
+                    f"{side}_iban": account.iban,
+                }
+            )
+        return {
+            "type": "transactions",
+            "id": str(tx.id),
+            "attributes": {"transactions": [split]},
+            "links": {},
+        }
+
+    def handler(request):
+        requests.append(request)
+        assert request.method == "GET"
+        assert request.url.path == "/api/v1/transactions"
+        assert request.url.params["type"] == "all"
+        assert request.url.params["start"] == DAY.isoformat()
+        assert request.url.params["end"] == DAY.isoformat()
+        page = int(request.url.params["page"])
+        return httpx.Response(
+            200,
+            json={
+                "data": [dto(tx) for tx in transactions[(page - 1) * 2 : page * 2]],
+                "meta": {},
+                "links": {
+                    "next": "https://firefly.example/api/v1/transactions?page=2"
+                    if page == 1
+                    else None
+                },
+            },
+        )
+
+    monkeypatch.setattr(
+        httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(handler)
+    )
+
+    async def run():
+        client = FireflyClient("https://firefly.example", "synthetic-token")
+        try:
+            preview, _ = await ReconciliationService(client).compare(
+                statement(
+                    "16-11-2026;-30,04;PLN;Shop",
+                    "16-11-2026;100,00;PLN;Salary",
+                    "16-11-2026;-20,00;PLN;Savings",
+                ),
+                1,
+                DAY,
+                DAY,
+                0,
+            )
+            assert [row.status for row in preview.rows] == ["matched"] * 3
+            assert [row.candidates[0].type for row in preview.rows] == [
+                "withdrawal",
+                "deposit",
+                "transfer",
+            ]
+            assert [row.candidates[0].can_mark for row in preview.rows] == [
+                True,
+                True,
+                False,
+            ]
+            assert [tx.id for tx in preview.firefly_only] == [4]
+            assert Decimal(preview.totals[0].bank_total) == Decimal("49.96")
+            assert Decimal(preview.totals[0].firefly_total) == Decimal("54.96")
+            assert Decimal(preview.totals[0].difference) == Decimal("-5")
+            assert len(requests) == 2
+        finally:
+            await client.close()
+
+    asyncio.run(run())
