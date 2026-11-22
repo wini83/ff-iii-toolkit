@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.8.0 (2026-11-22)
+
+### Feat
+
+- **reconciliation**: compare bank statements and mark verified matches (#157)
+
 ## v3.7.0 (2026-11-22)
 
 ### Feat
