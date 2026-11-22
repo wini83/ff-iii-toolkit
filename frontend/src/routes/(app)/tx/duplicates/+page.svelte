@@ -330,7 +330,7 @@
           >
           <button
             class="btn btn-sm btn-ghost"
-            disabled={marking || selectedIds.size === 0}
+            disabled={marking || decisions.size === 0}
             on:click={clearDecisions}>Clear decisions</button
           >
         </div>
