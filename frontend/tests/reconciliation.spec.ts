@@ -20,7 +20,12 @@ async function setup(page: Page, fail = false) {
     restriction: null,
     ...extra
   });
-  const row = (id: number, status: string, candidates: unknown[]) => ({
+  const row = (
+    id: number,
+    status: string,
+    candidates: unknown[],
+    reviewReason: string | null = null
+  ) => ({
     bank: {
       row_id: id,
       date: '2026-11-16',
@@ -30,6 +35,7 @@ async function setup(page: Page, fail = false) {
       own_account: ''
     },
     status,
+    review_reason: reviewReason,
     candidates,
     candidate_count: candidates.length
   });
@@ -71,7 +77,7 @@ async function setup(page: Page, fail = false) {
             revision: 'a'.repeat(64),
             rows: [
               row(1, 'matched', [candidate(1)]),
-              row(2, 'review', [candidate(2), candidate(3)]),
+              row(2, 'review', [candidate(2), candidate(3)], 'ambiguous'),
               row(3, 'bank_only', []),
               row(4, 'matched', [
                 candidate(4, {
@@ -80,15 +86,27 @@ async function setup(page: Page, fail = false) {
                   restriction: 'Transfer: review manually'
                 })
               ]),
-              row(5, 'matched', [candidate(5, { reconciled: true })])
+              row(5, 'matched', [candidate(5, { reconciled: true })]),
+              row(
+                7,
+                'review',
+                [
+                  candidate(7, {
+                    description: 'Imported description',
+                    date: '2026-11-17',
+                    title_matches: false
+                  })
+                ],
+                'title_mismatch'
+              )
             ],
             firefly_only: [candidate(6)],
             totals: [
               {
                 currency: 'PLN',
                 bank_total: '-150.20',
-                firefly_total: '-180.24',
-                difference: '30.04'
+                firefly_total: '-150.200000000000',
+                difference: '0E-12'
               }
             ],
             skipped_multipart: 2,
@@ -113,6 +131,7 @@ async function compare(page: Page) {
   await page.getByRole('combobox', { name: 'Account', exact: true }).selectOption('1');
   await page.getByLabel('Period from').fill('2026-11-01');
   await page.getByLabel('Period to').fill('2026-11-30');
+  await page.getByLabel('Date tolerance (days)').fill('1');
   await page.getByLabel('Alior CSV', { exact: false }).setInputFiles({
     name: 'statement.csv',
     mimeType: 'text/csv',
@@ -136,6 +155,16 @@ test('only unambiguous supported matches can be marked; apply consumes the previ
   await expect(page.getByLabel('Reconcile transaction #5', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Mark selected', exact: false })).toBeDisabled();
   expect(mock.writes).toEqual([]);
+  await page.getByLabel('Select verified matches').check();
+  await expect(page.getByRole('button', { name: 'Mark selected as reconciled (1)' })).toBeEnabled();
+  await page.getByLabel('Show').selectOption('firefly_only');
+  await expect(page.getByLabel('Select verified matches')).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Mark selected as reconciled (0)' })
+  ).toBeDisabled();
+  expect(mock.writes).toEqual([]);
+  await page.getByLabel('Show').selectOption('matched');
+  await expect(page.getByLabel('Reconcile transaction #1', { exact: true })).not.toBeChecked();
   await page.getByLabel('Select verified matches').check();
   await page.getByRole('button', { name: 'Mark selected as reconciled (1)', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Reconciliation outcomes' })).toContainText(
@@ -168,10 +197,25 @@ test('changing evidence clears matches and mobile layout stays within the viewpo
   await page.setViewportSize({ width: 390, height: 844 });
   const mock = await setup(page);
   await compare(page);
+  const totals = page.getByRole('region', { name: 'Movement totals in PLN' });
+  await expect(totals.getByText('0.00', { exact: true })).toBeVisible();
+  await page.getByLabel('Show').selectOption('title_mismatch');
+  const comparison = page.getByRole('list', { name: 'Bank statement comparison' });
+  await expect(comparison.getByRole('listitem')).toHaveCount(1);
+  await expect(comparison).toContainText('Invoice 7');
+  await expect(comparison).toContainText('Imported description');
+  await expect(comparison).toContainText('Different title');
+  await expect(comparison).toContainText('Different date');
+  await expect(comparison.getByRole('checkbox')).toHaveCount(0);
+  await page.getByLabel('Show').selectOption('firefly_only');
+  await expect(comparison).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Firefly-only transactions' })).toContainText(
+    'Invoice 6'
+  );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true
   );
-  await page.getByLabel('Date tolerance (days)').fill('1');
+  await page.getByLabel('Date tolerance (days)').fill('2');
   await page.getByRole('button', { name: 'Compare statement', exact: true }).focus();
   await expect(page.getByRole('region', { name: 'Statement comparison results' })).toHaveCount(0);
   expect(mock.writes).toEqual([]);

@@ -116,9 +116,45 @@ def test_repeated_bank_rows_or_firefly_rows_are_ambiguous_and_never_consumed_twi
         )
     )
     assert [row.status for row in preview.rows] == ["review", "review"]
+    assert [row.review_reason for row in preview.rows] == ["ambiguous", "ambiguous"]
     assert compare(txs=[transaction(), transaction(2)]).rows[0].status == "review"
     many = compare(txs=[transaction(i) for i in range(1, 9)]).rows[0]
     assert many.candidate_count == 8 and len(many.candidates) == 5
+
+
+def test_review_explains_mismatched_title_and_shared_candidates():
+    transactions = [transaction(description="Firefly title")]
+    single = compare(txs=transactions).rows[0]
+    assert single.review_reason == "title_mismatch"
+    assert single.candidates[0].title_matches is False
+
+    shared = compare(
+        statement("16-11-2026;-30,04;PLN;Bank A", "16-11-2026;-30,04;PLN;Bank B"),
+        txs=transactions,
+    )
+    assert [row.review_reason for row in shared.rows] == ["ambiguous", "ambiguous"]
+
+
+def test_matching_titles_appear_first_in_truncated_ambiguous_candidates():
+    transactions = [transaction(i, description="Other") for i in range(1, 7)]
+    row = compare(txs=[*transactions, transaction(7), transaction(8)]).rows[0]
+    assert row.review_reason == "ambiguous"
+    assert row.candidate_count == 8
+    assert [(tx.id, tx.title_matches) for tx in row.candidates[:2]] == [
+        (7, True),
+        (8, True),
+    ]
+
+
+def test_totals_preserve_decimal_precision_without_expanding_exponents():
+    preview = compare(
+        statement("16-11-2026;-0,00000001;PLN;faktura 123"),
+        txs=[transaction(amount=Decimal("0.000000010000"))],
+    )
+    total = preview.totals[0]
+    assert total.bank_total == "-1E-8"
+    assert Decimal(total.firefly_total) == Decimal("-0.00000001")
+    assert total.difference == "0E-12"
 
 
 def test_differences_and_read_only_restrictions():

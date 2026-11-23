@@ -25,6 +25,7 @@ class FireflyLine(BaseModel):
     reconciled: bool | None
     can_mark: bool
     restriction: str | None = None
+    title_matches: bool | None = None
 
 
 class ComparisonRow(BaseModel):
@@ -32,6 +33,7 @@ class ComparisonRow(BaseModel):
     status: Literal["matched", "review", "bank_only"]
     candidates: list[FireflyLine]
     candidate_count: int
+    review_reason: Literal["title_mismatch", "ambiguous"] | None = None
 
 
 class CurrencyDifference(BaseModel):

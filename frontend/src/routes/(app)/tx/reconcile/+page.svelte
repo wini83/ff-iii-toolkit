@@ -24,16 +24,29 @@
   let selected = new Set<number>();
   let outcome: ReconciliationApplyResult | null = null;
   let filter = 'all';
-  $: eligible =
-    preview?.rows
-      .filter(
-        (row) =>
-          row.status === 'matched' &&
-          row.candidates[0].can_mark &&
-          row.candidates[0].reconciled !== true
-      )
-      .map((row) => row.candidates[0].id) ?? [];
-  $: rows = preview?.rows.filter((row) => filter === 'all' || row.status === filter) ?? [];
+  $: rows =
+    preview?.rows.filter(
+      (row) => filter === 'all' || row.status === filter || row.review_reason === filter
+    ) ?? [];
+  $: eligible = rows
+    .filter(
+      (row) =>
+        row.status === 'matched' &&
+        row.candidates[0].can_mark &&
+        row.candidates[0].reconciled !== true
+    )
+    .map((row) => row.candidates[0].id);
+  $: selectedIds = eligible.filter((id) => selected.has(id));
+  $: titleMismatches =
+    preview?.rows.filter((row) => row.review_reason === 'title_mismatch').length ?? 0;
+  $: ambiguous = preview?.rows.filter((row) => row.review_reason === 'ambiguous').length ?? 0;
+
+  function displayAmount(value: string) {
+    if (/^[+-]?0(?:\.0+)?(?:e[+-]?\d+)?$/i.test(value)) return '0.00';
+    const [whole, fraction = ''] = value.split('.');
+    if (!/^-?\d+$/.test(whole) || !/^\d*$/.test(fraction)) return value;
+    return whole + '.' + fraction.replace(/0+$/, '').padEnd(2, '0');
+  }
 
   onMount(() => {
     void loadOptions();
@@ -80,9 +93,9 @@
     }
   }
   async function apply() {
-    if (!preview || !submitted || !selected.size || busy) return;
+    if (!preview || !submitted || !selectedIds.length || selectedIds.length > 100 || busy) return;
     const revision = preview.revision;
-    const ids = [...selected];
+    const ids = selectedIds;
     busy = true;
     error = null;
     // A request can commit even if its response is lost. Never reuse its preview.
@@ -186,39 +199,55 @@
   {#if preview && submitted}
     <section class="min-w-0 space-y-3" aria-label="Statement comparison results">
       <p class="text-sm">
-        Account #{submitted.accountId} · {submitted.from} – {submitted.to} · ±{submitted.tolerance} days
+        {options?.accounts.find((account) => String(account.id) === submitted?.accountId)?.name ??
+          `Account #${submitted.accountId}`} · {submitted.from} – {submitted.to} · ±{submitted.tolerance}
+        days
       </p>
-      <div class="grid gap-2 sm:grid-cols-4">
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <p class="card bg-base-100 p-3">
           Matched: {preview.rows.filter((r) => r.status === 'matched').length}
         </p>
         <p class="card bg-base-100 p-3">
           Needs review: {preview.rows.filter((r) => r.status === 'review').length}
+          {#if titleMismatches || ambiguous}
+            <span class="text-base-content/70 text-xs">
+              {titleMismatches} different titles · {ambiguous} ambiguous
+            </span>
+          {/if}
         </p>
         <p class="card bg-base-100 p-3">
           Bank only: {preview.rows.filter((r) => r.status === 'bank_only').length}
         </p>
         <p class="card bg-base-100 p-3">Firefly only: {preview.firefly_only.length}</p>
       </div>
-      <p class="text-base-content/70 text-xs">
-        One-to-one matches require the same signed account amount, currency and normalized title
-        within the chosen date tolerance. Repeated identical payments stay ambiguous. Transfers are
-        review-only because Firefly flags both account legs.
-      </p>
-      <p class="text-base-content/70 text-xs">
-        Excluded: {preview.skipped_multipart} split groups, {preview.skipped_invalid} invalid transactions
-        and {preview.excluded_foreign_transfers} incoming FX transfers. Totals compare represented movements,
-        not bank opening or closing balances.
-      </p>
-      {#each preview.totals as total}<p class="toolkit-data text-sm">
-          {total.currency}: bank {total.bank_total} · Firefly {total.firefly_total} · difference {total.difference}
-        </p>{/each}
+      {#each preview.totals as total (total.currency)}
+        <section
+          class="card bg-base-100 gap-2 p-3"
+          aria-label={`Movement totals in ${total.currency}`}
+        >
+          <p class="font-medium">Net movements · {total.currency}</p>
+          <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <dt>Bank</dt>
+            <dd class="toolkit-data text-right">{displayAmount(total.bank_total)}</dd>
+            <dt>Firefly</dt>
+            <dd class="toolkit-data text-right">{displayAmount(total.firefly_total)}</dd>
+            <dt class="font-semibold">Difference</dt>
+            <dd class="toolkit-data text-right font-semibold">{displayAmount(total.difference)}</dd>
+          </dl>
+        </section>
+      {/each}
+      {#if preview.skipped_multipart || preview.skipped_invalid || preview.excluded_foreign_transfers}
+        <p class="text-base-content/70 text-xs">
+          Excluded: {preview.skipped_multipart} split groups, {preview.skipped_invalid} invalid transactions
+          and {preview.excluded_foreign_transfers} incoming FX transfers.
+        </p>
+      {/if}
       <div class="flex flex-wrap items-center gap-3">
         <label class="flex items-center gap-2 text-sm">
           <input
             class="checkbox checkbox-sm"
             type="checkbox"
-            checked={eligible.length > 0 && selected.size === eligible.length}
+            checked={eligible.length > 0 && selectedIds.length === eligible.length}
             disabled={busy || eligible.length === 0 || eligible.length > 100}
             on:change={(event) => {
               selected = event.currentTarget.checked ? new Set(eligible) : new Set();
@@ -227,91 +256,131 @@
         </label>
         <button
           class="btn btn-sm btn-primary"
-          disabled={busy || selected.size === 0 || selected.size > 100}
+          disabled={busy || selectedIds.length === 0 || selectedIds.length > 100}
           on:click={apply}
         >
-          Mark selected as reconciled ({selected.size})
+          Mark selected as reconciled ({selectedIds.length})
         </button>
         <label class="text-sm">
-          Show<select class="select select-sm ml-2" bind:value={filter}>
-            <option value="all">All bank rows</option><option value="matched">
-              Matched
-            </option><option value="review">Needs review</option><option value="bank_only">
-              Bank only
-            </option>
+          Show<select
+            class="select select-sm ml-2"
+            bind:value={filter}
+            on:change={() => (selected = new Set())}
+          >
+            <option value="all">All transactions</option><option value="matched"> Matched </option>
+            <option value="review">Needs review</option>
+            <option value="title_mismatch">Different title ({titleMismatches})</option>
+            <option value="ambiguous">Ambiguous ({ambiguous})</option>
+            <option value="bank_only"> Bank only </option>
+            <option value="firefly_only">Firefly only</option>
           </select>
         </label>
       </div>
-      <p class="text-base-content/70 text-xs">
-        Select at most 100 per update. Marking only sets reconciled=true with rules and webhooks
-        disabled; amounts, accounts and descriptions are not changed. Firefly protects reconciled
-        amounts from editing.
-      </p>
-      <div class="card bg-base-100 min-w-0 overflow-x-auto">
-        <table class="table-sm table">
-          <caption class="sr-only">Bank statement comparison</caption>
-          <thead>
-            <tr>
-              <th>Mark</th><th>Bank row</th><th>Amount</th><th>Title</th><th>Result</th><th>
-                Firefly candidates
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each rows as row (row.bank.row_id)}
-              <tr>
-                <td>
-                  {#if row.status === 'matched' && row.candidates[0].can_mark && row.candidates[0].reconciled !== true}<input
-                      class="checkbox checkbox-sm"
-                      type="checkbox"
-                      aria-label={`Reconcile transaction #${row.candidates[0].id}`}
-                      checked={selected.has(row.candidates[0].id)}
-                      disabled={busy}
-                      on:change={(event) =>
-                        toggle(row.candidates[0].id, event.currentTarget.checked)}
-                    />{/if}
-                </td>
-                <td class="toolkit-data whitespace-nowrap">
-                  {row.bank.date} · #{row.bank.row_id}
-                </td><td class="toolkit-data whitespace-nowrap">
-                  {row.bank.amount}
+      <details class="text-base-content/70 text-xs">
+        <summary class="cursor-pointer">How matches and differences are calculated</summary>
+        <p class="mt-1">
+          Candidates share the same signed amount and currency within your date tolerance. Verified
+          matches also have the same normalized title and match one-to-one. Transfers are read-only
+          here because Firefly flags both account legs. Net movements exclude opening and closing
+          balances. You can mark up to 100 verified matches per update.
+        </p>
+      </details>
+      {#if filter !== 'firefly_only'}
+        <ul class="space-y-2" aria-label="Bank statement comparison">
+          {#each rows as row (row.bank.row_id)}
+            <li class="card bg-base-100 gap-2 p-3">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {#if row.status === 'matched' && row.candidates[0].can_mark && row.candidates[0].reconciled !== true}
+                  <input
+                    class="checkbox checkbox-sm"
+                    type="checkbox"
+                    aria-label={`Reconcile transaction #${row.candidates[0].id}`}
+                    checked={selected.has(row.candidates[0].id)}
+                    disabled={busy}
+                    on:change={(event) => toggle(row.candidates[0].id, event.currentTarget.checked)}
+                  />
+                {/if}
+                <span class="toolkit-data font-semibold">
+                  {displayAmount(row.bank.amount)}
                   {row.bank.currency}
-                </td><td class="min-w-48 wrap-anywhere whitespace-normal">
-                  {row.bank.description}
-                </td><td>{row.status}</td>
-                <td class="min-w-64 whitespace-normal">
-                  {#each row.candidates as tx}<p>
-                      #{tx.id} · {tx.date} · {tx.description}{tx.reconciled
-                        ? ' · Already reconciled'
-                        : ''}{tx.restriction ? ` · ${tx.restriction}` : ''}
-                    </p>{/each}{#if row.candidate_count > 5}<p>
-                      Showing 5 of {row.candidate_count} candidates
-                    </p>{/if}
-                </td>
-              </tr>
+                </span>
+                <span class="text-sm">
+                  {row.status === 'matched'
+                    ? 'Matched'
+                    : row.status === 'bank_only'
+                      ? 'Bank only'
+                      : row.review_reason === 'title_mismatch'
+                        ? 'Different title'
+                        : row.review_reason === 'ambiguous'
+                          ? 'Ambiguous'
+                          : 'Needs review'}
+                </span>
+              </div>
+              <div class="grid min-w-0 gap-2 sm:grid-cols-2">
+                <div class="bg-base-200/50 min-w-0 rounded p-2">
+                  <p class="text-base-content/70 text-xs">
+                    Bank · {row.bank.date} · row {row.bank.row_id}
+                  </p>
+                  <p class="text-sm wrap-anywhere">{row.bank.description}</p>
+                </div>
+                <div class="bg-base-200/50 min-w-0 space-y-2 rounded p-2">
+                  {#each row.candidates as tx (tx.id)}
+                    <div>
+                      <p class="text-base-content/70 text-xs">
+                        Firefly · {tx.date} · #{tx.id}
+                        {#if tx.date !== row.bank.date}<span
+                            class="text-base-content font-semibold"
+                          >
+                            · Different date
+                          </span>{/if}
+                      </p>
+                      <p
+                        class="text-sm wrap-anywhere"
+                        class:font-semibold={tx.title_matches === false}
+                      >
+                        {tx.description}
+                        {#if tx.title_matches === false}<span class="text-xs">
+                            · Different title
+                          </span>{/if}
+                      </p>
+                      {#if tx.reconciled || tx.restriction}
+                        <p class="text-base-content/70 text-xs">
+                          {tx.reconciled ? 'Already reconciled' : tx.restriction}
+                        </p>
+                      {/if}
+                    </div>
+                  {:else}
+                    <p class="text-base-content/70 text-sm">No Firefly candidate</p>
+                  {/each}
+                  {#if row.candidate_count > row.candidates.length}
+                    <p class="text-xs">
+                      Showing {row.candidates.length} of {row.candidate_count} candidates
+                    </p>
+                  {/if}
+                </div>
+              </div>
+            </li>
+          {:else}
+            <li class="text-base-content/70 text-sm">No transactions in this view.</li>
+          {/each}
+        </ul>
+      {/if}
+      {#if filter === 'all' || filter === 'firefly_only'}
+        <section class="space-y-2" aria-label="Firefly-only transactions">
+          <h3 class="font-semibold">Only in Firefly</h3>
+          <ul class="space-y-2">
+            {#each preview.firefly_only as tx (tx.id)}
+              <li class="card bg-base-100 gap-1 p-3">
+                <p class="toolkit-data font-semibold">{displayAmount(tx.amount)} {tx.currency}</p>
+                <p class="text-base-content/70 text-xs">{tx.date} · #{tx.id}</p>
+                <p class="text-sm wrap-anywhere">{tx.description}</p>
+              </li>
+            {:else}
+              <li class="text-base-content/70 text-sm">No Firefly-only transactions.</li>
             {/each}
-          </tbody>
-        </table>
-      </div>
-      <h3 class="font-semibold">Only in Firefly</h3>
-      <div class="card bg-base-100 min-w-0 overflow-x-auto">
-        <table class="table-sm table">
-          <caption class="sr-only">
-            Firefly transactions without statement candidates
-          </caption><thead>
-            <tr><th>ID</th><th>Date</th><th>Amount</th><th>Title</th></tr>
-          </thead><tbody>
-            {#each preview.firefly_only as tx}<tr>
-                <td>#{tx.id}</td><td class="whitespace-nowrap">{tx.date}</td><td
-                  class="whitespace-nowrap"
-                >
-                  {tx.amount}
-                  {tx.currency}
-                </td><td class="min-w-40 wrap-anywhere whitespace-normal">{tx.description}</td>
-              </tr>{:else}<tr><td colspan="4">No Firefly-only transactions.</td></tr>{/each}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+        </section>
+      {/if}
     </section>
   {/if}
 </div>

@@ -1351,6 +1351,8 @@ export interface components {
       candidates: components['schemas']['FireflyLine'][];
       /** Candidate Count */
       candidate_count: number;
+      /** Review Reason */
+      review_reason?: ('title_mismatch' | 'ambiguous') | null;
     };
     /** CreateSecretPayload */
     CreateSecretPayload: {
@@ -1480,6 +1482,8 @@ export interface components {
       can_mark: boolean;
       /** Restriction */
       restriction?: string | null;
+      /** Title Matches */
+      title_matches?: boolean | null;
     };
     /** FireflyStatusResponse */
     FireflyStatusResponse: {
