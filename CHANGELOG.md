@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.8.2 (2026-11-23)
+
+### Fix
+
+- **reconciliation**: accept Alior CSV counterparty quotes (#166)
+
 ## v3.8.1 (2026-11-22)
 
 ### Fix
