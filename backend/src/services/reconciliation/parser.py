@@ -4,7 +4,7 @@ import csv
 import io
 from decimal import Decimal
 
-from services.csv_reader import parse_amount, parse_pl_date
+from services.csv_reader import parse_amount, parse_pl_date, read_alior_csv
 from services.reconciliation.models import BankLine
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
@@ -24,22 +24,23 @@ def parse_statement(content: bytes) -> list[BankLine]:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         raise ValueError("CSV must be encoded as UTF-8") from None
-    reader = csv.reader(io.StringIO(text), delimiter=";", strict=True)
     try:
-        # Alior exports have one metadata line; also accept the header first.
-        first = next(reader)
-        header = first if set(first) >= REQUIRED else next(reader)
+        reader = read_alior_csv(
+            io.StringIO(text, newline=""), expected_headers=REQUIRED
+        )
+        header = reader.fieldnames or []
         if not set(header) >= REQUIRED or len(set(header)) != len(header):
             raise ValueError(
                 "Unsupported CSV headers; use the Alior/BLIK export format"
             )
         result: list[BankLine] = []
-        for number, values in enumerate(reader, start=1):
-            if not any(value.strip() for value in values):
+        for number, row in enumerate(reader, start=1):
+            if None not in row and all(
+                value is None or not value.strip() for value in row.values()
+            ):
                 continue
-            if len(result) >= MAX_ROWS or len(values) != len(header):
+            if len(result) >= MAX_ROWS or None in row or None in row.values():
                 raise ValueError("CSV has malformed rows or exceeds 2000 transactions")
-            row = dict(zip(header, values, strict=True))
             try:
                 amount = parse_amount(row["Kwota w walucie rachunku"])
                 currency = row["Waluta rachunku"].strip().upper()
@@ -75,7 +76,7 @@ def parse_statement(content: bytes) -> list[BankLine]:
                     own_account=own,
                 )
             )
-    except StopIteration, csv.Error:
+    except csv.Error:
         raise ValueError("Malformed or empty CSV") from None
     if not result:
         raise ValueError("CSV contains no transactions")

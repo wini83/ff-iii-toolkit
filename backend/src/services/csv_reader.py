@@ -1,8 +1,32 @@
+from __future__ import annotations
+
 import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from typing import TextIO
 
 from services.domain.bank_record import BankRecord
+
+
+class AliorDialect(csv.excel):
+    delimiter = ";"
+    # Alior can export a field as '"Company" Ltd' without escaping the quotes.
+    strict = False
+
+
+def read_alior_csv(
+    stream: TextIO, *, expected_headers: set[str] | None = None
+) -> csv.DictReader[str]:
+    """Read Alior rows, accepting an optional metadata record when headers are given."""
+    header = None
+    if expected_headers is not None:
+        records = csv.reader(stream, dialect=AliorDialect)
+        first = next(records, None)
+        if first is not None and not expected_headers.issubset(first):
+            header = next(records, [])
+        else:
+            header = first or []
+    return csv.DictReader(stream, fieldnames=header, dialect=AliorDialect)
 
 
 def parse_pl_date(s: str) -> date:
@@ -46,7 +70,7 @@ class BankCSVReader:
         records: list[BankRecord] = []
         with open(self.filename, newline="", encoding="utf-8") as csvfile:
             next(csvfile)
-            reader = csv.DictReader(csvfile, delimiter=";")
+            reader = read_alior_csv(csvfile)
             for row in reader:
                 records.append(
                     BankRecord(
