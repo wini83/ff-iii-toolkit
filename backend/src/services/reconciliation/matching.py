@@ -233,11 +233,9 @@ def compare_statement(
         totals=[
             CurrencyDifference(
                 currency=currency,
-                bank_total=format(bank_totals[currency], "f"),
-                firefly_total=format(firefly_totals[currency], "f"),
-                difference=format(
-                    bank_totals[currency] - firefly_totals[currency], "f"
-                ),
+                bank_total=str(bank_totals[currency]),
+                firefly_total=str(firefly_totals[currency]),
+                difference=str(bank_totals[currency] - firefly_totals[currency]),
             )
             for currency in sorted(bank_totals.keys() | firefly_totals.keys())
         ],

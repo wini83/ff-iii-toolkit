@@ -106,7 +106,7 @@ async function setup(page: Page, fail = false) {
                 currency: 'PLN',
                 bank_total: '-150.20',
                 firefly_total: '-150.200000000000',
-                difference: '0.000000000000'
+                difference: '0E-12'
               }
             ],
             skipped_multipart: 2,
@@ -155,6 +155,16 @@ test('only unambiguous supported matches can be marked; apply consumes the previ
   await expect(page.getByLabel('Reconcile transaction #5', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Mark selected', exact: false })).toBeDisabled();
   expect(mock.writes).toEqual([]);
+  await page.getByLabel('Select verified matches').check();
+  await expect(page.getByRole('button', { name: 'Mark selected as reconciled (1)' })).toBeEnabled();
+  await page.getByLabel('Show').selectOption('firefly_only');
+  await expect(page.getByLabel('Select verified matches')).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Mark selected as reconciled (0)' })
+  ).toBeDisabled();
+  expect(mock.writes).toEqual([]);
+  await page.getByLabel('Show').selectOption('matched');
+  await expect(page.getByLabel('Reconcile transaction #1', { exact: true })).not.toBeChecked();
   await page.getByLabel('Select verified matches').check();
   await page.getByRole('button', { name: 'Mark selected as reconciled (1)', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Reconciliation outcomes' })).toContainText(

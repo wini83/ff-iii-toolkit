@@ -24,19 +24,19 @@
   let selected = new Set<number>();
   let outcome: ReconciliationApplyResult | null = null;
   let filter = 'all';
-  $: eligible =
-    preview?.rows
-      .filter(
-        (row) =>
-          row.status === 'matched' &&
-          row.candidates[0].can_mark &&
-          row.candidates[0].reconciled !== true
-      )
-      .map((row) => row.candidates[0].id) ?? [];
   $: rows =
     preview?.rows.filter(
       (row) => filter === 'all' || row.status === filter || row.review_reason === filter
     ) ?? [];
+  $: eligible = rows
+    .filter(
+      (row) =>
+        row.status === 'matched' &&
+        row.candidates[0].can_mark &&
+        row.candidates[0].reconciled !== true
+    )
+    .map((row) => row.candidates[0].id);
+  $: selectedIds = eligible.filter((id) => selected.has(id));
   $: titleMismatches =
     preview?.rows.filter((row) => row.review_reason === 'title_mismatch').length ?? 0;
   $: ambiguous = preview?.rows.filter((row) => row.review_reason === 'ambiguous').length ?? 0;
@@ -93,9 +93,9 @@
     }
   }
   async function apply() {
-    if (!preview || !submitted || !selected.size || busy) return;
+    if (!preview || !submitted || !selectedIds.length || selectedIds.length > 100 || busy) return;
     const revision = preview.revision;
-    const ids = [...selected];
+    const ids = selectedIds;
     busy = true;
     error = null;
     // A request can commit even if its response is lost. Never reuse its preview.
@@ -247,7 +247,7 @@
           <input
             class="checkbox checkbox-sm"
             type="checkbox"
-            checked={eligible.length > 0 && selected.size === eligible.length}
+            checked={eligible.length > 0 && selectedIds.length === eligible.length}
             disabled={busy || eligible.length === 0 || eligible.length > 100}
             on:change={(event) => {
               selected = event.currentTarget.checked ? new Set(eligible) : new Set();
@@ -256,13 +256,17 @@
         </label>
         <button
           class="btn btn-sm btn-primary"
-          disabled={busy || selected.size === 0 || selected.size > 100}
+          disabled={busy || selectedIds.length === 0 || selectedIds.length > 100}
           on:click={apply}
         >
-          Mark selected as reconciled ({selected.size})
+          Mark selected as reconciled ({selectedIds.length})
         </button>
         <label class="text-sm">
-          Show<select class="select select-sm ml-2" bind:value={filter}>
+          Show<select
+            class="select select-sm ml-2"
+            bind:value={filter}
+            on:change={() => (selected = new Set())}
+          >
             <option value="all">All transactions</option><option value="matched"> Matched </option>
             <option value="review">Needs review</option>
             <option value="title_mismatch">Different title ({titleMismatches})</option>

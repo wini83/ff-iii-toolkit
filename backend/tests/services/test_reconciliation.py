@@ -146,6 +146,17 @@ def test_matching_titles_appear_first_in_truncated_ambiguous_candidates():
     ]
 
 
+def test_totals_preserve_decimal_precision_without_expanding_exponents():
+    preview = compare(
+        statement("16-11-2026;-0,00000001;PLN;faktura 123"),
+        txs=[transaction(amount=Decimal("0.000000010000"))],
+    )
+    total = preview.totals[0]
+    assert total.bank_total == "-1E-8"
+    assert Decimal(total.firefly_total) == Decimal("-0.00000001")
+    assert total.difference == "0E-12"
+
+
 def test_differences_and_read_only_restrictions():
     preview = compare(txs=[transaction(), transaction(2, amount=Decimal("10"))])
     assert [tx.id for tx in preview.firefly_only] == [2]
