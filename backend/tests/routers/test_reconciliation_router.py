@@ -4,6 +4,7 @@ import pytest
 
 from api.deps_services import get_firefly_client
 from services.guards import require_active_user
+from tests.services.test_csv_reader import REQUIRED_HEADER
 from tests.services.test_reconciliation import DAY, statement, transaction
 
 
@@ -61,6 +62,27 @@ def test_preview_and_invalid_selection(reconciliation_client):
         client, "apply", revision=preview["revision"], selected_ids="[999]"
     )
     assert invalid.status_code == 422
+    firefly.update_transaction.assert_not_awaited()
+
+
+def test_preview_accepts_alior_quotes_in_counterparty_names(reconciliation_client):
+    client, firefly = reconciliation_client
+    content = (
+        f"Export metadata\n{REQUIRED_HEADER}\n"
+        '16-11-2026;-30,04;-30,04;Sender;"Example Company" Ltd;faktura 123;PLN;PLN;;\n'
+        '16-11-2026;5,00;5,00;"Example Company" Ltd;Recipient;Refund;PLN;PLN;;\n'
+    ).encode()
+    response = client.post(
+        "/api/reconciliation/preview",
+        data=fields(),
+        files={"file": ("bank.csv", content, "text/csv")},
+    )
+    assert response.status_code == 200
+    rows = response.json()["rows"]
+    assert [(row["status"], row["bank"]["amount"]) for row in rows] == [
+        ("matched", "-30.04"),
+        ("bank_only", "5.00"),
+    ]
     firefly.update_transaction.assert_not_awaited()
 
 
