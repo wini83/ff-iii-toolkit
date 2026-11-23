@@ -71,7 +71,9 @@ def fingerprint(tx: SimplifiedTx) -> str:
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
-def line_for(tx: SimplifiedTx, movement: Decimal) -> FireflyLine:
+def line_for(
+    tx: SimplifiedTx, movement: Decimal, *, title_matches: bool | None = None
+) -> FireflyLine:
     restriction = None
     if tx.type.value == "transfer":
         restriction = "Transfer: Firefly reconciles both account legs; review manually"
@@ -89,6 +91,7 @@ def line_for(tx: SimplifiedTx, movement: Decimal) -> FireflyLine:
         reconciled=tx.reconciled,
         can_mark=restriction is None,
         restriction=restriction,
+        title_matches=title_matches,
     )
 
 
@@ -145,6 +148,7 @@ def compare_statement(
     weak = {}
     strong = {}
     reverse: dict[int, list[int]] = defaultdict(list)
+    weak_count: dict[int, int] = defaultdict(int)
     for row in selected:
         candidates = [
             tx
@@ -152,6 +156,8 @@ def compare_statement(
             if abs((row.date - tx.date).days) <= tolerance_days
         ]
         weak[row.row_id] = candidates
+        for tx in candidates:
+            weak_count[tx.id] += 1
         strong[row.row_id] = [
             tx
             for tx in candidates
@@ -165,7 +171,12 @@ def compare_statement(
     for row in selected:
         exact = strong[row.row_id]
         matched = len(exact) == 1 and len(reverse[exact[0].id]) == 1
-        candidates = exact if matched else weak[row.row_id]
+        exact_ids = {tx.id for tx in exact}
+        candidates = (
+            exact
+            if matched
+            else exact + [tx for tx in weak[row.row_id] if tx.id not in exact_ids]
+        )
         status = "matched" if matched else "review" if candidates else "bank_only"
         if matched:
             matched_ids.add(exact[0].id)
@@ -175,8 +186,20 @@ def compare_statement(
             ComparisonRow(
                 bank=row,
                 status=status,
-                candidates=[line_for(tx, live[tx.id][1]) for tx in candidates[:5]],
+                candidates=[
+                    line_for(tx, live[tx.id][1], title_matches=tx.id in exact_ids)
+                    for tx in candidates[:5]
+                ],
                 candidate_count=len(candidates),
+                review_reason=(
+                    None
+                    if status != "review"
+                    else "title_mismatch"
+                    if not exact
+                    and len(candidates) == 1
+                    and weak_count[candidates[0].id] == 1
+                    else "ambiguous"
+                ),
             )
         )
     bank_totals: dict[str, Decimal] = defaultdict(Decimal)
@@ -210,9 +233,11 @@ def compare_statement(
         totals=[
             CurrencyDifference(
                 currency=currency,
-                bank_total=str(bank_totals[currency]),
-                firefly_total=str(firefly_totals[currency]),
-                difference=str(bank_totals[currency] - firefly_totals[currency]),
+                bank_total=format(bank_totals[currency], "f"),
+                firefly_total=format(firefly_totals[currency], "f"),
+                difference=format(
+                    bank_totals[currency] - firefly_totals[currency], "f"
+                ),
             )
             for currency in sorted(bank_totals.keys() | firefly_totals.keys())
         ],
