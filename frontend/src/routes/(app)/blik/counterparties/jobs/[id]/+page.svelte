@@ -51,8 +51,9 @@
 
 <div class="min-w-0 space-y-4">
   <WorkflowHeader title="Counterparty update status">
-    <a slot="actions" href={resolve('/(app)/blik/counterparties')} class="btn btn-sm">New preview</a
-    >
+    <a slot="actions" href={resolve('/(app)/blik/counterparties')} class="btn btn-sm">
+      New preview
+    </a>
   </WorkflowHeader>
 
   {#if error}
@@ -100,9 +101,9 @@
             {#if result.transaction_id > 0}
               {@const link = transactionLink(job.firefly_url, result.transaction_id)}
               {#if link}
-                <a class="link" href={link} target="_blank" rel="external noopener noreferrer"
-                  >Transaction #{result.transaction_id}</a
-                >
+                <a class="link" href={link} target="_blank" rel="external noopener noreferrer">
+                  Transaction #{result.transaction_id}
+                </a>
               {:else}
                 <span>Transaction #{result.transaction_id}</span>
               {/if}
