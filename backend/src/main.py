@@ -14,6 +14,7 @@ from api.routers.duplicates import router as duplicates_router
 from api.routers.me import router as me_router
 from api.routers.metric_transactions import router as metric_transactions_router
 from api.routers.reconciliation import router as reconciliation_router
+from api.routers.statement_counterparties import router as statement_counterparty_router
 from api.routers.system import router as system_router
 from api.routers.transactions import router as transactions_router
 from api.routers.tx import router as tx_router
@@ -28,7 +29,9 @@ from services.db.engine import (
     create_session_factory,
 )
 from services.db.init import DatabaseBootstrap
+from services.domain.blik import BlikApplyJob
 from services.infrastructure.redis import redis_connection
+from services.jobs.apply import ApplyJobManager
 from services.jobs.runtime import JobRuntime
 from services.jobs.store import (
     JobBusy,
@@ -155,6 +158,9 @@ def create_app(
             app.state.job_runtime = JobRuntime(
                 RedisJobStore(redis) if redis is not None else MemoryJobStore()
             )
+            app.state.counterparty_jobs = ApplyJobManager(
+                BlikApplyJob, "statement-counterparties", app.state.job_runtime
+            )
             app.state.allegro_runtime_state = AllegroStateStore(
                 job_manager=AllegroApplyJobManager(app.state.job_runtime),
                 match_store=AllegroMatchStore(app.state.matching_backend),
@@ -219,6 +225,7 @@ def create_app(
     app.include_router(tx_router)
     app.include_router(duplicates_router)
     app.include_router(reconciliation_router)
+    app.include_router(statement_counterparty_router)
     app.include_router(allegro_router)
     app.include_router(metric_transactions_router)
     app.include_router(users_router)

@@ -82,7 +82,7 @@ class ApplyJobManager[T: (BlikApplyJob, AllegroApplyJob)]:
             reason = record.error
             if record.in_flight is not None:
                 reason += f"; transaction {record.in_flight} may have been updated"
-            if self.kind == "blik-apply":
+            if isinstance(job, BlikApplyJob):
                 job.results.append(
                     BlikOutcome(
                         transaction_id=-1,

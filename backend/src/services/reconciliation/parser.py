@@ -17,7 +17,11 @@ REQUIRED = {
 }
 
 
-def parse_statement(content: bytes) -> list[BankLine]:
+class StatementLine(BankLine):
+    counterparty_account: str = ""
+
+
+def parse_statement(content: bytes) -> list[StatementLine]:
     if not content or len(content) > MAX_UPLOAD_BYTES:
         raise ValueError("Upload a non-empty CSV file of at most 2 MiB")
     try:
@@ -33,7 +37,7 @@ def parse_statement(content: bytes) -> list[BankLine]:
             raise ValueError(
                 "Unsupported CSV headers; use the Alior/BLIK export format"
             )
-        result: list[BankLine] = []
+        result: list[StatementLine] = []
         for number, row in enumerate(reader, start=1):
             if None not in row and all(
                 value is None or not value.strip() for value in row.values()
@@ -66,14 +70,19 @@ def parse_statement(content: bytes) -> list[BankLine]:
                 "Numer rachunku nadawcy" if amount < 0 else "Numer rachunku odbiorcy",
                 "",
             ).strip()
+            counterparty = row.get(
+                "Numer rachunku odbiorcy" if amount < 0 else "Numer rachunku nadawcy",
+                "",
+            ).strip()
             result.append(
-                BankLine(
+                StatementLine(
                     row_id=number,
                     date=day,
                     amount=str(amount),
                     currency=currency,
                     description=description,
                     own_account=own,
+                    counterparty_account=counterparty,
                 )
             )
     except csv.Error:

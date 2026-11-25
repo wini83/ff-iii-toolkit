@@ -102,3 +102,7 @@
     {/if} -->
   </div>
 </div>
+
+<a href={resolve('/(app)/blik/counterparties')} class="btn btn-outline mt-4">
+  Assign counterparties from an Alior statement
+</a>

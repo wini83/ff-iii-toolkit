@@ -7,6 +7,7 @@ export default defineConfig({
     'metric-transactions.spec.ts',
     'duplicates.spec.ts',
     'reconciliation.spec.ts',
+    'statement-counterparties.spec.ts',
     'themes.spec.ts',
     'shell.spec.ts',
     'screening.spec.ts',

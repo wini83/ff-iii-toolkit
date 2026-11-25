@@ -499,6 +499,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/statement-counterparties/accounts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Statement Accounts */
+    get: operations['statement_accounts_api_statement_counterparties_accounts_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/statement-counterparties/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview Counterparties */
+    post: operations['preview_counterparties_api_statement_counterparties_preview_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/statement-counterparties/apply': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Apply Counterparties */
+    post: operations['apply_counterparties_api_statement_counterparties_apply_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/statement-counterparties/jobs/{job_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Counterparty Job Status */
+    get: operations['counterparty_job_status_api_statement_counterparties_jobs__job_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/allegro/secrets': {
     parameters: {
       query?: never;
@@ -1255,6 +1323,15 @@ export interface components {
       /** Selected Ids */
       selected_ids: string;
     };
+    /** Body_apply_counterparties_api_statement_counterparties_apply_post */
+    Body_apply_counterparties_api_statement_counterparties_apply_post: {
+      /** File */
+      file: string;
+      /** Account Id */
+      account_id: number;
+      /** Revision */
+      revision: string;
+    };
     /** Body_login_for_access_token_api_auth_token_post */
     Body_login_for_access_token_api_auth_token_post: {
       /** Grant Type */
@@ -1300,6 +1377,13 @@ export interface components {
        * @default 0
        */
       tolerance_days: number;
+    };
+    /** Body_preview_counterparties_api_statement_counterparties_preview_post */
+    Body_preview_counterparties_api_statement_counterparties_preview_post: {
+      /** File */
+      file: string;
+      /** Account Id */
+      account_id: number;
     };
     /** Body_upload_csv_api_blik_files_post */
     Body_upload_csv_api_blik_files_post: {
@@ -1353,6 +1437,88 @@ export interface components {
       candidate_count: number;
       /** Review Reason */
       review_reason?: ('title_mismatch' | 'ambiguous') | null;
+    };
+    /** CounterpartyJobResponse */
+    CounterpartyJobResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** File Id */
+      file_id: string;
+      status: components['schemas']['JobStatus'];
+      /** Total */
+      total: number;
+      /** Applied */
+      applied: number;
+      /** Failed */
+      failed: number;
+      /**
+       * Started At
+       * Format: date-time
+       */
+      started_at: string;
+      /** Finished At */
+      finished_at: string | null;
+      /** Results */
+      results: components['schemas']['api__models__blik_files__ApplyOutcomeResponse'][];
+      /** Firefly Url */
+      firefly_url: string | null;
+    };
+    /** CounterpartyPreview */
+    CounterpartyPreview: {
+      /** Revision */
+      revision: string;
+      /** Rows */
+      rows: components['schemas']['CounterpartyRow'][];
+      /** Ready */
+      ready: number;
+      /** Review */
+      review: number;
+      /** Skipped */
+      skipped: number;
+      /** Omitted */
+      omitted: number;
+      /** Skipped Multipart */
+      skipped_multipart: number;
+      /** Skipped Invalid */
+      skipped_invalid: number;
+    };
+    /** CounterpartyRow */
+    CounterpartyRow: {
+      /** Row Id */
+      row_id: number;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Amount */
+      amount: string;
+      /** Currency */
+      currency: string;
+      /** Description */
+      description: string;
+      /**
+       * Status
+       * @default skipped
+       * @enum {string}
+       */
+      status: 'ready' | 'review' | 'skipped';
+      /**
+       * Reason
+       * @default
+       */
+      reason: string;
+      /** Transaction Id */
+      transaction_id?: number | null;
+      /** Firefly Description */
+      firefly_description?: string | null;
+      /** Current Account */
+      current_account?: string | null;
+      /** Proposed Account */
+      proposed_account?: string | null;
     };
     /** CreateSecretPayload */
     CreateSecretPayload: {
@@ -1767,6 +1933,13 @@ export interface components {
       fx_currency?: string | null;
       source_account?: components['schemas']['SimplifiedAccountRef'] | null;
       destination_account?: components['schemas']['SimplifiedAccountRef'] | null;
+    };
+    /** StatementAccountOption */
+    StatementAccountOption: {
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
     };
     /** Token */
     Token: {
@@ -3275,6 +3448,140 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ReconciliationApplyResult'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  statement_accounts_api_statement_counterparties_accounts_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StatementAccountOption'][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  preview_counterparties_api_statement_counterparties_preview_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_preview_counterparties_api_statement_counterparties_preview_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CounterpartyPreview'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  apply_counterparties_api_statement_counterparties_apply_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_apply_counterparties_api_statement_counterparties_apply_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CounterpartyJobResponse'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  counterparty_job_status_api_statement_counterparties_jobs__job_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        job_id: string;
+      };
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CounterpartyJobResponse'];
         };
       };
       /** @description Validation Error */

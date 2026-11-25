@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 
@@ -100,7 +101,7 @@ def account_number(value: str) -> str:
 
 
 def compare_statement(
-    bank: list[BankLine],
+    bank: Sequence[BankLine],
     transactions: list[SimplifiedTx],
     *,
     account_id: int,
