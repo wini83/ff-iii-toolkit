@@ -39,6 +39,7 @@ def csv(*rows):
 
 OUT = f"15-11-2026;16-11-2026;-30,04;PLN;Invoice;{OWN};{SHOP}"
 IN = f"15-11-2026;16-11-2026;12,00;PLN;Refund;{PAYER};{OWN}"
+CARD = "15-11-2026;16-11-2026;-30,04;PLN;SHOP K.1 WARSZAWA PL;;"
 
 
 @pytest.fixture
@@ -70,7 +71,7 @@ def counterparty_client(client, monkeypatch):
             tx = replace(
                 tx,
                 destination_account=SimplifiedAccountRef(
-                    2, "Shop", AccountType.EXPENSE
+                    2, accounts[1].name, AccountType.EXPENSE
                 ),
             )
         if patch.source_id == 3:
@@ -174,3 +175,75 @@ def test_unverified_write_stops_the_batch(counterparty_client):
     )
     assert "Could not verify the write" in job["results"][0]["reason"]
     firefly.update_transaction.assert_awaited_once()
+
+
+@pytest.fixture
+def card_client(counterparty_client):
+    client, firefly, txs = counterparty_client
+    accounts = firefly.fetch_accounts.return_value
+    accounts[1] = replace(accounts[1], name="Shop K.1", account_number=None)
+    txs[1] = replace(
+        txs[1], description="Transakcja kartą debetową z CashBack, Shop K.1"
+    )
+    return client, firefly, txs
+
+
+def test_numberless_card_uses_merchant_without_requiring_a_known_city(card_client):
+    client, firefly, txs = card_client
+    content = csv(CARD.replace("WARSZAWA", "WYSOGOTOWO"), IN)
+    response = upload(client, "preview", content)
+    assert response.status_code == 200
+    plan = response.json()
+    card, incoming = plan["rows"]
+    assert (card["status"], card["proposed_account"]) == ("ready", "Shop K.1")
+    assert "card merchant" in card["reason"]
+    assert incoming["status"] == "ready"
+    firefly.update_transaction.assert_not_awaited()
+
+    start = upload(client, "apply", content, revision=plan["revision"])
+    assert start.status_code == 202
+    job = completed_job(client, start.json()["id"])
+    assert (job["status"], job["applied"]) == ("done", 2)
+    assert txs[1].destination_account.name == "Shop K.1"
+
+
+@pytest.mark.parametrize(
+    ("rows", "reason"),
+    [
+        ((CARD.replace("K.1", "K.10"), IN), "merchant differs"),
+        ((CARD, CARD, IN), "Multiple transactions"),
+        ((CARD,), "Could not verify the statement account"),
+        (
+            (CARD, IN, OUT.replace(OWN, SAVINGS)),
+            "Could not verify the statement account",
+        ),
+    ],
+)
+def test_name_matching_routes_conflicting_or_unverified_rows_to_review(
+    card_client, rows, reason
+):
+    client, firefly, _ = card_client
+    response = upload(client, "preview", csv(*rows))
+    assert response.status_code == 200
+    card = response.json()["rows"][0]
+    assert card["status"] == "review"
+    assert reason in card["reason"]
+    firefly.update_transaction.assert_not_awaited()
+
+
+def test_duplicate_merchant_names_invalidate_a_ready_preview(card_client):
+    client, firefly, _ = card_client
+    content = csv(CARD, IN)
+    initial = upload(client, "preview", content).json()
+    assert initial["rows"][0]["status"] == "ready"
+    accounts = firefly.fetch_accounts.return_value
+    accounts.append(SimplifiedAccount(5, "  SHOP   K.1 ", "expense", active=True))
+
+    assert (
+        upload(client, "apply", content, revision=initial["revision"]).status_code
+        == 409
+    )
+    row = upload(client, "preview", content).json()["rows"][0]
+    assert row["status"] == "review"
+    assert "Several Firefly accounts have this name" in row["reason"]
+    firefly.update_transaction.assert_not_awaited()

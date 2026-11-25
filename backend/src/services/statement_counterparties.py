@@ -23,6 +23,7 @@ from services.reconciliation.matching import (
     account_movement,
     account_number,
     fingerprint,
+    normalize_title,
 )
 from services.reconciliation.parser import StatementLine, parse_statement
 from services.snapshot.store import SnapshotStore
@@ -33,6 +34,11 @@ UNKNOWN_ACCOUNTS = {
     "unknown counterparty",
 }
 NON_COUNTERPARTY_TYPES = {"asset", "liability", "liabilities"}
+CARD_PREFIXES = {
+    "transakcja kartą debetową",
+    "transakcja kartą debetową z cashback",
+    "transakcja kartą kredytową",
+}
 Status = Literal["ready", "review", "skipped"]
 MatchKey = tuple[date, str, Decimal]
 
@@ -123,11 +129,19 @@ def bank_key(row: StatementLine) -> MatchKey:
     return row.date, row.currency, Decimal(row.amount)
 
 
+def card_merchant(description: str) -> str:
+    prefix, _, merchant = normalize_title(description).partition(",")
+    return merchant.strip() if prefix.strip() in CARD_PREFIXES else ""
+
+
 def propose(
     bank: StatementLine,
     matches: list[SimplifiedTx],
     matching_rows: int,
     accounts: list[SimplifiedAccount],
+    *,
+    name_index: dict[str, list[SimplifiedAccount]] | None = None,
+    account_verified: bool = True,
 ) -> tuple[CounterpartyRow, Assignment | None]:
     row = CounterpartyRow(
         row_id=bank.row_id,
@@ -182,6 +196,23 @@ def propose(
                 row.proposed_account = own_targets[0].name
         return row, None
 
+    by_name = name_index is not None
+    if name_index is not None:
+        merchant = card_merchant(tx.description)
+        bank_title = normalize_title(bank.description)
+        if not account_verified:
+            row.status, row.reason = "review", "Could not verify the statement account."
+            return row, None
+        if not merchant or not (
+            bank_title == merchant or bank_title.startswith(f"{merchant} ")
+        ):
+            row.status, row.reason = (
+                "review",
+                "The card merchant differs between the statement and Firefly.",
+            )
+            return row, None
+        accounts = name_index.get(merchant, [])
+
     expected_type = "expense" if outgoing else "revenue"
     targets = [
         account
@@ -191,7 +222,12 @@ def propose(
         and account.name.strip().casefold() not in UNKNOWN_ACCOUNTS
     ]
     if len(targets) > 1:
-        row.status, row.reason = "review", "Several Firefly accounts have this number."
+        row.status = "review"
+        row.reason = (
+            "Several Firefly accounts have this name."
+            if by_name
+            else "Several Firefly accounts have this number."
+        )
         return row, None
     target = targets[0] if targets else None
     if current and target and current.id == target.id:
@@ -208,9 +244,15 @@ def propose(
             row.reason = "Counterparty already assigned."
         return row, None
     if target is None:
-        row.reason = (
-            "No active Firefly counterparty matches the statement account number."
-        )
+        if by_name:
+            row.status, row.reason = (
+                "review",
+                "No active Firefly expense account matches this card merchant.",
+            )
+        else:
+            row.reason = (
+                "No active Firefly counterparty matches the statement account number."
+            )
         return row, None
     row.proposed_account = target.name
     if (
@@ -223,7 +265,12 @@ def propose(
     ):
         row.status, row.reason = "review", "Transaction requires manual review."
         return row, None
-    row.status, row.reason = "ready", "Matched to an existing account by number."
+    row.status = "ready"
+    row.reason = (
+        "Matched to an existing expense account by card merchant."
+        if by_name
+        else "Matched to an existing account by number."
+    )
     return row, Assignment(tx, target.id)
 
 
@@ -249,10 +296,22 @@ def build_preview(
         raise ValueError(
             "Select an active Firefly asset account with a unique bank account number."
         )
-    if not any(canonical_number(row.own_account) in own for row in bank):
+    identified_numbers = {
+        number for row in bank if (number := canonical_number(row.own_account))
+    }
+    if identified_numbers and identified_numbers.isdisjoint(own):
         raise ValueError(
             "The statement contains no rows for the selected bank account number."
         )
+    # Alior can omit both numbers for cards. These rows inherit account
+    # verification only when the identified rows all point to the selected account.
+    verified_single_account = (
+        bool(identified_numbers)
+        and identified_numbers <= own
+        and all(
+            not row.own_account or canonical_number(row.own_account) for row in bank
+        )
+    )
 
     # Rows with missing account numbers can still make a match ambiguous.
     row_counts: dict[MatchKey, int] = defaultdict(int)
@@ -266,25 +325,47 @@ def build_preview(
         if movement is not None:
             matches[(tx.date, tx.currency.code, movement)].append(tx)
     by_number: dict[str, list[SimplifiedAccount]] = defaultdict(list)
+    by_name: dict[str, list[SimplifiedAccount]] = defaultdict(list)
     for account in accounts:
         for number in numbers(account):
             by_number[number].append(account)
+        if account.type == "expense":
+            by_name[normalize_title(account.name)].append(account)
 
     decisions: list[Assignment] = []
     rows: list[CounterpartyRow] = []
     omitted = 0
     for line in bank:
+        own_number = canonical_number(line.own_account)
         number = canonical_number(line.counterparty_account)
-        if canonical_number(line.own_account) not in own or not number:
+        key = bank_key(line)
+        txs = matches[key]
+        card = (
+            not line.counterparty_account
+            and key[2] < 0
+            and any(card_merchant(tx.description) for tx in txs)
+        )
+        if card and (not line.own_account or own_number in own):
+            row, assignment = propose(
+                line,
+                txs,
+                row_counts[key],
+                [],
+                name_index=by_name,
+                account_verified=own_number in own or verified_single_account,
+            )
+        elif own_number in own and number:
+            row, assignment = propose(line, txs, row_counts[key], by_number[number])
+        else:
             omitted += 1
             continue
-        key = bank_key(line)
-        row, assignment = propose(
-            line, matches[key], row_counts[key], by_number[number]
-        )
         rows.append(row)
         if assignment is not None:
             decisions.append(assignment)
+    if not identified_numbers and not rows:
+        raise ValueError(
+            "The statement contains no rows for the selected bank account number."
+        )
     preview = CounterpartyPreview(
         revision="",
         rows=rows,

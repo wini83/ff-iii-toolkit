@@ -138,8 +138,8 @@
         </div>
         {#if preview.omitted}
           <p class="text-base-content/70 text-sm">
-            {preview.omitted} statement rows lack a usable counterparty number or could not be tied to
-            the selected bank account.
+            {preview.omitted} statement rows could not be compared using a bank account number or a matching
+            Firefly card payment.
           </p>
         {/if}
         {#if preview.skipped_multipart || preview.skipped_invalid}
@@ -162,7 +162,7 @@
           <option value="actionable">Ready and to review</option>
           <option value="ready">Ready</option>
           <option value="review">To review</option>
-          <option value="skipped">Skipped rows with bank account numbers</option>
+          <option value="skipped">Skipped rows with details</option>
         </select>
       </label>
 

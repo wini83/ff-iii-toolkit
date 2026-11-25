@@ -38,12 +38,12 @@ test('previews assignments once, then shows persisted results on the job page', 
               date: '2026-11-16',
               amount: '-5.00',
               currency: 'PLN',
-              description: 'Invoice',
+              description: 'Shop K.1 Poznan PL',
               status: 'ready',
               transaction_id: 11,
               current_account: '(unknown destination account)',
-              proposed_account: 'Shop',
-              reason: 'Matched to an existing account by number.'
+              proposed_account: 'Shop K.1',
+              reason: 'Matched to an existing expense account by card merchant.'
             },
             {
               row_id: 2,
@@ -89,6 +89,9 @@ test('previews assignments once, then shows persisted results on the job page', 
     buffer: Buffer.from('statement')
   });
   await page.getByRole('button', { name: 'Preview changes' }).click();
+  await expect(
+    page.getByText('Matched to an existing expense account by card merchant.')
+  ).toBeVisible();
   await expect(page.getByText('Possible transfer between your accounts.')).toBeVisible();
   expect(writes).toBe(0);
   await page.getByRole('button', { name: 'Apply 1 change', exact: true }).click();
