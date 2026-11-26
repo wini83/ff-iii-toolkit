@@ -411,3 +411,134 @@ def test_number_match_explains_why_it_requires_review(
     assert plan["rows"][0]["status"] == "review"
     assert reason in plan["rows"][0]["reason"]
     firefly.update_transaction.assert_not_awaited()
+
+
+def test_same_amount_cards_are_grouped_by_merchant(card_client):
+    client, firefly, txs = card_client
+    firefly.fetch_accounts.return_value.append(
+        SimplifiedAccount(5, "Other shop", "expense", active=True)
+    )
+    txs[3] = replace(txs[1], id=3, transaction_journal_id=103)
+    txs[4] = replace(
+        txs[1],
+        id=4,
+        transaction_journal_id=104,
+        description="Transakcja kartą debetową, Other shop",
+    )
+    content = csv(CARD.replace("SHOP K.1", "OTHER SHOP"), CARD, CARD)
+    fields = {"single_account_confirmed": "true"}
+    preview = upload(client, "preview", content, **fields).json()
+    assert (preview["ready"], preview["review"]) == (3, 0)
+    assert [
+        (row["proposed_account"], row["card_group_size"]) for row in preview["rows"]
+    ] == [("Other shop", None), ("Shop K.1", 2), ("Shop K.1", 2)]
+
+    result = upload(client, "apply", content, revision=preview["revision"], **fields)
+    assert result.status_code == 202
+    assert completed_job(client, result.json()["id"])["applied"] == 3
+    assert [txs[key].destination_account.id for key in (1, 3, 4)] == [2, 2, 5]
+
+
+def test_balanced_cards_with_an_existing_assignment_stay_in_review(card_client):
+    client, firefly, txs = card_client
+    txs[3] = replace(
+        txs[1],
+        id=3,
+        transaction_journal_id=103,
+        destination_account=SimplifiedAccountRef(
+            5, "My shop alias", AccountType.EXPENSE
+        ),
+    )
+    preview = upload(
+        client, "preview", csv(CARD, CARD), single_account_confirmed="true"
+    ).json()
+    assert (preview["ready"], preview["review"]) == (0, 2)
+    assert all(row["choice_group"] is None for row in preview["rows"])
+    firefly.update_transaction.assert_not_awaited()
+
+
+@pytest.mark.parametrize("selection", ["create", 2])
+def test_explicit_choice_fills_missing_merchant_account_once(card_client, selection):
+    client, firefly, txs = card_client
+    accounts = firefly.fetch_accounts.return_value
+    accounts[1] = replace(accounts[1], name="Shop")
+    txs[3] = replace(txs[1], id=3, transaction_journal_id=103)
+
+    async def create_account(*, name, account_type):
+        account = SimplifiedAccount(5, name, account_type, active=True)
+        accounts.append(account)
+        return account
+
+    firefly.create_account = AsyncMock(side_effect=create_account)
+    content = csv(CARD, CARD)
+    fields = {"single_account_confirmed": "true"}
+    preview = upload(client, "preview", content, **fields).json()
+    assert (preview["ready"], preview["review"]) == (0, 2)
+    first, second = preview["rows"]
+    group = first["choice_group"]
+    assert group == second["choice_group"]
+    assert first["new_account_name"] == "Shop K.1"
+    assert first["card_group_size"] == 2
+    assert [(a["id"], a["match"]) for a in first["candidates"]] == [(2, "generic")]
+
+    fields["revision"] = preview["revision"]
+    assert upload(client, "apply", content, **fields).status_code == 422
+    firefly.create_account.assert_not_awaited()
+    firefly.update_transaction.assert_not_awaited()
+    result = upload(
+        client,
+        "apply",
+        content,
+        account_choices=json.dumps({group: selection}),
+        **fields,
+    )
+    assert result.status_code == 202
+    assert completed_job(client, result.json()["id"])["applied"] == 2
+    if selection == "create":
+        firefly.create_account.assert_awaited_once_with(
+            name="Shop K.1", account_type="expense"
+        )
+        expected_id = 5
+    else:
+        firefly.create_account.assert_not_awaited()
+        expected_id = 2
+    assert txs[1].destination_account.id == txs[3].destination_account.id == expected_id
+
+
+def test_uncertain_expense_creation_stops_and_fresh_preview_reuses_account(card_client):
+    client, firefly, txs = card_client
+    accounts = firefly.fetch_accounts.return_value
+    accounts[1] = replace(accounts[1], name="Shop")
+    txs[3] = replace(txs[1], id=3, transaction_journal_id=103)
+
+    async def create_account(*, name, account_type):
+        accounts.append(SimplifiedAccount(5, name, account_type, active=True))
+        raise FireflyAPIError("Connection lost after creation.")
+
+    firefly.create_account = AsyncMock(side_effect=create_account)
+    content = csv(CARD, CARD)
+    fields = {"single_account_confirmed": "true"}
+    preview = upload(client, "preview", content, **fields).json()
+    group = preview["rows"][0]["choice_group"]
+    result = upload(
+        client,
+        "apply",
+        content,
+        account_choices=json.dumps({group: "create"}),
+        revision=preview["revision"],
+        **fields,
+    )
+    assert result.status_code == 202
+    job = completed_job(client, result.json()["id"])
+    assert (job["status"], job["applied"], job["failed"]) == ("failed", 0, 1)
+    firefly.update_transaction.assert_not_awaited()
+
+    refreshed = upload(client, "preview", content, **fields).json()
+    assert refreshed["ready"] == 2
+    result = upload(client, "apply", content, revision=refreshed["revision"], **fields)
+    assert result.status_code == 202
+    assert completed_job(client, result.json()["id"])["applied"] == 2
+    firefly.create_account.assert_awaited_once()
+    assert txs[1].destination_account.id == txs[3].destination_account.id == 5
+    completed = upload(client, "preview", content, **fields).json()
+    assert (completed["ready"], completed["review"], completed["skipped"]) == (0, 0, 2)

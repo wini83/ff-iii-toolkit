@@ -6,6 +6,7 @@
     listStatementAccounts,
     previewCounterparties,
     startCounterpartyJob,
+    type AccountChoice,
     type CounterpartyCandidate,
     type CounterpartyPreview,
     type StatementAccount,
@@ -19,7 +20,7 @@
   let files: FileList | undefined;
   let submitted: StatementEvidence | null = null;
   let preview: CounterpartyPreview | null = null;
-  let accountChoices: Record<string, number> = {};
+  let accountChoices: Record<string, AccountChoice> = {};
   let filter = 'actionable';
   let busy = false;
   let error = '';
@@ -28,13 +29,19 @@
     merchant: 'Exact merchant name',
     statement: 'Exact statement description',
     both: 'Exact merchant and statement',
-    prefix: 'Partial statement match'
+    prefix: 'Partial statement match',
+    generic: 'Shorter account name'
   };
 
   function groupRows(rows: CounterpartyPreview['rows']) {
     const groups = new Map<
       string,
-      { merchant: string; candidates: CounterpartyCandidate[]; count: number }
+      {
+        merchant: string;
+        candidates: CounterpartyCandidate[];
+        count: number;
+        newName: string | null;
+      }
     >();
     for (const row of rows) {
       if (!row.choice_group) continue;
@@ -45,14 +52,15 @@
         groups.set(row.choice_group, {
           merchant: row.card_merchant ?? row.description,
           candidates: row.candidates?.filter((candidate) => candidate.match !== 'prefix') ?? [],
-          count: 1
+          count: 1,
+          newName: row.new_account_name ?? null
         });
       }
     }
     return [...groups];
   }
 
-  function reasonCounts(rows: CounterpartyPreview['rows'], choices: Record<string, number>) {
+  function reasonCounts(rows: CounterpartyPreview['rows'], choices: Record<string, AccountChoice>) {
     const counts = new Map<string, number>();
     for (const row of rows) {
       if (row.status === 'review' && !(row.choice_group && choices[row.choice_group])) {
@@ -67,6 +75,7 @@
     (count, [id, group]) => count + (accountChoices[id] ? group.count : 0),
     0
   );
+  $: createCount = groups.filter(([id]) => accountChoices[id] === 'create').length;
   $: readyCount = (preview?.ready ?? 0) + chosenCount;
   $: reviewReasons = reasonCounts(preview?.rows ?? [], accountChoices);
 
@@ -221,6 +230,9 @@
             </ul>
           </details>
         {/if}
+        {#if createCount}
+          <p class="text-sm">New expense accounts selected: {createCount}</p>
+        {/if}
         {#if readyCount}
           <button type="button" class="btn btn-primary w-fit" on:click={apply} disabled={busy}>
             Apply {readyCount}
@@ -241,7 +253,8 @@
                 value={accountChoices[id] ?? ''}
                 on:change={(event) => {
                   const next = { ...accountChoices };
-                  const value = Number(event.currentTarget.value);
+                  const selected = event.currentTarget.value;
+                  const value = selected === 'create' ? selected : Number(selected);
                   if (value) next[id] = value;
                   else delete next[id];
                   accountChoices = next;
@@ -254,6 +267,9 @@
                     existing in this period
                   </option>
                 {/each}
+                {#if group.newName}
+                  <option value="create">Create expense account: {group.newName}</option>
+                {/if}
               </select>
             </label>
           {/each}
@@ -271,30 +287,40 @@
       </label>
 
       {#each visibleRows as row (row.row_id)}
-        {@const chosen = row.choice_group
-          ? row.candidates?.find(
-              (candidate) => candidate.id === accountChoices[row.choice_group ?? '']
-            )
-          : undefined}
+        {@const selection = row.choice_group ? accountChoices[row.choice_group] : undefined}
+        {@const selectedName =
+          selection === 'create'
+            ? row.new_account_name
+            : row.candidates?.find((candidate) => candidate.id === selection)?.name}
         <article class="card bg-base-100 gap-2 p-4 [overflow-wrap:anywhere]">
           <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <strong class="font-mono">{row.amount} {row.currency}</strong>
             <span class="text-base-content/70 text-sm">
-              {row.date} · Row {row.row_id}{row.transaction_id ? ` · #${row.transaction_id}` : ''}
+              {row.date} · Row {row.row_id}{row.transaction_id && !row.card_group_size
+                ? ` · #${row.transaction_id}`
+                : ''}
             </span>
           </div>
           <p>{row.description}</p>
-          {#if row.firefly_description && row.firefly_description !== row.description}
+          {#if !row.card_group_size && row.firefly_description && row.firefly_description !== row.description}
             <p class="text-base-content/70 text-sm">Firefly: {row.firefly_description}</p>
           {/if}
-          {#if chosen || row.proposed_account}
+          {#if row.card_group_size && row.status !== 'skipped'}
+            <p class="text-base-content/70 text-sm">
+              Same merchant, date and amount across {row.card_group_size} payments on each side. All Firefly
+              payments in this group use the same proposed account.
+            </p>
+          {/if}
+          {#if selectedName || row.proposed_account}
             <p class="text-sm">
               {row.current_account ?? 'Unknown'} →
-              <strong>{chosen?.name ?? row.proposed_account}</strong>
+              <strong>
+                {selectedName ?? row.proposed_account}{selection === 'create' ? ' (new)' : ''}
+              </strong>
             </p>
           {/if}
           <p class="text-base-content/70 text-sm">
-            {chosen ? 'Account selected for this group.' : row.reason}
+            {selectedName ? 'Account selected for this group.' : row.reason}
           </p>
           {#if row.candidates?.length}
             <details class="text-base-content/70 text-sm">

@@ -10,6 +10,7 @@ test('previews assignments once, then shows persisted results on the job page', 
   const jobId = '95fb48fc-5e5a-421c-bfa7-6dca3be86842';
   const revision = 'a'.repeat(64);
   const choiceGroup = 'b'.repeat(64);
+  const createGroup = 'c'.repeat(64);
   let writes = 0;
   let reads = 0;
   await page.route(/\/api\//, async (route) => {
@@ -29,7 +30,7 @@ test('previews assignments once, then shows persisted results on the job page', 
         json: {
           revision,
           ready: 1,
-          review: 3,
+          review: 4,
           skipped: 0,
           omitted: 0,
           skipped_multipart: 0,
@@ -56,6 +57,19 @@ test('previews assignments once, then shows persisted results on the job page', 
               status: 'review',
               reason: 'Possible transfer between your accounts.'
             },
+            {
+              row_id: 5,
+              date: '2026-11-16',
+              amount: '-20.00',
+              currency: 'PLN',
+              description: 'Orlen Station 123 Poznan PL',
+              status: 'review',
+              reason: 'No exact Firefly expense account name matches this card merchant.',
+              card_merchant: 'Orlen Station 123',
+              choice_group: createGroup,
+              new_account_name: 'Orlen Station 123',
+              candidates: [{ id: 25, name: 'Orlen', match: 'generic', prior_assignments: 0 }]
+            },
             ...[3, 4].map((rowId) => ({
               row_id: rowId,
               date: '2026-11-16',
@@ -78,7 +92,9 @@ test('previews assignments once, then shows persisted results on the job page', 
     if (path.endsWith('/statement-counterparties/apply')) {
       writes += 1;
       expect(route.request().postData()).toContain(revision);
-      expect(route.request().postData()).toContain(JSON.stringify({ [choiceGroup]: 22 }));
+      expect(route.request().postData()).toContain(
+        JSON.stringify({ [choiceGroup]: 22, [createGroup]: 'create' })
+      );
       expect(route.request().postData()).toContain('name="single_account_confirmed"\r\n\r\ntrue');
       return route.fulfill({ status: 202, json: { id: jobId } });
     }
@@ -88,8 +104,8 @@ test('previews assignments once, then shows persisted results on the job page', 
         json: {
           id: jobId,
           status: 'done',
-          total: 3,
-          applied: 3,
+          total: 4,
+          applied: 4,
           failed: 0,
           firefly_url: 'https://firefly.example',
           results: [{ transaction_id: 11, status: 'success' }]
@@ -124,16 +140,23 @@ test('previews assignments once, then shows persisted results on the job page', 
   const group = page.getByRole('combobox', { name: 'Allegro · 2 payments' });
   await expect(group.getByRole('option', { name: /Allegro · #21.*4 existing/ })).toHaveCount(1);
   await group.selectOption('22');
+  const missing = page.getByRole('combobox', { name: 'Orlen Station 123 · 1 payment' });
+  await expect(
+    missing.getByRole('option', { name: /Orlen · #25.*Shorter account name/ })
+  ).toHaveCount(1);
+  await missing.selectOption('create');
+  await expect(page.getByText('New expense accounts selected: 1')).toBeVisible();
+  expect(writes).toBe(0);
   await expect(page.getByText('1 to review', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Apply 3 changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply 4 changes', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(jobId));
-  await expect(page.getByText('3 applied · 0 failed')).toBeVisible();
+  await expect(page.getByText('4 applied · 0 failed')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Transaction #11' })).toHaveAttribute(
     'href',
     'https://firefly.example/transactions/show/11'
   );
   await page.reload();
-  await expect(page.getByText('3 applied · 0 failed')).toBeVisible();
+  await expect(page.getByText('4 applied · 0 failed')).toBeVisible();
   expect(reads).toBeGreaterThanOrEqual(2);
   expect(writes).toBe(1);
 });

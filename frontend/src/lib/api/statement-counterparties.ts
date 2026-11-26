@@ -6,6 +6,7 @@ export type StatementAccount = components['schemas']['StatementAccountOption'];
 export type CounterpartyPreview = components['schemas']['CounterpartyPreview'];
 export type CounterpartyCandidate = components['schemas']['CounterpartyCandidate'];
 export type CounterpartyJob = components['schemas']['CounterpartyJobResponse'];
+export type AccountChoice = number | 'create';
 export type StatementEvidence = { file: File; accountId: string; singleAccountConfirmed: boolean };
 
 function statementForm({ file, accountId, singleAccountConfirmed }: StatementEvidence) {
@@ -44,7 +45,7 @@ export async function previewCounterparties(
 export async function startCounterpartyJob(
   evidence: StatementEvidence,
   revision: string,
-  accountChoices: Record<string, number> = {}
+  accountChoices: Record<string, AccountChoice> = {}
 ): Promise<CounterpartyJob> {
   const body = statementForm(evidence);
   body.set('revision', revision);

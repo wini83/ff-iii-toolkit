@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -110,7 +110,9 @@ async def apply_counterparties(
     revision: Annotated[str, Form(pattern=r"^[a-f0-9]{64}$")],
     single_account_confirmed: Annotated[bool, Form()] = False,
     account_choices: Annotated[
-        Json[dict[str, Annotated[int, Field(strict=True, gt=0)]]] | None, Form()
+        Json[dict[str, Annotated[int, Field(strict=True, gt=0)] | Literal["create"]]]
+        | None,
+        Form(),
     ] = None,
 ) -> CounterpartyJobResponse:
     content = await read_statement(file)

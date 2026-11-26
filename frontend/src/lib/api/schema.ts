@@ -1495,7 +1495,7 @@ export interface components {
        * Match
        * @enum {string}
        */
-      match: 'merchant' | 'statement' | 'both' | 'prefix';
+      match: 'merchant' | 'statement' | 'both' | 'prefix' | 'generic';
       /**
        * Prior Assignments
        * @default 0
@@ -1589,6 +1589,10 @@ export interface components {
       candidates?: components['schemas']['CounterpartyCandidate'][];
       /** Choice Group */
       choice_group?: string | null;
+      /** New Account Name */
+      new_account_name?: string | null;
+      /** Card Group Size */
+      card_group_size?: number | null;
     };
     /** CreateSecretPayload */
     CreateSecretPayload: {
