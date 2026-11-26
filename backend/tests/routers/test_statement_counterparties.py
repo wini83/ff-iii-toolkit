@@ -156,11 +156,40 @@ def test_ambiguous_and_stale_previews_cannot_write(counterparty_client):
 
     content = csv(OUT)
     plan = upload(client, "preview", content).json()
-    txs[1] = replace(txs[1], reconciled=True)
+    txs[1] = replace(txs[1], description="Different invoice")
     assert (
         upload(client, "apply", content, revision=plan["revision"]).status_code == 409
     )
     firefly.update_transaction.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("before_preview", "before_apply"),
+    [(True, True), (False, True), (None, None)],
+)
+def test_counterparty_update_preserves_reconciliation_and_amount(
+    counterparty_client, before_preview, before_apply
+):
+    client, firefly, txs = counterparty_client
+    content = csv(OUT, IN)
+    previous = {id_: replace(tx, reconciled=before_preview) for id_, tx in txs.items()}
+    txs.update(previous)
+
+    plan = upload(client, "preview", content).json()
+    assert plan["ready"] == 2
+    txs.update({id_: replace(tx, reconciled=before_apply) for id_, tx in txs.items()})
+
+    start = upload(client, "apply", content, revision=plan["revision"])
+    assert start.status_code == 202
+    job = completed_job(client, start.json()["id"])
+    assert (job["status"], job["applied"]) == ("done", 2)
+    assert txs[1].destination_account.id == 2
+    assert txs[2].source_account.id == 3
+    for id_, tx in txs.items():
+        assert tx.reconciled is before_apply
+        assert tx.amount == previous[id_].amount
+    for call in firefly.update_transaction.await_args_list:
+        assert call.args[1].reconciled is None
 
 
 def test_unverified_write_stops_the_batch(counterparty_client):
@@ -285,8 +314,6 @@ def test_shorter_card_merchant_conflicts_with_longer_account_name(card_client):
     ("changes", "reason"),
     [
         ({"description": "Invoice B-204"}, "descriptions differ"),
-        ({"reconciled": True}, "already reconciled"),
-        ({"reconciled": None}, "reconciliation status"),
         ({"transaction_journal_id": None}, "journal ID"),
         ({"tags": ["do-usuniecia"]}, "tagged do-usuniecia"),
         ({"destination_account": None}, "current counterparty account"),

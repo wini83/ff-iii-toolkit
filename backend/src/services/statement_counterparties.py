@@ -137,10 +137,6 @@ def card_merchant(description: str) -> str:
 def assignment_restriction(tx: SimplifiedTx, outgoing: bool) -> str | None:
     if tx.transaction_journal_id is None:
         return "Firefly did not provide a transaction journal ID."
-    if tx.reconciled is True:
-        return "The transaction is already reconciled."
-    if tx.reconciled is None:
-        return "Firefly did not provide the transaction's reconciliation status."
     if "do-usuniecia" in tx.tags:
         return "The transaction is tagged do-usuniecia."
     if tx.type.value != ("withdrawal" if outgoing else "deposit"):
@@ -515,13 +511,14 @@ class StatementCounterpartyService:
             return ApplyOutcome(
                 tx_id, None, "failed", "Could not read the transaction."
             ), False
-        if current.reconciled is not False or fingerprint(current) != fingerprint(
-            decision.tx
-        ):
+        if fingerprint(current) != fingerprint(decision.tx):
             return ApplyOutcome(
                 tx_id, None, "failed", "Transaction changed since preview."
             ), False
 
+        # Reconciliation can change independently of the counterparty preview.
+        # Verify the write against the status read immediately before it.
+        decision = replace(decision, tx=current)
         try:
             after = await self.client.update_transaction(
                 tx_id, decision.update(), apply_rules=False, fire_webhooks=False
