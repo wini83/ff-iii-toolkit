@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from decimal import Decimal
 from time import monotonic, sleep
@@ -72,11 +73,14 @@ def counterparty_client(client, monkeypatch):
 
     async def update(tx_id, patch, **kwargs):
         tx = txs[tx_id]
-        if patch.destination_id == 2:
+        if patch.destination_id is not None:
+            target = next(
+                account for account in accounts if account.id == patch.destination_id
+            )
             tx = replace(
                 tx,
                 destination_account=SimplifiedAccountRef(
-                    2, accounts[1].name, AccountType.EXPENSE
+                    target.id, target.name, AccountType.EXPENSE
                 ),
             )
         if patch.source_id == 3:
@@ -295,19 +299,93 @@ def test_duplicate_merchant_names_invalidate_a_ready_preview(card_client):
     )
     row = upload(client, "preview", content, **fields).json()["rows"][0]
     assert row["status"] == "review"
-    assert "Several Firefly accounts have this name" in row["reason"]
+    assert row["choice_group"]
+    assert [
+        (candidate["id"], candidate["match"]) for candidate in row["candidates"]
+    ] == [(2, "merchant"), (5, "merchant")]
     firefly.update_transaction.assert_not_awaited()
 
 
-def test_shorter_card_merchant_conflicts_with_longer_account_name(card_client):
+def test_partial_account_name_is_only_a_suggestion(card_client):
     client, firefly, _ = card_client
     firefly.fetch_accounts.return_value.append(
         SimplifiedAccount(5, "Shop K.1 Market", "expense", active=True)
     )
     content = csv(CARD.replace("K.1 WARSZAWA", "K.1 MARKET WARSZAWA"))
     plan = upload(client, "preview", content, single_account_confirmed="true").json()
-    assert plan["ready"] == 0
-    assert "longer Firefly expense account name" in plan["rows"][0]["reason"]
+    assert plan["ready"] == 1
+    row = plan["rows"][0]
+    assert row["proposed_account"] == "Shop K.1"
+    assert row["choice_group"] is None
+    assert [
+        (candidate["id"], candidate["match"]) for candidate in row["candidates"]
+    ] == [(2, "merchant"), (5, "prefix")]
+
+
+def test_unique_full_statement_name_is_ready_without_a_merchant_account(card_client):
+    client, firefly, _ = card_client
+    accounts = firefly.fetch_accounts.return_value
+    accounts[1] = replace(accounts[1], name="Shop K.1 Warszawa PL")
+    plan = upload(client, "preview", csv(CARD), single_account_confirmed="true").json()
+    assert plan["ready"] == 1
+    assert plan["rows"][0]["proposed_account"] == accounts[1].name
+    assert plan["rows"][0]["candidates"][0]["match"] == "statement"
+
+
+def test_one_exact_candidate_choice_applies_to_the_whole_group(card_client):
+    client, firefly, txs = card_client
+    accounts = firefly.fetch_accounts.return_value
+    accounts.extend(
+        [
+            SimplifiedAccount(5, "Shop K.1 Warszawa PL", "expense", active=True),
+            SimplifiedAccount(6, "Shop K.1 Warszawa", "expense", active=True),
+        ]
+    )
+    txs[3] = replace(txs[1], id=3, amount=Decimal("65.60"), transaction_journal_id=103)
+    txs[4] = replace(
+        txs[1],
+        id=4,
+        amount=Decimal("22"),
+        transaction_journal_id=104,
+        destination_account=SimplifiedAccountRef(
+            5, accounts[4].name, AccountType.EXPENSE
+        ),
+    )
+    statement = csv(CARD, CARD.replace("-30,04", "-65,60"))
+    fields = {"single_account_confirmed": "true"}
+    preview = upload(client, "preview", statement, **fields).json()
+    assert (preview["ready"], preview["review"]) == (0, 2)
+    first, second = preview["rows"]
+    group = first["choice_group"]
+    assert group and second["choice_group"] == group
+    assert [
+        (candidate["id"], candidate["match"], candidate["prior_assignments"])
+        for candidate in first["candidates"]
+    ] == [(5, "statement", 1), (2, "merchant", 0), (6, "prefix", 0)]
+    apply_fields = {**fields, "revision": preview["revision"]}
+    assert (
+        upload(
+            client,
+            "apply",
+            statement,
+            **apply_fields,
+            account_choices=json.dumps({group: 6}),
+        ).status_code
+        == 422
+    )
+    assert upload(client, "apply", statement, **apply_fields).status_code == 422
+    firefly.update_transaction.assert_not_awaited()
+
+    start = upload(
+        client,
+        "apply",
+        statement,
+        **apply_fields,
+        account_choices=json.dumps({group: 5}),
+    )
+    assert start.status_code == 202
+    assert completed_job(client, start.json()["id"])["applied"] == 2
+    assert txs[1].destination_account.id == txs[3].destination_account.id == 5
 
 
 @pytest.mark.parametrize(

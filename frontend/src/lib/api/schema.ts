@@ -1366,6 +1366,8 @@ export interface components {
        * @default false
        */
       single_account_confirmed: boolean;
+      /** Account Choices */
+      account_choices?: string | null;
     };
     /** Body_inspect_period_api_reconciliation_statement_period_post */
     Body_inspect_period_api_reconciliation_statement_period_post: {
@@ -1483,6 +1485,23 @@ export interface components {
       /** Review Reason */
       review_reason?: ('title_mismatch' | 'ambiguous' | 'description_normalization') | null;
     };
+    /** CounterpartyCandidate */
+    CounterpartyCandidate: {
+      /** Id */
+      id: number;
+      /** Name */
+      name: string;
+      /**
+       * Match
+       * @enum {string}
+       */
+      match: 'merchant' | 'statement' | 'both' | 'prefix';
+      /**
+       * Prior Assignments
+       * @default 0
+       */
+      prior_assignments: number;
+    };
     /** CounterpartyJobResponse */
     CounterpartyJobResponse: {
       /**
@@ -1564,6 +1583,12 @@ export interface components {
       current_account?: string | null;
       /** Proposed Account */
       proposed_account?: string | null;
+      /** Card Merchant */
+      card_merchant?: string | null;
+      /** Candidates */
+      candidates?: components['schemas']['CounterpartyCandidate'][];
+      /** Choice Group */
+      choice_group?: string | null;
     };
     /** CreateSecretPayload */
     CreateSecretPayload: {

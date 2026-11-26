@@ -2,7 +2,7 @@
 
 import hashlib
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -12,7 +12,7 @@ from uuid import UUID
 from ff_iii_luciferin.api import FireflyAPIError, FireflyClient, TransactionUpdate
 from ff_iii_luciferin.domain.models import SimplifiedAccount, SimplifiedTx
 from ff_iii_luciferin.services.transactions import fetch_transactions_with_stats
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from services.domain.blik import ApplyOutcome, BlikApplyJob
@@ -48,6 +48,11 @@ class StatementAccountOption(BaseModel):
     name: str
 
 
+class CounterpartyCandidate(StatementAccountOption):
+    match: Literal["merchant", "statement", "both", "prefix"]
+    prior_assignments: int = 0
+
+
 class CounterpartyRow(BaseModel):
     row_id: int
     date: date
@@ -60,6 +65,9 @@ class CounterpartyRow(BaseModel):
     firefly_description: str | None = None
     current_account: str | None = None
     proposed_account: str | None = None
+    card_merchant: str | None = None
+    candidates: list[CounterpartyCandidate] = Field(default_factory=list)
+    choice_group: str | None = None
 
 
 class CounterpartyPreview(BaseModel):
@@ -134,6 +142,38 @@ def card_merchant(description: str) -> str:
     return merchant.strip() if prefix.strip() in CARD_PREFIXES else ""
 
 
+def card_candidates(
+    merchant: str,
+    bank_title: str,
+    name_index: dict[str, list[SimplifiedAccount]],
+    history: Counter[tuple[str, int]],
+) -> list[CounterpartyCandidate]:
+    candidates = []
+    prefix = merchant
+    names = [merchant]
+    for token in bank_title[len(merchant) :].split():
+        prefix = f"{prefix} {token}"
+        names.append(prefix)
+    for name in names:
+        match: Literal["merchant", "statement", "both", "prefix"]
+        if name == merchant:
+            match = "both" if name == bank_title else "merchant"
+        else:
+            match = "statement" if name == bank_title else "prefix"
+        for account in name_index.get(name, []):
+            candidates.append(
+                CounterpartyCandidate(
+                    id=account.id,
+                    name=account.name,
+                    match=match,
+                    prior_assignments=history[merchant, account.id],
+                )
+            )
+    return sorted(
+        candidates, key=lambda a: (a.match == "prefix", -a.prior_assignments, a.id)
+    )
+
+
 def assignment_restriction(tx: SimplifiedTx, outgoing: bool) -> str | None:
     if tx.transaction_journal_id is None:
         return "Firefly did not provide a transaction journal ID."
@@ -156,6 +196,7 @@ def propose(
     accounts: list[SimplifiedAccount],
     *,
     name_index: dict[str, list[SimplifiedAccount]] | None = None,
+    card_history: Counter[tuple[str, int]] | None = None,
     account_verified: bool = True,
 ) -> tuple[CounterpartyRow, Assignment | None]:
     row = CounterpartyRow(
@@ -212,6 +253,8 @@ def propose(
         return row, None
 
     by_name = name_index is not None
+    merchant = ""
+    exact_candidates: list[CounterpartyCandidate] = []
     if name_index is not None:
         merchant = card_merchant(tx.description)
         bank_title = normalize_title(bank.description)
@@ -226,16 +269,16 @@ def propose(
                 "The card merchant differs between the statement and Firefly.",
             )
             return row, None
-        prefix = merchant
-        for token in bank_title[len(merchant) :].split():
-            prefix = f"{prefix} {token}"
-            if any(account.active is True for account in name_index.get(prefix, [])):
-                row.status = "review"
-                row.reason = (
-                    "The statement also matches a longer Firefly expense account name."
-                )
-                return row, None
-        accounts = name_index.get(merchant, [])
+        row.card_merchant = tx.description.partition(",")[2].strip() or merchant
+        row.candidates = card_candidates(
+            merchant,
+            bank_title,
+            name_index,
+            card_history if card_history is not None else Counter(),
+        )
+        exact_candidates = [
+            candidate for candidate in row.candidates if candidate.match != "prefix"
+        ]
 
     expected_type = "expense" if outgoing else "revenue"
     targets = [
@@ -245,15 +288,15 @@ def propose(
         and account.active is True
         and account.name.strip().casefold() not in UNKNOWN_ACCOUNTS
     ]
-    if len(targets) > 1:
+    if not by_name and len(targets) > 1:
         row.status = "review"
-        row.reason = (
-            "Several Firefly accounts have this name."
-            if by_name
-            else "Several Firefly accounts have this number."
-        )
+        row.reason = "Several Firefly accounts have this number."
         return row, None
-    target = targets[0] if targets else None
+    target: StatementAccountOption | SimplifiedAccount | None
+    if by_name:
+        target = exact_candidates[0] if len(exact_candidates) == 1 else None
+    else:
+        target = targets[0] if targets else None
     if current and target and current.id == target.id:
         row.reason = "Counterparty already assigned."
         return row, None
@@ -267,11 +310,22 @@ def propose(
         else:
             row.reason = "Counterparty already assigned."
         return row, None
+    if len(exact_candidates) > 1:
+        row.status = "review"
+        if restriction := assignment_restriction(tx, outgoing):
+            row.reason = restriction
+            return row, None
+        account_ids = sorted(candidate.id for candidate in exact_candidates)
+        row.choice_group = hashlib.sha256(
+            f"{merchant}:{account_ids}".encode()
+        ).hexdigest()
+        row.reason = "Several Firefly accounts match this card merchant."
+        return row, None
     if target is None:
         if by_name:
             row.status, row.reason = (
                 "review",
-                "No active Firefly expense account matches this card merchant.",
+                "No exact Firefly expense account name matches this card merchant.",
             )
         else:
             row.reason = (
@@ -309,7 +363,7 @@ def build_preview(
     skipped_invalid: int,
     *,
     single_account_confirmed: bool = False,
-) -> tuple[CounterpartyPreview, list[Assignment]]:
+) -> tuple[CounterpartyPreview, list[Assignment], dict[str, list[SimplifiedTx]]]:
     source = next((account for account in accounts if account.id == account_id), None)
     own = (
         numbers(source)
@@ -347,20 +401,33 @@ def build_preview(
         if not number or number in own:
             row_counts[bank_key(row)] += 1
     matches: dict[MatchKey, list[SimplifiedTx]] = defaultdict(list)
+    card_history: Counter[tuple[str, int]] = Counter()
     for tx in transactions:
         movement = account_movement(tx, account_id)
         if movement is not None:
             matches[(tx.date, tx.currency.code, movement)].append(tx)
+            if (
+                tx.type.value == "withdrawal"
+                and (merchant := card_merchant(tx.description))
+                and tx.destination_account
+                and "do-usuniecia" not in tx.tags
+            ):
+                card_history[merchant, tx.destination_account.id] += 1
     by_number: dict[str, list[SimplifiedAccount]] = defaultdict(list)
     by_name: dict[str, list[SimplifiedAccount]] = defaultdict(list)
     for account in accounts:
         for number in numbers(account):
             by_number[number].append(account)
-        if account.type == "expense":
+        if (
+            account.type == "expense"
+            and account.active is True
+            and normalize_title(account.name) not in UNKNOWN_ACCOUNTS
+        ):
             by_name[normalize_title(account.name)].append(account)
 
     decisions: list[Assignment] = []
     rows: list[CounterpartyRow] = []
+    choices: dict[str, list[SimplifiedTx]] = defaultdict(list)
     omitted = 0
     for line in bank:
         own_number = canonical_number(line.own_account)
@@ -379,6 +446,7 @@ def build_preview(
                 row_counts[key],
                 [],
                 name_index=by_name,
+                card_history=card_history,
                 account_verified=own_number in own or verified_single_account,
             )
         elif own_number in own and number:
@@ -389,6 +457,8 @@ def build_preview(
         rows.append(row)
         if assignment is not None:
             decisions.append(assignment)
+        if row.choice_group is not None:
+            choices[row.choice_group].append(txs[0])
     if not identified_numbers and not rows:
         raise ValueError(
             "The statement contains no rows for the selected bank account number."
@@ -409,8 +479,11 @@ def build_preview(
     revision.update(preview.model_dump_json().encode())
     for decision in decisions:
         revision.update(f"{fingerprint(decision.tx)}:{decision.account_id};".encode())
+    for group, group_transactions in choices.items():
+        for tx in group_transactions:
+            revision.update(f"{group}:{fingerprint(tx)};".encode())
     preview.revision = revision.hexdigest()
-    return preview, decisions
+    return preview, decisions, choices
 
 
 class StatementCounterpartyService:
@@ -428,7 +501,7 @@ class StatementCounterpartyService:
 
     async def plan(
         self, content: bytes, account_id: int, *, single_account_confirmed: bool = False
-    ) -> tuple[CounterpartyPreview, list[Assignment]]:
+    ) -> tuple[CounterpartyPreview, list[Assignment], dict[str, list[SimplifiedTx]]]:
         bank = await run_in_threadpool(parse_statement, content)
         start = min(row.date for row in bank)
         end = max(row.date for row in bank)
@@ -458,14 +531,28 @@ class StatementCounterpartyService:
         revision: str,
         *,
         single_account_confirmed: bool = False,
+        account_choices: dict[str, int] | None = None,
     ) -> BlikApplyJob:
-        preview, decisions = await self.plan(
+        preview, decisions, choices = await self.plan(
             content, account_id, single_account_confirmed=single_account_confirmed
         )
         if preview.revision != revision:
             raise CounterpartyPreviewChanged(
                 "The preview changed. Compare the statement again."
             )
+        allowed = {
+            row.choice_group: {
+                candidate.id
+                for candidate in row.candidates
+                if candidate.match != "prefix"
+            }
+            for row in preview.rows
+            if row.choice_group is not None
+        }
+        for group, target_id in (account_choices or {}).items():
+            if target_id not in allowed.get(group, set()):
+                raise ValueError("Selected account is not a candidate for this group.")
+            decisions.extend(Assignment(tx, target_id) for tx in choices[group])
         if not decisions:
             raise ValueError("No account changes to apply.")
         job = await self.jobs.create(

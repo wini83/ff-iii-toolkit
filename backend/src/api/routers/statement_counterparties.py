@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from ff_iii_luciferin.api import FireflyAPIError, FireflyClient
+from pydantic import Field, Json
 
 from api.deps_services import get_firefly_client
 from api.mappers.blik import map_job_to_response
@@ -88,7 +89,7 @@ async def preview_counterparties(
 ) -> CounterpartyPreview:
     content = await read_statement(file)
     try:
-        preview, _ = await service.plan(
+        preview, _, _ = await service.plan(
             content, account_id, single_account_confirmed=single_account_confirmed
         )
         return preview
@@ -108,6 +109,9 @@ async def apply_counterparties(
     account_id: AccountId,
     revision: Annotated[str, Form(pattern=r"^[a-f0-9]{64}$")],
     single_account_confirmed: Annotated[bool, Form()] = False,
+    account_choices: Annotated[
+        Json[dict[str, Annotated[int, Field(strict=True, gt=0)]]] | None, Form()
+    ] = None,
 ) -> CounterpartyJobResponse:
     content = await read_statement(file)
     try:
@@ -118,6 +122,7 @@ async def apply_counterparties(
                 account_id,
                 revision,
                 single_account_confirmed=single_account_confirmed,
+                account_choices=account_choices,
             )
         )
     except CounterpartyPreviewChanged as exc:

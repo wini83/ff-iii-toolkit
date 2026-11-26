@@ -4,6 +4,7 @@ import type { components } from './schema';
 
 export type StatementAccount = components['schemas']['StatementAccountOption'];
 export type CounterpartyPreview = components['schemas']['CounterpartyPreview'];
+export type CounterpartyCandidate = components['schemas']['CounterpartyCandidate'];
 export type CounterpartyJob = components['schemas']['CounterpartyJobResponse'];
 export type StatementEvidence = { file: File; accountId: string; singleAccountConfirmed: boolean };
 
@@ -42,10 +43,12 @@ export async function previewCounterparties(
 
 export async function startCounterpartyJob(
   evidence: StatementEvidence,
-  revision: string
+  revision: string,
+  accountChoices: Record<string, number> = {}
 ): Promise<CounterpartyJob> {
   const body = statementForm(evidence);
   body.set('revision', revision);
+  body.set('account_choices', JSON.stringify(accountChoices));
   const { data, error, response } = await apiRequest((api, headers) =>
     api.POST('/api/statement-counterparties/apply', {
       headers,
