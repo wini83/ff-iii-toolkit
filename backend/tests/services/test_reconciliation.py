@@ -17,7 +17,7 @@ from ff_iii_luciferin.domain.models import (
 )
 
 from services.reconciliation.matching import compare_statement
-from services.reconciliation.parser import parse_statement
+from services.reconciliation.parser import parse_statement, statement_period
 from services.reconciliation.service import ComparisonChanged, ReconciliationService
 
 DAY = date(2026, 11, 16)
@@ -135,6 +135,222 @@ def test_review_explains_mismatched_title_and_shared_candidates():
     assert [row.review_reason for row in shared.rows] == ["ambiguous", "ambiguous"]
 
 
+@pytest.mark.parametrize(
+    "bank_suffix, firefly_suffix, key_suffix",
+    [
+        ("", "", ""),
+        (" Poznan PL", "", ""),
+        (" GDAŃSK PL", "", ""),
+        (" Poznan PL", " POZNAN PL", " poznan pl"),
+    ],
+)
+def test_card_description_suggestion_preserves_originals_and_merchant_punctuation(
+    bank_suffix,
+    firefly_suffix,
+    key_suffix,
+):
+    bank_title = f"  FIKCYJNY,   MARKET Z8287 K.2{bank_suffix}  "
+    firefly_title = (
+        f"Transakcja kartą debetową, Fikcyjny, Market Z8287 K.2{firefly_suffix}"
+    )
+    row = compare(
+        statement(f"16-11-2026;-30,04;PLN;{bank_title}"),
+        txs=[transaction(description=firefly_title)],
+    ).rows[0]
+    assert row.status == "review"
+    assert row.review_reason == "description_normalization"
+    assert row.bank.description == bank_title
+    candidate = row.candidates[0]
+    assert candidate.description == firefly_title
+    assert (
+        candidate.normalized_description_key
+        == f"fikcyjny, market z8287 k.2{key_suffix}"
+    )
+    assert not candidate.can_mark
+
+
+@pytest.mark.parametrize(
+    "firefly_title",
+    [
+        "Transakcja kartą debetową, Fikcyjny, Market Z8288 K.2",
+        "Transakcja kartą debetową, Fikcyjny, Market Z8287 K.3",
+        "Transakcja kartą debetową, Fikcyjny Market Z8287 K.2",
+        "Inna transakcja, Fikcyjny, Market Z8287 K.2 POZNAN PL",
+        "Płatność BLIK w internecie",
+    ],
+)
+def test_unexplained_descriptions_remain_manual_review_candidates(firefly_title):
+    row = compare(
+        statement("16-11-2026;-30,04;PLN;Fikcyjny, Market Z8287 K.2"),
+        txs=[transaction(description=firefly_title)],
+    ).rows[0]
+    assert row.status == "review"
+    assert row.review_reason == "title_mismatch"
+    assert row.candidates[0].normalized_description_key is None
+
+
+@pytest.mark.parametrize("bank_count, firefly_count", [(1, 2), (2, 1), (2, 2)])
+def test_description_collisions_remain_ambiguous(bank_count, firefly_count):
+    preview = compare(
+        statement(*["16-11-2026;-30,04;PLN;Sklep Z8287 K.2 POZNAN PL"] * bank_count),
+        txs=[
+            transaction(i, description="Transakcja kartą debetową, Sklep Z8287 K.2")
+            for i in range(1, firefly_count + 1)
+        ],
+    )
+    assert [row.review_reason for row in preview.rows] == ["ambiguous"] * bank_count
+    assert all(
+        tx.normalized_description_key is None
+        for row in preview.rows
+        for tx in row.candidates
+    )
+
+
+@pytest.mark.parametrize(
+    "bank_count, firefly_count, missing, excess",
+    [(2, 2, 0, 0), (2, 1, 1, 0), (1, 2, 0, 1)],
+)
+def test_payment_groups_compare_quantities_without_pairing_rows(
+    bank_count, firefly_count, missing, excess
+):
+    preview = compare(
+        statement(*["16-11-2026;-6,00;PLN;Fikcyjny Market K.2 GDAŃSK PL"] * bank_count),
+        txs=[
+            transaction(
+                i,
+                description="Transakcja kartą debetową, Fikcyjny Market K.2",
+                amount=Decimal("6"),
+            )
+            for i in range(1, firefly_count + 1)
+        ],
+    )
+    [group] = preview.operation_groups
+    assert group.reason == "card_prefix"
+    assert Decimal(group.amount) == Decimal("-6")
+    assert (len(group.bank), len(group.firefly)) == (bank_count, firefly_count)
+    assert (group.missing_count, group.excess_count) == (missing, excess)
+    assert all(row.status == "review" for row in preview.rows)
+
+
+def test_additional_card_entry_with_the_exact_merchant_key_is_a_possible_duplicate():
+    title = "Fikcyjny sklep K.2"
+    preview = compare(
+        statement(f"16-11-2026;-30,04;PLN;{title}"),
+        txs=[
+            transaction(description=title),
+            transaction(2, description=f"Transakcja kartą debetową, {title}"),
+        ],
+    )
+    [group] = preview.operation_groups
+    assert group.reason == "card_prefix"
+    assert group.excess_count == 1
+    assert [entry.id for entry in group.firefly] == [1, 2]
+    assert preview.rows[0].status == "matched"
+    assert preview.rows[0].candidates[0].id == 1
+
+
+@pytest.mark.parametrize(
+    "csv_title, ff_title, expected_reason",
+    [
+        (
+            "Fikcyjny Market K.20 GDAŃSK PL",
+            "Transakcja kartą debetową, Fikcyjny Market K.2",
+            "different_descriptions",
+        ),
+        ("Fikcyjny Market A", "Fikcyjny Market B", "different_descriptions"),
+        ("Płatność BLIK w internecie", "Płatność BLIK w internecie", "generic_blik"),
+    ],
+)
+def test_equal_day_currency_and_amount_do_not_confirm_generic_or_different_titles(
+    csv_title, ff_title, expected_reason
+):
+    [group] = compare(
+        statement(f"16-11-2026;-30,04;PLN;{csv_title}"),
+        txs=[transaction(description=ff_title)],
+    ).operation_groups
+    assert group.reason == expected_reason
+    assert len(group.bank) == len(group.firefly) == 1
+    assert (group.missing_count, group.excess_count) == (0, 0)
+
+
+def test_overlapping_points_are_reviewed_together_and_each_entry_is_counted_once():
+    preview = compare(
+        statement(
+            "16-11-2026;-30,04;PLN;Fikcyjny Market K.2 GDAŃSK PL",
+            "16-11-2026;-30,04;PLN;Fikcyjny Market K.20 GDAŃSK PL",
+        ),
+        txs=[
+            transaction(description="Transakcja kartą debetową, Fikcyjny Market"),
+            transaction(
+                2, description="Transakcja kartą debetową, Fikcyjny Market K.2"
+            ),
+        ],
+    )
+    [group] = preview.operation_groups
+    assert group.reason == "overlap"
+    assert [entry.id for entry in group.bank] == [1, 2]
+    assert [entry.id for entry in group.firefly] == [1, 2]
+    assert (group.missing_count, group.excess_count) == (0, 0)
+
+
+def test_same_day_exact_group_takes_precedence_and_shift_is_separate():
+    preview = compare(
+        statement(
+            "16-11-2026;-30,04;PLN;Fikcyjny Market K.2 GDAŃSK PL",
+            "17-11-2026;-30,04;PLN;Drugi fikcyjny sklep GDAŃSK PL",
+        ),
+        txs=[
+            transaction(description="Fikcyjny Market K.2 GDAŃSK PL"),
+            transaction(
+                2, description="Transakcja kartą debetową, Drugi fikcyjny sklep"
+            ),
+        ],
+        tolerance=1,
+    )
+    exact, shifted = preview.operation_groups
+    assert exact.reason == "exact"
+    assert shifted.reason == "date_shift"
+    assert shifted.bank[0].date != shifted.firefly[0].date
+    assert (shifted.missing_count, shifted.excess_count) == (0, 0)
+
+
+def test_an_imbalanced_daily_group_can_be_explained_by_a_shift_without_assigning_pairs():
+    title = "Fikcyjny sklep K.2"
+    [group] = compare(
+        statement(*[f"16-11-2026;-30,04;PLN;{title} GDAŃSK PL"] * 2),
+        txs=[
+            transaction(description=f"Transakcja kartą debetową, {title}"),
+            transaction(
+                2,
+                date=DAY + timedelta(days=1),
+                description=f"Transakcja kartą debetową, {title}",
+            ),
+        ],
+        tolerance=1,
+    ).operation_groups
+    assert group.reason == "date_shift"
+    assert len(group.bank) == len(group.firefly) == 2
+    assert (group.missing_count, group.excess_count) == (0, 0)
+
+
+def test_description_suggestions_require_an_exact_day_and_respect_verified_matches():
+    title = "Transakcja kartą debetową, Sklep Z8287 K.2 POZNAŃ PL"
+    csv_row = "16-11-2026;-30,04;PLN;Sklep Z8287 K.2"
+    shifted = compare(
+        statement(csv_row),
+        txs=[transaction(description=title, date=DAY + timedelta(days=1))],
+        tolerance=1,
+    )
+    assert shifted.rows[0].review_reason == "title_mismatch"
+    reserved = compare(
+        statement(csv_row, f"16-11-2026;-30,04;PLN;{title}"),
+        txs=[transaction(description=title)],
+    )
+    assert [row.status for row in reserved.rows] == ["review", "matched"]
+    assert reserved.rows[0].candidates[0].normalized_description_key is None
+    assert reserved.rows[1].candidates[0].can_mark
+
+
 def test_matching_titles_appear_first_in_truncated_ambiguous_candidates():
     transactions = [transaction(i, description="Other") for i in range(1, 7)]
     row = compare(txs=[*transactions, transaction(7), transaction(8)]).rows[0]
@@ -170,10 +386,32 @@ def test_differences_and_read_only_restrictions():
         assert not compare(txs=[transaction(**changed)]).rows[0].candidates[0].can_mark
 
 
-@pytest.mark.parametrize("amount", ["NaN", "Infinity", "0", "no amount"])
+@pytest.mark.parametrize("amount", ["NaN", "Infinity", "no amount"])
 def test_invalid_amount_is_rejected(amount):
     with pytest.raises(ValueError):
         parse_statement(statement(f"16-11-2026;{amount};PLN;title"))
+
+
+@pytest.mark.parametrize("amount", ["0,00", "-0,00"])
+def test_zero_amount_preserves_the_statement_period_but_does_not_change_group_counts(
+    amount,
+):
+    zero = f"15-11-2026;{amount};PLN;Płatność BLIK w internecie"
+    content = statement(zero, "16-11-2026;-30,04;PLN;faktura 123")
+    preview = compare(content)
+
+    assert statement_period(content).date_from == DAY - timedelta(days=1)
+    assert preview.skipped_zero_amount == 1
+    [match] = preview.rows
+    assert match.status == "matched"
+    [group] = preview.reconciliation_groups
+    assert len(group.bank) == 1 and group.eligible_ids == [1]
+
+
+def test_statement_with_only_zero_amounts_has_no_selectable_groups():
+    preview = compare(statement("16-11-2026;0,00;PLN;Fikcyjny wpis"), txs=[])
+    assert preview.skipped_zero_amount == 1
+    assert preview.rows == preview.reconciliation_groups == []
 
 
 def test_parser_handles_bom_header_first_and_optional_booking_date():
@@ -187,6 +425,51 @@ def test_parser_handles_bom_header_first_and_optional_booking_date():
         parse_statement(b"bad headers\n")
     with pytest.raises(ValueError):
         parse_statement(statement() + b"wrong;column;count\n")
+
+
+def test_parser_accepts_alior_booking_dates_with_empty_card_counterparties():
+    content = (
+        "Wyciąg za okres: 01-06-2026 – 30-06-2026\n"
+        "Data transakcji;Data księgowania;Nazwa nadawcy;Nazwa odbiorcy;"
+        "Szczegóły transakcji;Kwota operacji;Waluta operacji;"
+        "Kwota w walucie rachunku;Waluta rachunku;Numer rachunku nadawcy;"
+        "Numer rachunku odbiorcy\n"
+        "10-06-2026;12-06-2026;;;Fikcyjna stacja 100 Miasto PL;-20,11;PLN;-20,11;PLN;;\n"
+        "10-06-2026;12-06-2026;;;Karta**0000* Miasto IE;-50,00;PLN;-50,00;PLN;;\n"
+        "10-06-2026;10-06-2026;Nadawca Testowy;Odbiorca Testowy;"
+        "Przelew na telefon BLIK;-60,00;PLN;-60,00;PLN;0000;1111\n"
+    ).encode()
+    rows = parse_statement(content)
+    assert [row.date.isoformat() for row in rows] == [
+        "2026-06-12",
+        "2026-06-12",
+        "2026-06-10",
+    ]
+    assert [row.amount for row in rows] == ["-20.11", "-50.00", "-60.00"]
+    assert [row.own_account for row in rows] == ["", "", "0000"]
+
+
+def test_parser_reports_actual_file_line_and_field_after_multiline_records():
+    content = (
+        "Metadata\n"
+        + HEADER
+        + '16-11-2026;-30,04;PLN;"Fikcyjny\nopis"\n'
+        + "\n16-11-2026;not-an-amount;PLN;Inny wpis\n"
+    ).encode()
+    with pytest.raises(ValueError) as error:
+        parse_statement(content)
+    assert str(error.value) == (
+        'Invalid value in "Kwota w walucie rachunku" at CSV file line 6 (record 2)'
+    )
+
+
+def test_parser_reports_column_count_and_line_for_malformed_row():
+    content = statement() + b"\n16-11-2026;PLN;missing column\n"
+    with pytest.raises(ValueError) as error:
+        parse_statement(content)
+    assert str(error.value) == (
+        "Invalid columns at CSV file line 4 (record 2): expected 4, found 3"
+    )
 
 
 def test_wrong_statement_account_is_rejected():

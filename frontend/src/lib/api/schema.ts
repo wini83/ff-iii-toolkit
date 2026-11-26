@@ -465,6 +465,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/reconciliation/statement-period': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Inspect Period */
+    post: operations['inspect_period_api_reconciliation_statement_period_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/reconciliation/preview': {
     parameters: {
       query?: never;
@@ -1252,8 +1269,26 @@ export interface components {
       tolerance_days: number;
       /** Revision */
       revision: string;
-      /** Selected Ids */
+      /**
+       * Selected Ids
+       * @default []
+       */
       selected_ids: string;
+      /**
+       * Selected Group Ids
+       * @default []
+       */
+      selected_group_ids: string;
+      /**
+       * Statement Complete
+       * @default false
+       */
+      statement_complete: boolean;
+    };
+    /** Body_inspect_period_api_reconciliation_statement_period_post */
+    Body_inspect_period_api_reconciliation_statement_period_post: {
+      /** File */
+      file: string;
     };
     /** Body_login_for_access_token_api_auth_token_post */
     Body_login_for_access_token_api_auth_token_post: {
@@ -1352,7 +1387,7 @@ export interface components {
       /** Candidate Count */
       candidate_count: number;
       /** Review Reason */
-      review_reason?: ('title_mismatch' | 'ambiguous') | null;
+      review_reason?: ('title_mismatch' | 'ambiguous' | 'description_normalization') | null;
     };
     /** CreateSecretPayload */
     CreateSecretPayload: {
@@ -1484,6 +1519,8 @@ export interface components {
       restriction?: string | null;
       /** Title Matches */
       title_matches?: boolean | null;
+      /** Normalized Description Key */
+      normalized_description_key?: string | null;
     };
     /** FireflyStatusResponse */
     FireflyStatusResponse: {
@@ -1585,6 +1622,54 @@ export interface components {
       /** Firefly Url */
       firefly_url: string | null;
     };
+    /** OperationEvidence */
+    OperationEvidence: {
+      /** Id */
+      id: number;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Description */
+      description: string;
+    };
+    /** OperationGroup */
+    OperationGroup: {
+      /** Amount */
+      amount: string;
+      /** Currency */
+      currency: string;
+      /** Bank */
+      bank: components['schemas']['OperationEvidence'][];
+      /** Firefly */
+      firefly: components['schemas']['OperationEvidence'][];
+      /**
+       * Reason
+       * @enum {string}
+       */
+      reason:
+        | 'exact'
+        | 'card_prefix'
+        | 'overlap'
+        | 'date_shift'
+        | 'generic_blik'
+        | 'different_descriptions'
+        | 'bank_only'
+        | 'firefly_only';
+      /** Compared Key */
+      compared_key?: string | null;
+      /**
+       * Missing Count
+       * @default 0
+       */
+      missing_count: number;
+      /**
+       * Excess Count
+       * @default 0
+       */
+      excess_count: number;
+    };
     /** ProviderAmountMetricsResponse */
     ProviderAmountMetricsResponse: {
       /** Eligible Amount */
@@ -1615,6 +1700,30 @@ export interface components {
       /** Outcomes */
       outcomes: components['schemas']['ReconciliationOutcome'][];
     };
+    /** ReconciliationGroup */
+    ReconciliationGroup: {
+      /** Id */
+      id: string;
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Amount */
+      amount: string;
+      /** Currency */
+      currency: string;
+      /** Bank */
+      bank: components['schemas']['OperationEvidence'][];
+      /** Firefly */
+      firefly: components['schemas']['FireflyLine'][];
+      /** Exact Description Count */
+      exact_description_count: number;
+      /** Contains Transfer */
+      contains_transfer: boolean;
+      /** Eligible Ids */
+      eligible_ids: number[];
+    };
     /** ReconciliationOutcome */
     ReconciliationOutcome: {
       /** Id */
@@ -1639,8 +1748,14 @@ export interface components {
       skipped_multipart: number;
       /** Skipped Invalid */
       skipped_invalid: number;
+      /** Skipped Zero Amount */
+      skipped_zero_amount: number;
       /** Excluded Foreign Transfers */
       excluded_foreign_transfers: number;
+      /** Operation Groups */
+      operation_groups: components['schemas']['OperationGroup'][];
+      /** Reconciliation Groups */
+      reconciliation_groups: components['schemas']['ReconciliationGroup'][];
     };
     /** ScreeningMonthResponse */
     ScreeningMonthResponse: {
@@ -1767,6 +1882,24 @@ export interface components {
       fx_currency?: string | null;
       source_account?: components['schemas']['SimplifiedAccountRef'] | null;
       destination_account?: components['schemas']['SimplifiedAccountRef'] | null;
+    };
+    /** StatementPeriod */
+    StatementPeriod: {
+      /**
+       * Date From
+       * Format: date
+       */
+      date_from: string;
+      /**
+       * Date To
+       * Format: date
+       */
+      date_to: string;
+      /**
+       * Source
+       * @enum {string}
+       */
+      source: 'metadata' | 'transactions';
     };
     /** Token */
     Token: {
@@ -3205,6 +3338,41 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['DuplicateResults'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  inspect_period_api_reconciliation_statement_period_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: {
+        access_token?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_inspect_period_api_reconciliation_statement_period_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StatementPeriod'];
         };
       };
       /** @description Validation Error */
