@@ -27,7 +27,14 @@ class ReconciliationService:
         self.client = client
 
     async def compare(
-        self, content: bytes, account_id: int, start: date, end: date, tolerance: int
+        self,
+        content: bytes,
+        account_id: int,
+        start: date,
+        end: date,
+        tolerance: int,
+        *,
+        include_operation_groups: bool = True,
     ) -> tuple[ReconciliationPreview, dict[int, SimplifiedTx]]:
         bank = await run_in_threadpool(parse_statement, content)
         transactions, stats = await fetch_transactions_with_stats(
@@ -44,6 +51,7 @@ class ReconciliationService:
             file_hash=hashlib.sha256(content).hexdigest(),
             skipped_multipart=stats.multipart,
             skipped_invalid=stats.invalid,
+            include_operation_groups=include_operation_groups,
         )
         return preview, {tx.id: tx for tx in transactions}
 
@@ -56,9 +64,10 @@ class ReconciliationService:
         tolerance: int,
         revision: str,
         selected: list[int],
+        selected_groups: list[str] | None = None,
     ) -> ReconciliationApplyResult:
         preview, transactions = await self.compare(
-            content, account_id, start, end, tolerance
+            content, account_id, start, end, tolerance, include_operation_groups=False
         )
         if preview.revision != revision:
             raise ComparisonChanged(
@@ -69,23 +78,43 @@ class ReconciliationService:
             for row in preview.rows
             if row.status == "matched" and row.candidates[0].can_mark
         }
+        if len(set(selected)) != len(selected) or not set(selected) <= allowed:
+            raise ValueError("Select distinct, unambiguous, supported matches")
+        group_ids = selected_groups or []
+        group_members = {
+            group.id: group.eligible_ids
+            for group in preview.reconciliation_groups
+            if group.eligible_ids
+        }
         if (
-            not selected
-            or len(selected) > 100
-            or len(set(selected)) != len(selected)
-            or not set(selected) <= allowed
+            len(set(group_ids)) != len(group_ids)
+            or not set(group_ids) <= group_members.keys()
         ):
-            raise ValueError("Select 1–100 distinct, unambiguous, supported matches")
+            raise ValueError(
+                "Select distinct groups with equal counts and no transfers"
+            )
+        targets = dict.fromkeys(selected)
+        for group_id in group_ids:
+            targets.update(dict.fromkeys(group_members[group_id]))
+        # Keep the request limit for mixed batches. A single large group must
+        # be revalidated and submitted together.
+        single_group = len(group_ids) == 1 and len(targets) == len(
+            group_members[group_ids[0]]
+        )
+        if not targets or (len(targets) > 100 and not single_group):
+            raise ValueError(
+                "Select 1–100 supported transactions or one complete group"
+            )
         # Validate the complete batch before its first write.
         current = {}
-        for tx_id in selected:
+        for tx_id in targets:
             tx = await self.client.get_transaction(tx_id)
             if fingerprint(tx) != fingerprint(transactions[tx_id]):
                 raise ComparisonChanged("Selected transaction changed. Compare again.")
             current[tx_id] = tx
         outcomes = []
         stopped = False
-        for tx_id in selected:
+        for tx_id in targets:
             if stopped:
                 outcomes.append(ReconciliationOutcome(id=tx_id, status="not_processed"))
                 continue
