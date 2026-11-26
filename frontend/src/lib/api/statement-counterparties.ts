@@ -5,12 +5,13 @@ import type { components } from './schema';
 export type StatementAccount = components['schemas']['StatementAccountOption'];
 export type CounterpartyPreview = components['schemas']['CounterpartyPreview'];
 export type CounterpartyJob = components['schemas']['CounterpartyJobResponse'];
-export type StatementEvidence = { file: File; accountId: string };
+export type StatementEvidence = { file: File; accountId: string; singleAccountConfirmed: boolean };
 
-function statementForm({ file, accountId }: StatementEvidence) {
+function statementForm({ file, accountId, singleAccountConfirmed }: StatementEvidence) {
   const body = new FormData();
   body.set('file', file);
   body.set('account_id', accountId);
+  body.set('single_account_confirmed', String(singleAccountConfirmed));
   return body;
 }
 

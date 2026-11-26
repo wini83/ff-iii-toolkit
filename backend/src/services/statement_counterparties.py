@@ -134,6 +134,25 @@ def card_merchant(description: str) -> str:
     return merchant.strip() if prefix.strip() in CARD_PREFIXES else ""
 
 
+def assignment_restriction(tx: SimplifiedTx, outgoing: bool) -> str | None:
+    if tx.transaction_journal_id is None:
+        return "Firefly did not provide a transaction journal ID."
+    if tx.reconciled is True:
+        return "The transaction is already reconciled."
+    if tx.reconciled is None:
+        return "Firefly did not provide the transaction's reconciliation status."
+    if "do-usuniecia" in tx.tags:
+        return "The transaction is tagged do-usuniecia."
+    if tx.type.value != ("withdrawal" if outgoing else "deposit"):
+        return "The Firefly transaction type does not match the statement direction."
+    current = tx.destination_account if outgoing else tx.source_account
+    if current is None:
+        return "Firefly did not provide the current counterparty account."
+    if current.type.value != ("expense" if outgoing else "revenue"):
+        return "The current Firefly counterparty has an incompatible account type."
+    return None
+
+
 def propose(
     bank: StatementLine,
     matches: list[SimplifiedTx],
@@ -211,6 +230,15 @@ def propose(
                 "The card merchant differs between the statement and Firefly.",
             )
             return row, None
+        prefix = merchant
+        for token in bank_title[len(merchant) :].split():
+            prefix = f"{prefix} {token}"
+            if any(account.active is True for account in name_index.get(prefix, [])):
+                row.status = "review"
+                row.reason = (
+                    "The statement also matches a longer Firefly expense account name."
+                )
+                return row, None
         accounts = name_index.get(merchant, [])
 
     expected_type = "expense" if outgoing else "revenue"
@@ -255,15 +283,16 @@ def propose(
             )
         return row, None
     row.proposed_account = target.name
-    if (
-        tx.transaction_journal_id is None
-        or tx.reconciled is not False
-        or "do-usuniecia" in tx.tags
-        or tx.type.value != ("withdrawal" if outgoing else "deposit")
-        or not current
-        or current.type.value != expected_type
+    if not by_name and normalize_title(tx.description) != normalize_title(
+        bank.description
     ):
-        row.status, row.reason = "review", "Transaction requires manual review."
+        row.status, row.reason = (
+            "review",
+            "The statement and Firefly descriptions differ.",
+        )
+        return row, None
+    if restriction := assignment_restriction(tx, outgoing):
+        row.status, row.reason = "review", restriction
         return row, None
     row.status = "ready"
     row.reason = (
@@ -282,6 +311,8 @@ def build_preview(
     file_digest: str,
     skipped_multipart: int,
     skipped_invalid: int,
+    *,
+    single_account_confirmed: bool = False,
 ) -> tuple[CounterpartyPreview, list[Assignment]]:
     source = next((account for account in accounts if account.id == account_id), None)
     own = (
@@ -303,10 +334,10 @@ def build_preview(
         raise ValueError(
             "The statement contains no rows for the selected bank account number."
         )
-    # Alior can omit both numbers for cards. These rows inherit account
-    # verification only when the identified rows all point to the selected account.
+    # Numberless rows need an explicit single-account declaration and must
+    # agree with every account number present in the statement.
     verified_single_account = (
-        bool(identified_numbers)
+        single_account_confirmed
         and identified_numbers <= own
         and all(
             not row.own_account or canonical_number(row.own_account) for row in bank
@@ -376,7 +407,9 @@ def build_preview(
         skipped_multipart=skipped_multipart,
         skipped_invalid=skipped_invalid,
     )
-    revision = hashlib.sha256(f"{account_id}:{file_digest}".encode())
+    revision = hashlib.sha256(
+        f"{account_id}:{single_account_confirmed}:{file_digest}".encode()
+    )
     revision.update(preview.model_dump_json().encode())
     for decision in decisions:
         revision.update(f"{fingerprint(decision.tx)}:{decision.account_id};".encode())
@@ -397,7 +430,9 @@ class StatementCounterpartyService:
         self.matching_cache = matching_cache
         self.snapshot = snapshot
 
-    async def plan(self, content: bytes, account_id: int):
+    async def plan(
+        self, content: bytes, account_id: int, *, single_account_confirmed: bool = False
+    ) -> tuple[CounterpartyPreview, list[Assignment]]:
         bank = await run_in_threadpool(parse_statement, content)
         start = min(row.date for row in bank)
         end = max(row.date for row in bank)
@@ -416,12 +451,21 @@ class StatementCounterpartyService:
             hashlib.sha256(content).hexdigest(),
             stats.multipart,
             stats.invalid,
+            single_account_confirmed=single_account_confirmed,
         )
 
     async def start(
-        self, owner: UUID, content: bytes, account_id: int, revision: str
+        self,
+        owner: UUID,
+        content: bytes,
+        account_id: int,
+        revision: str,
+        *,
+        single_account_confirmed: bool = False,
     ) -> BlikApplyJob:
-        preview, decisions = await self.plan(content, account_id)
+        preview, decisions = await self.plan(
+            content, account_id, single_account_confirmed=single_account_confirmed
+        )
         if preview.revision != revision:
             raise CounterpartyPreviewChanged(
                 "The preview changed. Compare the statement again."

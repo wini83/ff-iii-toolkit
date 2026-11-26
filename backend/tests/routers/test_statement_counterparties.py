@@ -52,10 +52,15 @@ def counterparty_client(client, monkeypatch):
         SimplifiedAccount(4, "Savings", "asset", iban="PL" + SAVINGS, active=True),
     ]
     txs = {
-        1: transaction(source_account=ASSET, destination_account=UNKNOWN_EXPENSE),
+        1: transaction(
+            description="Invoice",
+            source_account=ASSET,
+            destination_account=UNKNOWN_EXPENSE,
+        ),
         2: transaction(
             2,
             amount=Decimal("12"),
+            description="Refund",
             type=TxType.DEPOSIT,
             source_account=UNKNOWN_REVENUE,
             destination_account=ASSET,
@@ -191,7 +196,7 @@ def card_client(counterparty_client):
 def test_numberless_card_uses_merchant_without_requiring_a_known_city(card_client):
     client, firefly, txs = card_client
     content = csv(CARD.replace("WARSZAWA", "WYSOGOTOWO"), IN)
-    response = upload(client, "preview", content)
+    response = upload(client, "preview", content, single_account_confirmed="true")
     assert response.status_code == 200
     plan = response.json()
     card, incoming = plan["rows"]
@@ -200,7 +205,16 @@ def test_numberless_card_uses_merchant_without_requiring_a_known_city(card_clien
     assert incoming["status"] == "ready"
     firefly.update_transaction.assert_not_awaited()
 
-    start = upload(client, "apply", content, revision=plan["revision"])
+    assert (
+        upload(client, "apply", content, revision=plan["revision"]).status_code == 409
+    )
+    start = upload(
+        client,
+        "apply",
+        content,
+        revision=plan["revision"],
+        single_account_confirmed="true",
+    )
     assert start.status_code == 202
     job = completed_job(client, start.json()["id"])
     assert (job["status"], job["applied"]) == ("done", 2)
@@ -208,22 +222,26 @@ def test_numberless_card_uses_merchant_without_requiring_a_known_city(card_clien
 
 
 @pytest.mark.parametrize(
-    ("rows", "reason"),
+    ("rows", "confirmed", "reason"),
     [
-        ((CARD.replace("K.1", "K.10"), IN), "merchant differs"),
-        ((CARD, CARD, IN), "Multiple transactions"),
-        ((CARD,), "Could not verify the statement account"),
+        ((CARD.replace("K.1", "K.10"), IN), True, "merchant differs"),
+        ((CARD, CARD, IN), True, "Multiple transactions"),
+        ((CARD,), False, "Could not verify the statement account"),
+        ((CARD, IN), False, "Could not verify the statement account"),
         (
             (CARD, IN, OUT.replace(OWN, SAVINGS)),
+            True,
             "Could not verify the statement account",
         ),
     ],
 )
 def test_name_matching_routes_conflicting_or_unverified_rows_to_review(
-    card_client, rows, reason
+    card_client, rows, confirmed, reason
 ):
     client, firefly, _ = card_client
-    response = upload(client, "preview", csv(*rows))
+    response = upload(
+        client, "preview", csv(*rows), single_account_confirmed=str(confirmed).lower()
+    )
     assert response.status_code == 200
     card = response.json()["rows"][0]
     assert card["status"] == "review"
@@ -234,16 +252,57 @@ def test_name_matching_routes_conflicting_or_unverified_rows_to_review(
 def test_duplicate_merchant_names_invalidate_a_ready_preview(card_client):
     client, firefly, _ = card_client
     content = csv(CARD, IN)
-    initial = upload(client, "preview", content).json()
+    fields = {"single_account_confirmed": "true"}
+    initial = upload(client, "preview", content, **fields).json()
     assert initial["rows"][0]["status"] == "ready"
     accounts = firefly.fetch_accounts.return_value
     accounts.append(SimplifiedAccount(5, "  SHOP   K.1 ", "expense", active=True))
 
     assert (
-        upload(client, "apply", content, revision=initial["revision"]).status_code
+        upload(
+            client, "apply", content, revision=initial["revision"], **fields
+        ).status_code
         == 409
     )
-    row = upload(client, "preview", content).json()["rows"][0]
+    row = upload(client, "preview", content, **fields).json()["rows"][0]
     assert row["status"] == "review"
     assert "Several Firefly accounts have this name" in row["reason"]
+    firefly.update_transaction.assert_not_awaited()
+
+
+def test_shorter_card_merchant_conflicts_with_longer_account_name(card_client):
+    client, firefly, _ = card_client
+    firefly.fetch_accounts.return_value.append(
+        SimplifiedAccount(5, "Shop K.1 Market", "expense", active=True)
+    )
+    content = csv(CARD.replace("K.1 WARSZAWA", "K.1 MARKET WARSZAWA"))
+    plan = upload(client, "preview", content, single_account_confirmed="true").json()
+    assert plan["ready"] == 0
+    assert "longer Firefly expense account name" in plan["rows"][0]["reason"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "reason"),
+    [
+        ({"description": "Invoice B-204"}, "descriptions differ"),
+        ({"reconciled": True}, "already reconciled"),
+        ({"reconciled": None}, "reconciliation status"),
+        ({"transaction_journal_id": None}, "journal ID"),
+        ({"tags": ["do-usuniecia"]}, "tagged do-usuniecia"),
+        ({"destination_account": None}, "current counterparty account"),
+        (
+            {"destination_account": replace(UNKNOWN_EXPENSE, type=AccountType.REVENUE)},
+            "incompatible account type",
+        ),
+    ],
+)
+def test_number_match_explains_why_it_requires_review(
+    counterparty_client, changes, reason
+):
+    client, firefly, txs = counterparty_client
+    txs[1] = replace(txs[1], **changes)
+    plan = upload(client, "preview", csv(OUT)).json()
+    assert plan["ready"] == 0
+    assert plan["rows"][0]["status"] == "review"
+    assert reason in plan["rows"][0]["reason"]
     firefly.update_transaction.assert_not_awaited()

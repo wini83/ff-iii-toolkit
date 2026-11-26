@@ -14,6 +14,7 @@
 
   let accounts: StatementAccount[] | null = null;
   let accountId = '';
+  let singleAccountConfirmed = false;
   let files: FileList | undefined;
   let submitted: StatementEvidence | null = null;
   let preview: CounterpartyPreview | null = null;
@@ -48,7 +49,7 @@
   async function compare(event: SubmitEvent) {
     event.preventDefault();
     if (busy || !accountId || !files?.[0]) return;
-    const evidence = { file: files[0], accountId };
+    const evidence = { file: files[0], accountId, singleAccountConfirmed };
     invalidatePreview();
     filter = 'actionable';
     busy = true;
@@ -101,7 +102,12 @@
       <legend class="sr-only">Alior statement</legend>
       <label class="min-w-0 text-sm">
         Firefly account
-        <select class="select mt-1 w-full" bind:value={accountId} required>
+        <select
+          class="select mt-1 w-full"
+          bind:value={accountId}
+          on:change={() => (singleAccountConfirmed = false)}
+          required
+        >
           <option value="" disabled>Select an account</option>
           {#each accounts ?? [] as account (account.id)}
             <option value={String(account.id)}>{account.name}</option>
@@ -115,8 +121,14 @@
           accept=".csv,text/csv"
           class="file-input mt-1 w-full"
           bind:files
+          on:change={() => (singleAccountConfirmed = false)}
           required
         />
+      </label>
+      <label class="flex items-start gap-2 text-sm md:col-span-2">
+        <input type="checkbox" class="checkbox checkbox-sm" bind:checked={singleAccountConfirmed} />
+        This export contains only transactions from the selected account. Confirm to include card rows
+        without bank account numbers.
       </label>
       <button class="btn btn-primary md:w-fit" type="submit" disabled={!accountId || !files?.[0]}>
         Preview changes

@@ -6,14 +6,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from ff_iii_luciferin.api import FireflyAPIError, FireflyClient
+from starlette.concurrency import run_in_threadpool
 
 from api.deps_services import get_firefly_client
 from services.guards import require_active_user
 from services.reconciliation.models import (
     ReconciliationApplyResult,
     ReconciliationPreview,
+    StatementPeriod,
 )
-from services.reconciliation.parser import MAX_UPLOAD_BYTES
+from services.reconciliation.parser import MAX_UPLOAD_BYTES, statement_period
 from services.reconciliation.service import ComparisonChanged, ReconciliationService
 
 router = APIRouter(
@@ -24,14 +26,27 @@ router = APIRouter(
 Client = Annotated[FireflyClient, Depends(get_firefly_client)]
 
 
-async def evidence(file: UploadFile, start: date, end: date) -> bytes:
-    if start > end or (end - start).days > 366:
-        raise HTTPException(422, "Choose an ordered period of at most 366 days")
+async def read_upload(file: UploadFile) -> bytes:
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     await file.close()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Statement exceeds 2 MiB")
     return content
+
+
+async def evidence(file: UploadFile, start: date, end: date) -> bytes:
+    if start > end or (end - start).days > 366:
+        raise HTTPException(422, "Choose an ordered period of at most 366 days")
+    return await read_upload(file)
+
+
+@router.post("/statement-period", response_model=StatementPeriod)
+async def inspect_period(file: UploadFile = File(...)) -> StatementPeriod:
+    content = await read_upload(file)
+    try:
+        return await run_in_threadpool(statement_period, content)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.post("/preview", response_model=ReconciliationPreview)
@@ -64,7 +79,9 @@ async def apply(
     date_to: date = Form(...),
     tolerance_days: int = Form(0, ge=0, le=2),
     revision: str = Form(..., min_length=64, max_length=64),
-    selected_ids: str = Form(..., max_length=2000),
+    selected_ids: str = Form("[]", max_length=2000),
+    selected_group_ids: str = Form("[]", max_length=7000),
+    statement_complete: bool = Form(False),
 ) -> ReconciliationApplyResult:
     content = await evidence(file, date_from, date_to)
     try:
@@ -73,8 +90,24 @@ async def apply(
             type(item) is not int or item <= 0 for item in ids
         ):
             raise ValueError("Invalid transaction selection")
+        group_ids = json.loads(selected_group_ids)
+        if not isinstance(group_ids, list) or any(
+            not isinstance(item, str) or len(item) != 64 for item in group_ids
+        ):
+            raise ValueError("Invalid reconciliation group selection")
+        if (group_ids or len(ids) > 1) and not statement_complete:
+            raise ValueError(
+                "Confirm the statement covers all booked operations before bulk reconciliation"
+            )
         return await ReconciliationService(client).apply(
-            content, account_id, date_from, date_to, tolerance_days, revision, ids
+            content,
+            account_id,
+            date_from,
+            date_to,
+            tolerance_days,
+            revision,
+            ids,
+            group_ids,
         )
     except ComparisonChanged as exc:
         raise HTTPException(409, str(exc)) from exc

@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
@@ -16,8 +16,11 @@ from services.reconciliation.models import (
     ComparisonRow,
     CurrencyDifference,
     FireflyLine,
+    OperationEvidence,
+    ReconciliationGroup,
     ReconciliationPreview,
 )
+from services.reconciliation.operation_groups import group_operations
 
 
 def normalize_title(value: str) -> str:
@@ -38,7 +41,8 @@ def account_movement(tx: SimplifiedTx, account_id: int) -> Decimal | None:
         incoming and tx.type.value == "transfer" and tx.fx is not None
     ):
         return None
-    return -abs(tx.amount) if outgoing else abs(tx.amount)
+    amount = tx.amount.copy_abs()
+    return amount.copy_negate() if outgoing else amount
 
 
 def fingerprint(tx: SimplifiedTx) -> str:
@@ -47,7 +51,7 @@ def fingerprint(tx: SimplifiedTx) -> str:
         "id": tx.id,
         "journal": tx.transaction_journal_id,
         "date": tx.date.isoformat(),
-        "amount": str(tx.amount.normalize()),
+        "amount": amount_key(tx.amount),
         "currency": tx.currency.code,
         "description": tx.description,
         "type": tx.type.value,
@@ -73,7 +77,11 @@ def fingerprint(tx: SimplifiedTx) -> str:
 
 
 def line_for(
-    tx: SimplifiedTx, movement: Decimal, *, title_matches: bool | None = None
+    tx: SimplifiedTx,
+    movement: Decimal,
+    *,
+    title_matches: bool | None = None,
+    normalized_description_key: str | None = None,
 ) -> FireflyLine:
     restriction = None
     if tx.type.value == "transfer":
@@ -90,14 +98,77 @@ def line_for(
         description=tx.description,
         type=tx.type.value,
         reconciled=tx.reconciled,
-        can_mark=restriction is None,
+        can_mark=restriction is None and normalized_description_key is None,
         restriction=restriction,
         title_matches=title_matches,
+        normalized_description_key=normalized_description_key,
     )
 
 
 def account_number(value: str) -> str:
     return re.sub(r"\s+", "", value).upper().removeprefix("PL")
+
+
+def amount_key(amount: Decimal) -> str:
+    """Canonical decimal identity without arithmetic or context rounding."""
+    digits = "".join(map(str, amount.as_tuple().digits)).rstrip("0")
+    if not digits:
+        return "0"
+    sign = "-" if amount.is_signed() else ""
+    return f"{sign}{digits}e{amount.adjusted() + 1 - len(digits)}"
+
+
+def reconciliation_groups(
+    bank: Sequence[BankLine],
+    live: dict[int, tuple[SimplifiedTx, Decimal]],
+    account_id: int,
+) -> list[ReconciliationGroup]:
+    bank_by_key: dict[tuple[date, str, Decimal], list[BankLine]] = defaultdict(list)
+    firefly_by_key: dict[tuple[date, str, Decimal], list[FireflyLine]] = defaultdict(
+        list
+    )
+    for row in bank:
+        bank_by_key[row.date, row.currency, Decimal(row.amount)].append(row)
+    for tx, movement in live.values():
+        firefly_by_key[tx.date, tx.currency.code, movement].append(
+            line_for(tx, movement)
+        )
+
+    groups = []
+    for day, currency, amount in sorted(bank_by_key.keys() | firefly_by_key.keys()):
+        left = bank_by_key[day, currency, amount]
+        right = sorted(firefly_by_key[day, currency, amount], key=lambda line: line.id)
+        # Use the statement's formatting for display when it supplies an amount.
+        amount_text = left[0].amount if left else right[0].amount
+        group_id = hashlib.sha256(
+            json.dumps(
+                [account_id, day.isoformat(), currency, amount_key(amount)]
+            ).encode()
+        ).hexdigest()
+        contains_transfer = any(line.type == "transfer" for line in right)
+        bank_titles = Counter(normalize_title(row.description) for row in left)
+        firefly_titles = Counter(normalize_title(line.description) for line in right)
+        groups.append(
+            ReconciliationGroup(
+                id=group_id,
+                date=day,
+                currency=currency,
+                amount=amount_text,
+                bank=[
+                    OperationEvidence(
+                        id=row.row_id, date=row.date, description=row.description
+                    )
+                    for row in left
+                ],
+                firefly=right,
+                exact_description_count=sum((bank_titles & firefly_titles).values()),
+                contains_transfer=contains_transfer,
+                eligible_ids=[line.id for line in right if line.can_mark]
+                if len(left) == len(right) and not contains_transfer
+                else [],
+            )
+        )
+    return groups
 
 
 def compare_statement(
@@ -111,10 +182,12 @@ def compare_statement(
     file_hash: str,
     skipped_multipart: int = 0,
     skipped_invalid: int = 0,
+    include_operation_groups: bool = True,
 ) -> ReconciliationPreview:
-    selected = [row for row in bank if date_from <= row.date <= date_to]
-    if not selected:
+    in_period = [row for row in bank if date_from <= row.date <= date_to]
+    if not in_period:
         raise ValueError("No statement transactions within the selected period")
+    selected = [row for row in in_period if not Decimal(row.amount).is_zero()]
     live = {}
     excluded = 0
     own_iban = None
@@ -166,6 +239,16 @@ def compare_statement(
         ]
         for tx in strong[row.row_id]:
             reverse[tx.id].append(row.row_id)
+    operation_groups = (
+        group_operations(selected, live, tolerance_days)
+        if include_operation_groups
+        else []
+    )
+    description_pairs = {
+        group.bank[0].id: (group.firefly[0].id, group.compared_key)
+        for group in operation_groups
+        if group.reason == "card_prefix" and len(group.bank) == len(group.firefly) == 1
+    }
     rows = []
     matched_ids = set()
     review_ids: set[int] = set()
@@ -178,6 +261,11 @@ def compare_statement(
             if matched
             else exact + [tx for tx in weak[row.row_id] if tx.id not in exact_ids]
         )
+        suggestion_id, suggestion_key = description_pairs.get(row.row_id, (None, None))
+        if exact or (suggestion_id is not None and reverse[suggestion_id]):
+            suggestion_id, suggestion_key = None, None
+        if suggestion_id is not None:
+            candidates.sort(key=lambda tx: tx.id != suggestion_id)
         status = "matched" if matched else "review" if candidates else "bank_only"
         if matched:
             matched_ids.add(exact[0].id)
@@ -188,13 +276,22 @@ def compare_statement(
                 bank=row,
                 status=status,
                 candidates=[
-                    line_for(tx, live[tx.id][1], title_matches=tx.id in exact_ids)
+                    line_for(
+                        tx,
+                        live[tx.id][1],
+                        title_matches=tx.id in exact_ids,
+                        normalized_description_key=(
+                            suggestion_key if tx.id == suggestion_id else None
+                        ),
+                    )
                     for tx in candidates[:5]
                 ],
                 candidate_count=len(candidates),
                 review_reason=(
                     None
                     if status != "review"
+                    else "description_normalization"
+                    if suggestion_id is not None
                     else "title_mismatch"
                     if not exact
                     and len(candidates) == 1
@@ -242,5 +339,8 @@ def compare_statement(
         ],
         skipped_multipart=skipped_multipart,
         skipped_invalid=skipped_invalid,
+        skipped_zero_amount=len(in_period) - len(selected),
         excluded_foreign_transfers=excluded,
+        operation_groups=operation_groups,
+        reconciliation_groups=reconciliation_groups(selected, live, account_id),
     )

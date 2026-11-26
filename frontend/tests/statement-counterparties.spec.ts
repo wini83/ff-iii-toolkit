@@ -23,6 +23,7 @@ test('previews assignments once, then shows persisted results on the job page', 
       return route.fulfill({ json: [{ id: 1, name: 'Checking' }] });
     }
     if (path.endsWith('/statement-counterparties/preview')) {
+      expect(route.request().postData()).toContain('name="single_account_confirmed"\r\n\r\ntrue');
       return route.fulfill({
         json: {
           revision,
@@ -61,6 +62,7 @@ test('previews assignments once, then shows persisted results on the job page', 
     if (path.endsWith('/statement-counterparties/apply')) {
       writes += 1;
       expect(route.request().postData()).toContain(revision);
+      expect(route.request().postData()).toContain('name="single_account_confirmed"\r\n\r\ntrue');
       return route.fulfill({ status: 202, json: { id: jobId } });
     }
     if (path.endsWith(`/statement-counterparties/jobs/${jobId}`)) {
@@ -88,6 +90,7 @@ test('previews assignments once, then shows persisted results on the job page', 
     mimeType: 'text/csv',
     buffer: Buffer.from('statement')
   });
+  await page.getByRole('checkbox', { name: /this export contains only/i }).check();
   await page.getByRole('button', { name: 'Preview changes' }).click();
   await expect(
     page.getByText('Matched to an existing expense account by card merchant.')

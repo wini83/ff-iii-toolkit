@@ -81,11 +81,16 @@ async def statement_accounts(client: Client) -> list[StatementAccountOption]:
 
 @router.post("/preview")
 async def preview_counterparties(
-    service: Service, file: StatementFile, account_id: AccountId
+    service: Service,
+    file: StatementFile,
+    account_id: AccountId,
+    single_account_confirmed: Annotated[bool, Form()] = False,
 ) -> CounterpartyPreview:
     content = await read_statement(file)
     try:
-        preview, _ = await service.plan(content, account_id)
+        preview, _ = await service.plan(
+            content, account_id, single_account_confirmed=single_account_confirmed
+        )
         return preview
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -102,10 +107,19 @@ async def apply_counterparties(
     file: StatementFile,
     account_id: AccountId,
     revision: Annotated[str, Form(pattern=r"^[a-f0-9]{64}$")],
+    single_account_confirmed: Annotated[bool, Form()] = False,
 ) -> CounterpartyJobResponse:
     content = await read_statement(file)
     try:
-        return job_response(await service.start(user, content, account_id, revision))
+        return job_response(
+            await service.start(
+                user,
+                content,
+                account_id,
+                revision,
+                single_account_confirmed=single_account_confirmed,
+            )
+        )
     except CounterpartyPreviewChanged as exc:
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
