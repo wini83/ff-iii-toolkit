@@ -6,6 +6,12 @@ The monorepo uses one product version for the backend and frontend. Component
 changelogs under `backend/` and `frontend/` remain available as historical
 records for releases before the migration.
 
+## v3.10.0 (2026-11-26)
+
+### Feat
+
+- **reconciliation**: streamline Alior statement reconciliation (#171)
+
 ## v3.9.0 (2026-11-23)
 
 ### Feat
