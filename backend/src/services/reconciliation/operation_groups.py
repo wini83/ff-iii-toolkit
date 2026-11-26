@@ -1,7 +1,7 @@
 """Preview evidence grouped without assigning individual transactions by order."""
 
 from collections import defaultdict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -133,7 +133,7 @@ def connected_groups(
 
 
 def group_operations(
-    bank: list[BankLine],
+    bank: Sequence[BankLine],
     live: dict[int, tuple[SimplifiedTx, Decimal]],
     tolerance_days: int,
 ) -> list[OperationGroup]:

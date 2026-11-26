@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 
@@ -118,7 +119,7 @@ def amount_key(amount: Decimal) -> str:
 
 
 def reconciliation_groups(
-    bank: list[BankLine],
+    bank: Sequence[BankLine],
     live: dict[int, tuple[SimplifiedTx, Decimal]],
     account_id: int,
 ) -> list[ReconciliationGroup]:
@@ -171,7 +172,7 @@ def reconciliation_groups(
 
 
 def compare_statement(
-    bank: list[BankLine],
+    bank: Sequence[BankLine],
     transactions: list[SimplifiedTx],
     *,
     account_id: int,

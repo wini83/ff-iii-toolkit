@@ -27,7 +27,11 @@ DECLARED_RANGE = re.compile(
 )
 
 
-def parse_statement(content: bytes) -> list[BankLine]:
+class StatementLine(BankLine):
+    counterparty_account: str = ""
+
+
+def parse_statement(content: bytes) -> list[StatementLine]:
     rows, _ = _read_statement(content)
     return rows
 
@@ -53,7 +57,7 @@ def statement_period(content: bytes) -> StatementPeriod:
     return StatementPeriod(date_from=first, date_to=last, source="transactions")
 
 
-def _read_statement(content: bytes) -> tuple[list[BankLine], list[str]]:
+def _read_statement(content: bytes) -> tuple[list[StatementLine], list[str]]:
     if not content or len(content) > MAX_UPLOAD_BYTES:
         raise ValueError("Upload a non-empty CSV file of at most 2 MiB")
     try:
@@ -70,7 +74,7 @@ def _read_statement(content: bytes) -> tuple[list[BankLine], list[str]]:
     if not REQUIRED.issubset(header) or len(set(header)) != len(header):
         raise ValueError("Unsupported CSV headers; use the Alior/BLIK export format")
 
-    result: list[BankLine] = []
+    result: list[StatementLine] = []
     nonempty_records = ((line, values) for line, values in records if values)
     for number, (line, values) in enumerate(nonempty_records, start=1):
         if len(values) <= len(header) and not any(value.strip() for value in values):
@@ -104,7 +108,9 @@ def _records(text: str) -> Iterator[tuple[int, list[str]]]:
         yield line, values
 
 
-def _parse_transaction(row: dict[str, str], number: int, location: str) -> BankLine:
+def _parse_transaction(
+    row: dict[str, str], number: int, location: str
+) -> StatementLine:
     try:
         field = "Kwota w walucie rachunku"
         amount = parse_amount(row[field])
@@ -128,17 +134,22 @@ def _parse_transaction(row: dict[str, str], number: int, location: str) -> BankL
     except ValueError:
         raise ValueError(f'Invalid value in "{field}" at {location}') from None
 
-    own = ""
+    own = counterparty = ""
     if not amount.is_zero():
         own = row.get(
             "Numer rachunku nadawcy" if amount < 0 else "Numer rachunku odbiorcy",
             "",
         ).strip()
-    return BankLine(
+        counterparty = row.get(
+            "Numer rachunku odbiorcy" if amount < 0 else "Numer rachunku nadawcy",
+            "",
+        ).strip()
+    return StatementLine(
         row_id=number,
         date=day,
         amount=str(amount),
         currency=currency,
         description=description,
         own_account=own,
+        counterparty_account=counterparty,
     )
